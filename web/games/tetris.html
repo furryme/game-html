@@ -1,0 +1,1495 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>元素方块</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a1a;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  color: #fff;
+  overflow: hidden;
+}
+#game-container {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  transform-origin: top left;
+}
+canvas { display: block; }
+#left-panel, #right-panel {
+  width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.panel-box {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 12px;
+}
+.panel-box h3 {
+  font-size: 12px;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+.stat-value {
+  font-size: 24px;
+  font-weight: bold;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+#next-canvas, #hold-canvas { width: 120px; height: 120px; }
+.spell-list { display: flex; flex-direction: column; gap: 6px; }
+.spell-item {
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  cursor: default;
+  transition: all 0.3s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.spell-item.ready {
+  border-color: rgba(102, 126, 234, 0.6);
+  background: rgba(102, 126, 234, 0.15);
+  cursor: pointer;
+  animation: spellGlow 1.5s ease-in-out infinite;
+}
+.spell-key {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.1);
+}
+@keyframes spellGlow {
+  0%, 100% { box-shadow: 0 0 5px rgba(102, 126, 234, 0.3); }
+  50% { box-shadow: 0 0 15px rgba(102, 126, 234, 0.6); }
+}
+#controls {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  text-align: center;
+}
+#mobile-controls {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px;
+  justify-content: space-between;
+}
+.mobile-btn {
+  width: 60px; height: 60px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.1);
+  border: 2px solid rgba(255,255,255,0.2);
+  color: #fff;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.mobile-btn:active { background: rgba(255,255,255,0.25); }
+.mobile-side { display: flex; gap: 8px; align-items: center; }
+.mobile-btn { touch-action: none; }
+
+#mobile-hud {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 6px 12px;
+  background: rgba(0,0,0,0.7);
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #fff;
+  z-index: 50;
+}
+#mobile-hud > span {
+  white-space: nowrap;
+}
+#mobile-hud .hud-score {
+  font-weight: bold;
+  font-size: 16px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+#mobile-next-canvas {
+  width: 70px;
+  height: 50px;
+}
+@media (max-width: 700px) {
+  #game-container { transform: scale(0.75) !important; transform-origin: top center; }
+  #left-panel, #right-panel { display: none; }
+  #mobile-controls { display: flex; }
+  #mobile-hud { display: flex !important; }
+}
+#help-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.75);
+  z-index: 100;
+  justify-content: center;
+  align-items: center;
+}
+#help-overlay.visible { display: flex; }
+.help-content {
+  background: #1a1a2e;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px;
+  width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 20px 28px;
+  box-shadow: 0 0 40px rgba(102,126,234,0.3);
+}
+.help-header {
+  font-size: 22px;
+  font-weight: bold;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #fff;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  padding-bottom: 12px;
+}
+.help-close {
+  cursor: pointer;
+  font-size: 18px;
+  color: rgba(255,255,255,0.5);
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.help-close:hover { color: #fff; background: rgba(255,255,255,0.1); }
+.help-section { margin-bottom: 18px; }
+.help-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: #667eea;
+  margin-bottom: 8px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.help-row {
+  font-size: 13px;
+  color: rgba(255,255,255,0.8);
+  line-height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.help-row .key {
+  display: inline-block;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: #fff;
+  min-width: 40px;
+  text-align: center;
+  font-family: monospace;
+}
+.help-row .icon {
+  display: inline-block;
+  min-width: 80px;
+}
+</style>
+</head>
+<body>
+<div id="game-container">
+  <div id="left-panel">
+    <div class="panel-box">
+      <h3>保持</h3>
+      <canvas id="hold-canvas" width="120" height="80"></canvas>
+    </div>
+    <div class="panel-box">
+      <h3>分数</h3>
+      <div class="stat-value" id="score-val">0</div>
+    </div>
+    <div class="panel-box">
+      <h3>等级</h3>
+      <div class="stat-value" id="level-val">1</div>
+    </div>
+    <div class="panel-box">
+      <h3>行数</h3>
+      <div class="stat-value" id="lines-val">0</div>
+    </div>
+    <div class="panel-box">
+      <h3>连击</h3>
+      <div class="stat-value" id="combo-val">0</div>
+    </div>
+    <div class="panel-box">
+      <h3>护盾</h3>
+      <div class="stat-value" id="shield-val">0</div>
+    </div>
+  </div>
+
+  <canvas id="board" width="300" height="600"></canvas>
+
+  <div id="help-overlay">
+    <div class="help-content">
+      <div class="help-header">元素方块 - 玩法说明 <span class="help-close" onclick="toggleHelp()">✕</span></div>
+      <div class="help-section">
+        <div class="help-title">操作</div>
+        <div class="help-row"><span class="key">方向键 / WASD</span> 移动方块</div>
+        <div class="help-row"><span class="key">上方向 / W</span> 旋转</div>
+        <div class="help-row"><span class="key">空格</span> 硬降（瞬间落底）</div>
+        <div class="help-row"><span class="key">下方向 / S</span> 加速下落</div>
+        <div class="help-row"><span class="key">C</span> 保持（与当前方块交换）</div>
+        <div class="help-row"><span class="key">按住左/右</span> 连续移动（冲刺）</div>
+        <div class="help-row"><span class="key">P</span> 暂停游戏</div>
+        <div class="help-row"><span class="key">?</span> 打开/关闭说明</div>
+      </div>
+      <div class="help-section">
+        <div class="help-title">特殊方块</div>
+        <div class="help-row" style="color:#aaa;font-size:12px;margin-bottom:6px;">随机出现在下一个预览中，带发光特效，放置后自动触发效果</div>
+        <div class="help-row"><span class="icon" style="color:#ff4444">💣 炸弹</span> 放置后引爆，清除周围 5×5 区域的方块</div>
+        <div class="help-row"><span class="icon" style="color:#ffff00">⚡ 闪电</span> 放置后清除所在整列的所有方块</div>
+        <div class="help-row"><span class="icon" style="color:#00ff88">🛡️ 护盾</span> 放置后获得 1 层护盾，可抵挡对手攻击</div>
+        <div class="help-row"><span class="icon" style="color:#ff00ff">🌈 彩虹</span> 按 Shift 激活彩虹模式，随后用旋转键切换方块形状</div>
+      </div>
+      <div class="help-section">
+        <div class="help-title">法术</div>
+        <div class="help-row"><span class="key">1</span> <span style="color:#ff6644">核爆清除</span> 消 4 行充能（满 2 格可用），释放后清除全场方块</div>
+        <div class="help-row"><span class="key">2</span> <span style="color:#44aaff">时间倒流</span> 消 1 行充能（满 1 格可用），撤销上次锁定</div>
+        <div class="help-row"><span class="key">3</span> <span style="color:#aa44ff">重力反转</span> 消 2 行充能（满 1 格可用），方块沉底重排</div>
+      </div>
+      <div class="help-section">
+        <div class="help-title">得分</div>
+        <div class="help-row"><span class="key">消行</span> 1行=100 / 2行=300 / 3行=500 / 4行=800</div>
+        <div class="help-row"><span class="key">连击</span> 分数 × 等级 × 连击倍数（连续消行，间隔 5 秒内）</div>
+        <div class="help-row"><span class="key">硬降</span> 每格 +2 分</div>
+        <div class="help-row"><span class="key">攻击</span> 等级 3 起对手开始推送垃圾行，护盾可抵挡</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="right-panel">
+    <div class="panel-box">
+      <h3>下一个</h3>
+      <canvas id="next-canvas" width="120" height="340"></canvas>
+    </div>
+    <div class="panel-box">
+      <h3>法术</h3>
+      <div class="spell-list">
+        <div class="spell-item" id="spell-0" onclick="castSpell(0)">
+          <span>核爆清除</span><span class="spell-key">1</span>
+        </div>
+        <div class="spell-item" id="spell-1" onclick="castSpell(1)">
+          <span>时间倒流</span><span class="spell-key">2</span>
+        </div>
+        <div class="spell-item" id="spell-2" onclick="castSpell(2)">
+          <span>重力反转</span><span class="spell-key">3</span>
+        </div>
+      </div>
+    </div>
+    <div class="panel-box">
+      <h3>最高分</h3>
+      <div class="stat-value" id="best-val">0</div>
+    </div>
+  </div>
+</div>
+
+<div id="controls">方向键移动 / 上旋转 / 下加速 / 空格硬降 / C保持 / 1-3法术 / P暂停</div>
+
+<div id="mobile-hud">
+  <span class="hud-score" id="hud-score">0</span>
+  <span>Lv.<span id="hud-level">1</span> 行<span id="hud-lines">0</span> 连击<span id="hud-combo">0</span></span>
+  <canvas id="mobile-next-canvas" width="70" height="50"></canvas>
+</div>
+
+<div id="mobile-controls">
+  <div class="mobile-side">
+    <div class="mobile-btn" ontouchstart="mobileInput('left', event)">◀</div>
+    <div class="mobile-btn" ontouchstart="mobileInput('right', event)">▶</div>
+  </div>
+  <div class="mobile-side">
+    <div class="mobile-btn" ontouchstart="mobileInput('rotate', event)">↻</div>
+    <div class="mobile-btn" ontouchstart="mobileInput('drop', event)">⏬</div>
+  </div>
+  <div class="mobile-side">
+    <div class="mobile-btn" ontouchstart="mobileInput('down', event)">▼</div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  CONSTANTS
+// ============================================================
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+const nextCanvas = document.getElementById('next-canvas');
+const nextCtx = nextCanvas.getContext('2d');
+const holdCanvas = document.getElementById('hold-canvas');
+const holdCtx = holdCanvas.getContext('2d');
+const mobileNextCanvas = document.getElementById('mobile-next-canvas');
+const mobileNextCtx = mobileNextCanvas ? mobileNextCanvas.getContext('2d') : null;
+
+const COLS = 10, ROWS = 20, BS = 30;
+
+const PIECES = {
+  I: { shape: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], color: '#00f0f0' },
+  O: { shape: [[1,1],[1,1]], color: '#f0f000' },
+  T: { shape: [[0,1,0],[1,1,1],[0,0,0]], color: '#a000f0' },
+  S: { shape: [[0,1,1],[1,1,0],[0,0,0]], color: '#00f000' },
+  Z: { shape: [[1,1,0],[0,1,1],[0,0,0]], color: '#f00000' },
+  J: { shape: [[1,0,0],[1,1,1],[0,0,0]], color: '#0000f0' },
+  L: { shape: [[0,0,1],[1,1,1],[0,0,0]], color: '#f0a000' }
+};
+
+const SPECIALS = {
+  bomb:    { color: '#ff4444', icon: '💣', chance: 0.06 },
+  lightning:{ color: '#ffff00', icon: '⚡', chance: 0.04 },
+  shield:  { color: '#00ff88', icon: '🛡️', chance: 0.04 },
+  rainbow: { color: '#ff00ff', icon: '🌈', chance: 0.03 }
+};
+
+const SPELLS = [
+  { name: '核爆清除', desc: '清除所有方块', color: '#ff6644', chargeNeeded: 2 },
+  { name: '时间倒流', desc: '恢复最近一次锁定', color: '#44aaff', chargeNeeded: 1 },
+  { name: '重力反转', desc: '所有方块下落一屏', color: '#aa44ff', chargeNeeded: 1 }
+];
+
+// ============================================================
+//  GAME STATE
+// ============================================================
+let board, piece, nextQueue, holdPiece, canHold;
+let score, level, lines, combo, lastComboTime;
+let spellCharges, spellMax, shields;
+let attackCharge, attackThreshold, attackTimer, attackInterval, _shouldFireAttack;
+let bag, gameOver, paused, started;
+let dropTimer, dropInterval, lastTime;
+let particles, floatingTexts, screenShake, shakeX, shakeY;
+let lastLockInfo, lockHistory;
+let gameLoop;
+const helpBtn = { x: COLS * BS - 24, y: 24, r: 16 };
+
+function tryGetBest() {
+  try { return localStorage.getItem('tetris_best'); } catch (e) { return null; }
+}
+function toggleHelp() {
+  document.getElementById('help-overlay').classList.toggle('visible');
+}
+
+function initState() {
+  board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+  piece = null; nextQueue = []; holdPiece = null; canHold = true;
+  score = 0; level = 1; lines = 0; combo = 0; lastComboTime = 0;
+  spellCharges = [0, 0, 0]; spellMax = [2, 1, 1];
+  shields = 0;
+  attackCharge = 0; attackThreshold = 10;
+  attackTimer = 0; attackInterval = 25000;
+  _shouldFireAttack = false;
+  bag = [];
+  gameOver = false; paused = false; started = false;
+  dropTimer = 0; dropInterval = 800; lastTime = 0;
+  particles = []; floatingTexts = []; screenShake = 0; shakeX = 0; shakeY = 0;
+  lastLockInfo = null; lockHistory = [];
+}
+
+// ============================================================
+//  BAG RANDOMIZER (7-bag)
+// ============================================================
+function fillBag() {
+  const types = 'IOTSZLJ'.split('');
+  for (let i = types.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [types[i], types[j]] = [types[j], types[i]];
+  }
+  bag.push(...types);
+}
+
+function randomType() {
+  if (bag.length < 7) fillBag();
+  return bag.shift();
+}
+
+function randomSpecial() {
+  const r = Math.random();
+  let cum = 0;
+  for (const [type, def] of Object.entries(SPECIALS)) {
+    cum += def.chance;
+    if (r < cum) return type;
+  }
+  return null;
+}
+
+// ============================================================
+//  PIECE MANAGEMENT
+// ============================================================
+function createPiece(type, special) {
+  const p = PIECES[type];
+  return {
+    type,
+    special,
+    blocks: p.shape.map(r => [...r]),
+    color: special ? SPECIALS[special].color : p.color,
+    x: Math.floor((COLS - p.shape[0].length) / 2),
+    y: special ? -1 : 0
+  };
+}
+
+function spawnPiece() {
+  // Decide if special
+  const special = Math.random() < 0.3 ? randomSpecial() : null;
+  const type = special ? randomType() : randomType();
+
+  // For rainbow, we pick a random type but mark as rainbow special
+  piece = createPiece(type, special);
+
+  if (special === 'rainbow') {
+    piece._rainbowMode = null;
+    piece._rainbowKey = null;
+  }
+
+  if (!isValid(piece, piece.x, piece.y)) {
+    // Try one row up
+    piece.y = -1;
+    if (!isValid(piece, piece.x, piece.y)) {
+      endGame();
+      return;
+    }
+  }
+
+  updateGhost();
+  draw();
+}
+
+function fillNextQueue() {
+  while (nextQueue.length < 6) {
+    const special = Math.random() < 0.3 ? randomSpecial() : null;
+    const type = randomType();
+    nextQueue.push({ type, special });
+  }
+}
+
+function spawnFromQueue() {
+  if (nextQueue.length < 6) fillNextQueue();
+  const info = nextQueue.shift();
+  piece = createPiece(info.type, info.special);
+  if (info.special === 'rainbow') {
+    piece._rainbowMode = null;
+    piece._rainbowKey = null;
+  }
+  if (!isValid(piece, piece.x, piece.y)) {
+    piece.y = -1;
+    if (!isValid(piece, piece.x, piece.y)) {
+      endGame();
+      return;
+    }
+  }
+  canHold = true;
+  updateGhost();
+}
+
+// ============================================================
+//  COLLISION & MOVEMENT
+// ============================================================
+function isValid(p, px, py) {
+  for (let r = 0; r < p.blocks.length; r++) {
+    for (let c = 0; c < p.blocks[r].length; c++) {
+      if (!p.blocks[r][c]) continue;
+      const nx = px + c, ny = py + r;
+      if (nx < 0 || nx >= COLS || ny >= ROWS) return false;
+      if (ny >= 0 && board[ny][nx]) return false;
+    }
+  }
+  return true;
+}
+
+function moveLeft() {
+  if (isValid(piece, piece.x - 1, piece.y)) { piece.x--; updateGhost(); }
+}
+
+function moveRight() {
+  if (isValid(piece, piece.x + 1, piece.y)) { piece.x++; updateGhost(); }
+}
+
+function moveDown() {
+  if (isValid(piece, piece.x, piece.y + 1)) {
+    piece.y++;
+    dropTimer = 0;
+  } else {
+    lockPiece();
+  }
+}
+
+function hardDrop() {
+  let dist = 0;
+  while (isValid(piece, piece.x, piece.y + 1)) { piece.y++; dist++; }
+  score += dist * 2;
+  // Impact particles
+  const ghostY = piece.y;
+  lockPiece();
+}
+
+function rotate() {
+  if (!piece || piece.type === 'O') return;
+
+  // Rainbow mode: cycle through available types
+  if (piece.special === 'rainbow' && piece._rainbowMode) {
+    const types = 'IOTSZLJ'.split('');
+    const idx = types.indexOf(piece._rainbowKey);
+    const nextType = types[(idx + 1) % types.length];
+    piece.type = nextType;
+    piece._rainbowKey = nextType;
+    piece.blocks = PIECES[nextType].shape.map(r => [...r]);
+    piece.color = PIECES[nextType].color;
+    // Validate, if not valid try wall kicks
+    if (!isValid(piece, piece.x, piece.y)) {
+      if (!isValid(piece, piece.x - 1, piece.y) &&
+          !isValid(piece, piece.x + 1, piece.y) &&
+          !isValid(piece, piece.x - 2, piece.y) &&
+          !isValid(piece, piece.x + 2, piece.y)) {
+        // Revert
+        const prevIdx = (idx - 1 + types.length) % types.length;
+        piece.type = types[prevIdx];
+        piece._rainbowKey = types[prevIdx];
+        piece.blocks = PIECES[types[prevIdx]].shape.map(r => [...r]);
+        piece.color = PIECES[types[prevIdx]].color;
+      }
+    }
+    updateGhost();
+    return;
+  }
+
+  const blocks = piece.blocks;
+  const n = blocks.length;
+  const rotated = Array.from({ length: n }, () => Array(n).fill(0));
+  for (let r = 0; r < n; r++)
+    for (let c = 0; c < n; c++)
+      rotated[c][n - 1 - r] = blocks[r][c];
+
+  const old = piece.blocks;
+  piece.blocks = rotated;
+
+  // Wall kicks
+  const kicks = [0, -1, 1, -2, 2];
+  let valid = false;
+  for (const kx of kicks) {
+    for (const ky of [0, -1, -2]) {
+      if (isValid(piece, piece.x + kx, piece.y + ky)) {
+        piece.x += kx; piece.y += ky;
+        valid = true; break;
+      }
+    }
+    if (valid) break;
+  }
+  if (!valid) piece.blocks = old;
+
+  updateGhost();
+}
+
+function updateGhost() {
+  if (!piece) return;
+  let gy = piece.y;
+  while (isValid(piece, piece.x, gy + 1)) gy++;
+  piece._ghostY = gy;
+}
+
+// ============================================================
+//  LOCK & LINE CLEAR
+// ============================================================
+function lockPiece() {
+  // Store for time reverse spell
+  lastLockInfo = {
+    board: board.map(r => [...r]),
+    type: piece.type,
+    special: piece.special,
+    color: piece.color,
+    x: piece.x,
+    y: piece.y,
+    blocks: piece.blocks.map(r => [...r])
+  };
+  lockHistory.push({
+    board: board.map(r => [...r]),
+    score, lines, level
+  });
+  if (lockHistory.length > 5) lockHistory.shift();
+
+  // Place blocks on board
+  let placedCells = [];
+  for (let r = 0; r < piece.blocks.length; r++) {
+    for (let c = 0; c < piece.blocks[r].length; c++) {
+      if (!piece.blocks[r][c]) continue;
+      const bx = piece.x + c, by = piece.y + r;
+      if (by >= 0 && by < ROWS && bx >= 0 && bx < COLS) {
+        board[by][bx] = { color: piece.color, special: piece.special };
+        placedCells.push([bx, by]);
+      }
+    }
+  }
+
+  // Handle special block effects
+  handleSpecialEffect(piece.special, placedCells);
+
+  // Clear lines
+  const cleared = clearLines();
+
+  // Combo tracking
+  const now = Date.now();
+  if (cleared > 0 && now - lastComboTime < 5000) {
+    combo++;
+  } else if (cleared > 0) {
+    combo = 1;
+  } else {
+    combo = 0;
+  }
+  lastComboTime = now;
+
+  // Update stats
+  if (cleared > 0) {
+    const base = [0, 100, 300, 500, 800];
+    const comboMult = Math.min(combo, 10);
+    score += (base[cleared] || 800) * level * comboMult;
+    lines += cleared;
+    level = Math.floor(lines / 5) + 1;
+    dropInterval = Math.max(80, 800 - (level - 1) * 50);
+
+    // Spell charge — every clear contributes
+    spellCharges[0] += cleared >= 4 ? 1 : 0;  // 核爆: 消4行直接充能
+    spellCharges[1] += cleared >= 1 ? 1 : 0;  // 时间倒流: 每次消行充能
+    spellCharges[2] += cleared >= 2 ? 1 : 0;  // 重力反转: 双消以上充能
+    if (cleared >= 3) {
+      spawnFloatingText(COLS / 2 * BS, ROWS / 2 * BS, '法术充能!', '#aa44ff', 22);
+    }
+
+    // Attack charge (level 3+, per help text)
+    if (level >= 3) {
+      attackCharge += cleared * level;
+      if (attackCharge >= attackThreshold) {
+        _shouldFireAttack = true;
+        attackCharge = 0;
+      }
+    }
+  }
+
+  updateUI();
+  spawnFromQueue();
+
+  // Fire attack AFTER spawnFromQueue so the new piece is valid on the board
+  if (_shouldFireAttack && !gameOver) {
+    _shouldFireAttack = false;
+    fireAttack();
+  }
+}
+
+function handleSpecialEffect(special, cells) {
+  if (!special || cells.length === 0) return;
+
+  const cx = cells.reduce((s, c) => s + c[0], 0) / cells.length;
+  const cy = cells.reduce((s, c) => s + c[1], 0) / cells.length;
+
+  switch (special) {
+    case 'bomb': {
+      // Explode 5x5 area around placement
+      screenShake = 12;
+      const minX = Math.max(0, Math.floor(cx) - 2);
+      const maxX = Math.min(COLS - 1, Math.floor(cx) + 2);
+      const minY = Math.max(0, Math.floor(cy) - 2);
+      const maxY = Math.min(ROWS - 1, Math.floor(cy) + 2);
+      let destroyed = 0;
+      for (let r = minY; r <= maxY; r++) {
+        for (let c = minX; c <= maxX; c++) {
+          if (board[r][c]) {
+            board[r][c] = 0;
+            destroyed++;
+            spawnParticles(c * BS + BS / 2, r * BS + BS / 2, '#ff4444', 4);
+            spawnParticles(c * BS + BS / 2, r * BS + BS / 2, '#ffaa00', 2);
+          }
+        }
+      }
+      score += destroyed * 20;
+      spawnFloatingText(cx * BS, cy * BS, `爆炸! +${destroyed * 20}`, '#ff4444', 20);
+      break;
+    }
+
+    case 'lightning': {
+      // Clear entire column
+      screenShake = 8;
+      let cleared = 0;
+      const col = Math.round(cx);
+      for (let r = 0; r < ROWS; r++) {
+        if (board[r][col]) {
+          board[r][col] = 0;
+          cleared++;
+          spawnParticles(col * BS + BS / 2, r * BS + BS / 2, '#ffff00', 3);
+        }
+      }
+      score += cleared * 15;
+      spawnFloatingText(col * BS, ROWS / 2 * BS, `闪电! +${cleared * 15}`, '#ffff00', 20);
+      break;
+    }
+
+    case 'shield': {
+      shields++;
+      spawnParticles(cx * BS, cy * BS, '#00ff88', 15);
+      spawnFloatingText(cx * BS, cy * BS, '护盾 +1', '#00ff88', 18);
+      break;
+    }
+  }
+}
+
+function clearLines() {
+  let cleared = 0;
+  for (let r = ROWS - 1; r >= 0; r--) {
+    if (board[r].every(c => c !== 0)) {
+      // Particles for cleared line
+      for (let c = 0; c < COLS; c++) {
+        if (board[r][c]) {
+          spawnParticles(c * BS + BS / 2, r * BS + BS / 2, board[r][c].color || '#fff', 3);
+        }
+      }
+      board.splice(r, 1);
+      board.unshift(Array(COLS).fill(0));
+      cleared++;
+      r++; // recheck row
+    }
+  }
+  if (cleared > 0) {
+    screenShake = Math.min(cleared * 3, 12);
+    const labels = ['', '消行!', '双消!', '三消!', 'TETRIS!!'];
+    spawnFloatingText(COLS / 2 * BS, ROWS / 2 * BS, labels[cleared] || '超级!', '#fff', 24 + cleared * 2);
+  }
+  return cleared;
+}
+
+// ============================================================
+//  ATTACK SYSTEM
+// ============================================================
+function fireAttack() {
+  const garbageRows = Math.min(level, 4);
+  // Push rows up from bottom
+  for (let i = 0; i < garbageRows; i++) {
+    board.shift();
+    // Add garbage row with one hole
+    const row = Array(COLS).fill({ color: '#666688', special: null });
+    const hole = Math.floor(Math.random() * COLS);
+    row[hole] = 0;
+    board.push(row);
+  }
+  screenShake = 6;
+  spawnFloatingText(COLS / 2 * BS, ROWS * BS - 60, '收到攻击!', '#ff6644', 22);
+
+  // Check if board is full after attack
+  if (board[0].every(c => c !== 0)) {
+    endGame();
+    return;
+  }
+
+  // If active piece overlaps with pushed board, try to move it up
+  if (piece && !isValid(piece, piece.x, piece.y)) {
+    let saved = false;
+    for (let dy = -1; dy >= -garbageRows; dy--) {
+      if (isValid(piece, piece.x, piece.y + dy)) {
+        piece.y += dy;
+        saved = true;
+        break;
+      }
+    }
+    if (!saved) endGame();
+  }
+}
+
+// Incoming attack (from level progression)
+function incomingAttack(intensity) {
+  if (shields > 0) {
+    shields--;
+    spawnFloatingText(COLS / 2 * BS, ROWS / 2 * BS, '护盾抵挡!', '#00ff88', 24);
+    screenShake = 4;
+    return;
+  }
+
+  const garbageRows = Math.min(intensity, 3);
+  for (let i = 0; i < garbageRows; i++) {
+    board.shift();
+    const row = Array(COLS).fill({ color: '#555577', special: null });
+    const hole = Math.floor(Math.random() * COLS);
+    row[hole] = 0;
+    board.push(row);
+  }
+  screenShake = Math.max(screenShake, 5);
+  spawnFloatingText(COLS / 2 * BS, ROWS * BS - 60, '收到攻击!', '#ff6644', 20);
+
+  if (board[0].every(c => c !== 0)) endGame();
+  else if (piece && !isValid(piece, piece.x, piece.y)) {
+    // Try to move piece up to avoid overlap with pushed board
+    let saved = false;
+    for (let dy = -1; dy >= -garbageRows; dy--) {
+      if (isValid(piece, piece.x, piece.y + dy)) {
+        piece.y += dy;
+        saved = true;
+        break;
+      }
+    }
+    if (!saved) endGame();
+  }
+}
+
+// ============================================================
+//  SPELLS
+// ============================================================
+function castSpell(idx) {
+  if (!spellCharges[idx] || gameOver || paused) return;
+  spellCharges[idx]--;
+  screenShake = 10;
+
+  switch (idx) {
+    case 0: {
+      // Nuclear clear - remove all blocks
+      for (let r = 0; r < ROWS; r++)
+        for (let c = 0; c < COLS; c++)
+          if (board[r][c]) {
+            spawnParticles(c * BS + BS / 2, r * BS + BS / 2, '#ff6644', 2);
+            board[r][c] = 0;
+          }
+      score += 200 * level;
+      spawnFloatingText(COLS / 2 * BS, ROWS / 2 * BS, '核爆!', '#ff6644', 32);
+      break;
+    }
+
+    case 1: {
+      // Time reverse - undo last lock by restoring full board snapshot
+      if (lastLockInfo) {
+        board = lastLockInfo.board;
+        spawnFromQueue();
+        if (!gameOver) {
+          if (piece && !isValid(piece, piece.x, piece.y)) {
+            for (let dy = -1; dy >= -10; dy--) {
+              if (isValid(piece, piece.x, piece.y + dy)) {
+                piece.y += dy;
+                break;
+              }
+            }
+          }
+          updateGhost();
+        }
+        spawnFloatingText(COLS / 2 * BS, ROWS / 2 * BS, '时间倒流!', '#44aaff', 28);
+      }
+      break;
+    }
+
+    case 2: {
+      // Gravity reverse - everything with empty space below falls to bottom
+      // Compact each column: collect blocks, re-place at bottom
+      for (let c = 0; c < COLS; c++) {
+        const col = [];
+        for (let r = 0; r < ROWS; r++) {
+          if (board[r][c]) col.push(board[r][c]);
+        }
+        // Clear column
+        for (let r = 0; r < ROWS; r++) board[r][c] = 0;
+        // Re-place blocks compacted at bottom
+        for (let i = 0; i < col.length; i++) {
+          board[ROWS - col.length + i][c] = col[i];
+        }
+      }
+      // Clear any lines that formed
+      const cleared = clearLines();
+      score += cleared * 200 * level;
+      spawnFloatingText(COLS / 2 * BS, ROWS / 2 * BS, '重力反转!', '#aa44ff', 28);
+      break;
+    }
+  }
+
+  updateUI();
+}
+
+// ============================================================
+//  HOLD PIECE
+// ============================================================
+function hold() {
+  if (!canHold || !piece || gameOver || paused) return;
+  canHold = false;
+
+  if (holdPiece) {
+    const tmp = holdPiece;
+    holdPiece = { type: piece.type, special: piece.special };
+    piece = createPiece(tmp.type, tmp.special);
+    if (tmp.special === 'rainbow') {
+      piece._rainbowMode = null;
+      piece._rainbowKey = null;
+    }
+  } else {
+    holdPiece = { type: piece.type, special: piece.special };
+    spawnFromQueue();
+    return;
+  }
+  updateGhost();
+}
+
+// ============================================================
+//  PARTICLES & EFFECTS
+// ============================================================
+function spawnParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 8,
+      vy: (Math.random() - 0.5) * 8 - 2,
+      life: 30 + Math.random() * 20,
+      maxLife: 50,
+      color,
+      size: 2 + Math.random() * 3
+    });
+  }
+}
+
+function spawnFloatingText(x, y, text, color, size) {
+  floatingTexts.push({ x, y, text, color, size, life: 60, maxLife: 60 });
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.15;
+    p.life--;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+  for (let i = floatingTexts.length - 1; i >= 0; i--) {
+    const ft = floatingTexts[i];
+    ft.y -= 1;
+    ft.life--;
+    if (ft.life <= 0) floatingTexts.splice(i, 1);
+  }
+
+  // Screen shake decay
+  if (screenShake > 0) {
+    shakeX = (Math.random() - 0.5) * screenShake;
+    shakeY = (Math.random() - 0.5) * screenShake;
+    screenShake *= 0.85;
+    if (screenShake < 0.5) { screenShake = 0; shakeX = 0; shakeY = 0; }
+  }
+}
+
+// ============================================================
+//  DRAWING
+// ============================================================
+function draw() {
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
+
+  // Background
+  ctx.fillStyle = '#0f0f23';
+  ctx.fillRect(-10, -10, COLS * BS + 20, ROWS * BS + 20);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x <= COLS; x++) {
+    ctx.beginPath(); ctx.moveTo(x * BS, 0); ctx.lineTo(x * BS, ROWS * BS); ctx.stroke();
+  }
+  for (let y = 0; y <= ROWS; y++) {
+    ctx.beginPath(); ctx.moveTo(0, y * BS); ctx.lineTo(COLS * BS, y * BS); ctx.stroke();
+  }
+
+  // Board blocks
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (board[r][c]) drawBlock(c, r, board[r][c].color, board[r][c].special);
+    }
+  }
+
+  // Ghost piece
+  if (piece && piece._ghostY !== undefined) {
+    ctx.globalAlpha = 0.2;
+    for (let r = 0; r < piece.blocks.length; r++) {
+      for (let c = 0; c < piece.blocks[r].length; c++) {
+        if (!piece.blocks[r][c]) continue;
+        const gx = piece.x + c, gy = piece._ghostY + r;
+        if (gy >= 0) drawBlock(gx, gy, piece.color, null, true);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Current piece
+  if (piece) {
+    if (piece.special) {
+      const glowAlpha = 0.35 + Math.sin(Date.now() / 200) * 0.15;
+      ctx.shadowColor = piece.color;
+      ctx.shadowBlur = 14;
+    }
+    for (let r = 0; r < piece.blocks.length; r++) {
+      for (let c = 0; c < piece.blocks[r].length; c++) {
+        if (!piece.blocks[r][c]) continue;
+        const bx = piece.x + c, by = piece.y + r;
+        if (by >= 0) drawBlock(bx, by, piece.color, piece.special);
+      }
+    }
+    if (piece.special) {
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  // Particles
+  for (const p of particles) {
+    ctx.globalAlpha = p.life / p.maxLife;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * (p.life / p.maxLife), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Floating texts
+  for (const ft of floatingTexts) {
+    ctx.globalAlpha = ft.life / ft.maxLife;
+    ctx.fillStyle = ft.color;
+    ctx.font = `bold ${ft.size}px 'Microsoft YaHei', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(ft.text, ft.x, ft.y);
+  }
+  ctx.globalAlpha = 1;
+
+  // ? button
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(helpBtn.x, helpBtn.y, helpBtn.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.font = "bold 18px sans-serif";
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('?', helpBtn.x, helpBtn.y + 1);
+
+  // Game over overlay
+  if (gameOver) {
+    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+    ctx.fillRect(0, 0, COLS * BS, ROWS * BS);
+    ctx.fillStyle = '#fff';
+    ctx.font = "bold 36px 'Microsoft YaHei', sans-serif";
+    ctx.textAlign = 'center';
+    ctx.fillText('游戏结束', COLS * BS / 2, ROWS * BS / 2 - 40);
+    ctx.font = "bold 24px 'Microsoft YaHei', sans-serif";
+    ctx.fillText(`分数: ${score}`, COLS * BS / 2, ROWS * BS / 2 + 10);
+    ctx.font = "18px 'Microsoft YaHei', sans-serif";
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText('按空格重新开始', COLS * BS / 2, ROWS * BS / 2 + 50);
+  }
+
+  // Pause overlay
+  if (paused && !gameOver) {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, 0, COLS * BS, ROWS * BS);
+    ctx.fillStyle = '#fff';
+    ctx.font = "bold 32px 'Microsoft YaHei', sans-serif";
+    ctx.textAlign = 'center';
+    ctx.fillText('暂停', COLS * BS / 2, ROWS * BS / 2);
+  }
+
+  ctx.restore();
+
+  // Draw side panels
+  drawNextQueue();
+  drawHoldPiece();
+  drawMobileNext();
+}
+
+function drawMobileNext() {
+  if (!mobileNextCtx || nextQueue.length === 0) return;
+  mobileNextCtx.clearRect(0, 0, 70, 50);
+  const info = nextQueue[0];
+  drawMiniPiece(mobileNextCtx, info.type, info.special, 5, 5, 0.55);
+}
+
+function drawBlock(bx, by, color, special, ghost) {
+  const x = bx * BS, y = by * BS;
+  ctx.fillStyle = color || '#fff';
+  ctx.fillRect(x + 1, y + 1, BS - 2, BS - 2);
+
+  // Inner highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.fillRect(x + 2, y + 2, BS - 6, BS / 2 - 4);
+
+  // Border
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 1.5, y + 1.5, BS - 3, BS - 3);
+
+  // Special icon
+  if (special && SPECIALS[special]) {
+    ctx.font = '16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(SPECIALS[special].icon, x + BS / 2, y + BS / 2);
+  }
+}
+
+function drawMiniPiece(context, type, special, offsetX, offsetY, scale) {
+  const p = PIECES[type];
+  const shape = p.shape;
+  const color = special ? SPECIALS[special].color : p.color;
+  const s = BS * scale;
+
+  // Find bounding box
+  let minR = shape.length, maxR = 0, minC = shape[0].length, maxC = 0;
+  for (let r = 0; r < shape.length; r++)
+    for (let c = 0; c < shape[r].length; c++)
+      if (shape[r][c]) { minR = Math.min(minR, r); maxR = Math.max(maxR, r); minC = Math.min(minC, c); maxC = Math.max(maxC, c); }
+
+  const w = (maxC - minC + 1) * s;
+  const h = (maxR - minR + 1) * s;
+
+  for (let r = minR; r <= maxR; r++) {
+    for (let c = minC; c <= maxC; c++) {
+      if (!shape[r][c]) continue;
+      const x = offsetX + (c - minC) * s;
+      const y = offsetY + (r - minR) * s;
+      context.fillStyle = color;
+      context.fillRect(x + 1, y + 1, s - 2, s - 2);
+      context.fillStyle = 'rgba(255,255,255,0.12)';
+      context.fillRect(x + 2, y + 2, s - 6, s / 2 - 3);
+      if (special && SPECIALS[special]) {
+        context.font = `${Math.round(s * 0.5)}px sans-serif`;
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText(SPECIALS[special].icon, x + s / 2, y + s / 2);
+      }
+    }
+  }
+}
+
+function drawNextQueue() {
+  nextCtx.fillStyle = 'rgba(0,0,0,0)';
+  nextCtx.clearRect(0, 0, 120, 340);
+
+  for (let i = 0; i < Math.min(6, nextQueue.length); i++) {
+    const info = nextQueue[i];
+    const offsetY = 10 + i * 52;
+    drawMiniPiece(nextCtx, info.type, info.special, 25, offsetY, 0.65);
+  }
+}
+
+function drawHoldPiece() {
+  holdCtx.clearRect(0, 0, 120, 80);
+  if (!holdPiece) return;
+  drawMiniPiece(holdCtx, holdPiece.type, holdPiece.special, 25, 15, 0.65);
+}
+
+// ============================================================
+//  UI UPDATES
+// ============================================================
+function updateUI() {
+  document.getElementById('score-val').textContent = score;
+  document.getElementById('level-val').textContent = level;
+  document.getElementById('lines-val').textContent = lines;
+  document.getElementById('combo-val').textContent = combo > 1 ? `${combo}x` : '0';
+  document.getElementById('shield-val').textContent = shields;
+  document.getElementById('best-val').textContent = tryGetBest() || '0';
+
+  // Mobile HUD
+  const hudScore = document.getElementById('hud-score');
+  if (hudScore) {
+    hudScore.textContent = score;
+    document.getElementById('hud-level').textContent = level;
+    document.getElementById('hud-lines').textContent = lines;
+    document.getElementById('hud-combo').textContent = combo > 1 ? `${combo}x` : '0';
+  }
+
+  // Spell charges
+  for (let i = 0; i < 3; i++) {
+    const el = document.getElementById(`spell-${i}`);
+    const max = spellMax[i];
+    if (spellCharges[i] >= max) {
+      el.classList.add('ready');
+      el.querySelector('span:first-child').textContent = `${SPELLS[i].name} [可用]`;
+    } else {
+      el.classList.remove('ready');
+      el.querySelector('span:first-child').textContent = `${SPELLS[i].name} ${spellCharges[i]}/${max}`;
+    }
+  }
+}
+
+// ============================================================
+//  GAME LOOP
+// ============================================================
+function update(timestamp) {
+  if (!lastTime) lastTime = timestamp;
+  const delta = timestamp - lastTime;
+  lastTime = timestamp;
+
+  if (!gameOver && !paused && piece) {
+    dropTimer += delta;
+    if (dropTimer >= dropInterval) {
+      dropTimer = 0;
+      if (isValid(piece, piece.x, piece.y + 1)) {
+        piece.y++;
+      } else {
+        lockPiece();
+      }
+    }
+
+    // Periodic opponent attack (starts at level 3)
+    if (level >= 3) {
+      attackInterval = Math.max(8000, 25000 - (level - 3) * 2000);
+      attackTimer += delta;
+      if (attackTimer >= attackInterval) {
+        attackTimer = 0;
+        incomingAttack(Math.min(Math.floor(level / 3), 3));
+      }
+    }
+  }
+
+  updateParticles();
+  draw();
+  gameLoop = requestAnimationFrame(update);
+}
+
+// ============================================================
+//  INPUT
+// ============================================================
+const KEY_MAP = {
+  ArrowLeft: moveLeft,
+  ArrowRight: moveRight,
+  ArrowDown: moveDown,
+  ArrowUp: rotate,
+  KeyA: moveLeft,
+  KeyD: moveRight,
+  KeyS: moveDown,
+  KeyW: rotate,
+  KeyC: hold
+};
+
+let dashing = null; // { dir: 'left'|'right', initial: timestamp, repeat: count }
+
+document.addEventListener('keydown', e => {
+  if (!started) {
+    started = true;
+    gameLoop = requestAnimationFrame(update);
+  }
+
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (gameOver) { restartGame(); return; }
+    if (piece) hardDrop();
+    return;
+  }
+
+  if (e.code === 'KeyP') {
+    paused = !paused;
+    return;
+  }
+
+  if (e.code === 'Question') {
+    toggleHelp();
+    return;
+  }
+
+  if (gameOver || !piece) return;
+
+  // Spell keys
+  if (e.code === 'Digit1') { castSpell(0); return; }
+  if (e.code === 'Digit2') { castSpell(1); return; }
+  if (e.code === 'Digit3') { castSpell(2); return; }
+
+  // Rainbow piece: Shift key alone activates mode cycling
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+    if (piece.special === 'rainbow' && !piece._rainbowMode) {
+      e.preventDefault();
+      piece._rainbowMode = true;
+      piece._rainbowKey = piece.type;
+      spawnFloatingText(piece.x * BS + BS, piece.y * BS, '彩虹模式!', '#ff00ff', 16);
+      return;
+    }
+  }
+
+  // Rainbow piece: shift+key also activates mode cycling
+  if (e.shiftKey && piece.special === 'rainbow' && !piece._rainbowMode) {
+    piece._rainbowMode = true;
+    piece._rainbowKey = piece.type;
+    spawnFloatingText(piece.x * BS + BS, piece.y * BS, '彩虹模式!', '#ff00ff', 16);
+    return;
+  }
+
+  const action = KEY_MAP[e.code];
+  if (action) {
+    e.preventDefault();
+    action();
+
+    // Dash (holding left/right)
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+      dashing = { dir: 'left', initial: Date.now(), repeat: 0 };
+    }
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+      dashing = { dir: 'right', initial: Date.now(), repeat: 0 };
+    }
+  }
+});
+
+document.addEventListener('keyup', e => {
+  if ((e.code === 'ArrowLeft' || e.code === 'KeyA') && dashing && dashing.dir === 'left') { dashing = null; dashTimer = 0; }
+  if ((e.code === 'ArrowRight' || e.code === 'KeyD') && dashing && dashing.dir === 'right') { dashing = null; dashTimer = 0; }
+});
+
+// Dash support (holding left/right with initial delay then repeat)
+let dashTimer = 0;
+let dashIntervalId = setInterval(() => {
+  if (gameOver || paused || !piece || !dashing) return;
+  const elapsed = Date.now() - dashing.initial;
+  if (elapsed < 170) return;          // initial delay before repeat
+  dashTimer += 50;
+  if (dashTimer < 70) return;         // 70ms between repeats
+  dashTimer = 0;
+  if (dashing.dir === 'left') moveLeft();
+  if (dashing.dir === 'right') moveRight();
+}, 50);
+
+// Mobile input
+function mobileInput(action, e) {
+  if (e) e.preventDefault();
+  if (gameOver) { restartGame(); return; }
+  if (!piece) return;
+  switch (action) {
+    case 'left': moveLeft(); break;
+    case 'right': moveRight(); break;
+    case 'down': moveDown(); break;
+    case 'rotate': rotate(); break;
+    case 'drop': hardDrop(); break;
+  }
+}
+
+// Click handler for ? button
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const dh = Math.sqrt((mx - helpBtn.x) ** 2 + (my - helpBtn.y) ** 2);
+  if (dh < helpBtn.r) {
+    toggleHelp();
+  }
+});
+
+// Touch swipe support
+let touchStart = null;
+canvas.addEventListener('touchstart', e => {
+  touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  if (!started) { started = true; gameLoop = requestAnimationFrame(update); }
+}, { passive: true });
+
+canvas.addEventListener('touchend', e => {
+  if (!touchStart || !piece) { touchStart = null; return; }
+  const dx = e.changedTouches[0].clientX - touchStart.x;
+  const dy = e.changedTouches[0].clientY - touchStart.y;
+  const absDx = Math.abs(dx), absDy = Math.abs(dy);
+
+  if (absDx < 20 && absDy < 20) {
+    rotate(); // Tap = rotate
+  } else if (absDy > absDx && dy > 30) {
+    hardDrop(); // Swipe down = hard drop
+  } else if (absDy > absDx && dy > 0) {
+    moveDown(); // Short swipe down = soft drop
+  } else if (absDx > absDy && dx > 0) {
+    moveRight();
+  } else if (absDx > absDy && dx < 0) {
+    moveLeft();
+  }
+  touchStart = null;
+}, { passive: true });
+
+// ============================================================
+//  GAME MANAGEMENT
+// ============================================================
+function endGame() {
+  clearInterval(dashIntervalId);
+  gameOver = true;
+  screenShake = 15;
+  const best = parseInt(tryGetBest() || '0');
+  if (score > best) {
+    try { localStorage.setItem('tetris_best', score); } catch (e) {}
+    spawnFloatingText(COLS / 2 * BS, ROWS / 2 * BS - 60, '新纪录!', '#ffcc00', 28);
+  }
+  updateUI();
+}
+
+function restartGame() {
+  if (gameLoop) cancelAnimationFrame(gameLoop);
+  clearInterval(dashIntervalId);
+  gameLoop = null;
+  initState();
+  fillNextQueue();
+  spawnFromQueue();
+  updateUI();
+  gameLoop = requestAnimationFrame(update);
+  dashIntervalId = setInterval(() => {
+    if (gameOver || paused || !piece || !dashing) return;
+    const elapsed = Date.now() - dashing.initial;
+    if (elapsed < 170) return;
+    dashTimer += 50;
+    if (dashTimer < 70) return;
+    dashTimer = 0;
+    if (dashing.dir === 'left') moveLeft();
+    if (dashing.dir === 'right') moveRight();
+  }, 50);
+}
+
+// ============================================================
+//  INIT
+// ============================================================
+function init() {
+  initState();
+  fillNextQueue();
+  spawnFromQueue();
+  updateUI();
+
+  // Show start screen
+  ctx.fillStyle = '#0f0f23';
+  ctx.fillRect(0, 0, COLS * BS, ROWS * BS);
+  ctx.fillStyle = '#fff';
+  ctx.font = "bold 36px 'Microsoft YaHei', sans-serif";
+  ctx.textAlign = 'center';
+  ctx.fillText('元素方块', COLS * BS / 2, ROWS * BS / 2 - 60);
+  ctx.font = "16px 'Microsoft YaHei', sans-serif";
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.fillText('💣 炸弹  ⚡ 闪电  🛡️ 护盾  🌈 彩虹', COLS * BS / 2, ROWS * BS / 2 - 10);
+  ctx.fillText('消灭方块获得法术能量', COLS * BS / 2, ROWS * BS / 2 + 25);
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.font = "14px 'Microsoft YaHei', sans-serif";
+  ctx.fillText('按任意键开始', COLS * BS / 2, ROWS * BS / 2 + 70);
+
+  document.addEventListener('keydown', function startHandler(e) {
+    started = true;
+    gameLoop = requestAnimationFrame(update);
+    document.removeEventListener('keydown', startHandler);
+  });
+}
+
+init();
+</script>
+</body>
+</html>

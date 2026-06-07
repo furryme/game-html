@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>贪吃蛇</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #1a1a2e;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-family: 'Segoe UI', sans-serif;
+  color: #eee;
+  flex-direction: column;
+  gap: 16px;
+  user-select: none;
+}
+#header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 400px;
+  font-size: 18px;
+}
+#header span { font-weight: bold; }
+#volBtn {
+  background: none;
+  border: 1px solid #555;
+  border-radius: 6px;
+  color: #eee;
+  font-size: 16px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+  line-height: 1;
+}
+#volBtn:hover { background: #ffffff15; }
+#volBtn.muted { color: #666; border-color: #444; }
+canvas {
+  border: 2px solid #e94560;
+  border-radius: 4px;
+  background: #16213e;
+}
+#message {
+  font-size: 14px;
+  color: #aaa;
+  height: 20px;
+}
+#overlay {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  pointer-events: none;
+}
+#overlay.hidden { display: none; }
+#overlay h2 { font-size: 28px; color: #e94560; }
+#overlay p { font-size: 16px; color: #ccc; }
+button {
+  pointer-events: all;
+  padding: 10px 28px;
+  font-size: 16px;
+  border: none;
+  border-radius: 6px;
+  background: #e94560;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+button:hover { background: #c73650; }
+</style>
+</head>
+<body>
+<div id="header">
+  <div>分数: <span id="score">0</span></div>
+  <div>最高分: <span id="best">0</span></div>
+  <button id="volBtn">🔊</button>
+</div>
+<div style="position:relative; display:flex; align-items:center; justify-content:center;">
+  <canvas id="game" width="400" height="400"></canvas>
+  <div id="overlay">
+    <h2>贪吃蛇</h2>
+    <p>方向键 / WASD 控制</p>
+    <button id="startBtn">开始游戏</button>
+  </div>
+</div>
+<div id="message">按空格暂停 / 继续</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('startBtn');
+const scoreEl = document.getElementById('score');
+const bestEl = document.getElementById('best');
+const messageEl = document.getElementById('message');
+const volBtn = document.getElementById('volBtn');
+
+/* ── 合成音效引擎 (Web Audio API) ── */
+const Audio = (() => {
+  let ac, muted = localStorage.getItem('snake_muted') === '1';
+  let bgmGain, bgmTimer, bgmPlaying = false;
+  const init = () => { if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)(); };
+
+  // 播放一段音调 {频率, 时长, 类型, 音量, 起始延时}
+  const note = (freq, dur, type = 'square', vol = 0.15, delay = 0) => {
+    if (muted) return;
+    init();
+    const t = ac.currentTime + delay;
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(ac.destination);
+    o.start(t);
+    o.stop(t + dur);
+  };
+
+  // ── 背景音乐 ──
+  const BEAT   = 0.20;
+  const melody = [523,659,784,659,523,392,440,494,587,784,880,784,659,587,523,440];
+  const bass   = [131,131,110,110,87,87,98,98];
+  const loopDur = melody.length * BEAT;
+
+  const playLoop = () => {
+    if (muted || !ac) return;
+    const t = ac.currentTime + 0.05;
+    for (let i = 0; i < melody.length; i++) {
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      o.type = 'square';
+      o.frequency.setValueAtTime(melody[i], t + i * BEAT);
+      g.gain.setValueAtTime(0.035, t + i * BEAT);
+      g.gain.exponentialRampToValueAtTime(0.001, t + i * BEAT + BEAT * 0.85);
+      o.connect(g).connect(bgmGain);
+      o.start(t + i * BEAT);
+      o.stop(t + i * BEAT + BEAT * 0.9);
+    }
+    for (let i = 0; i < bass.length; i++) {
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(bass[i], t + i * BEAT * 2);
+      g.gain.setValueAtTime(0.05, t + i * BEAT * 2);
+      g.gain.exponentialRampToValueAtTime(0.001, t + i * BEAT * 2 + BEAT * 1.85);
+      o.connect(g).connect(bgmGain);
+      o.start(t + i * BEAT * 2);
+      o.stop(t + i * BEAT * 2 + BEAT * 1.9);
+    }
+  };
+
+  const startBGM = () => {
+    if (bgmPlaying || muted) return;
+    init();
+    if (!bgmGain) { bgmGain = ac.createGain(); bgmGain.connect(ac.destination); }
+    bgmGain.gain.setValueAtTime(1, ac.currentTime);
+    bgmPlaying = true;
+    playLoop();
+    bgmTimer = setInterval(playLoop, loopDur * 1000);
+  };
+
+  const stopBGM = () => {
+    if (!bgmPlaying) return;
+    clearInterval(bgmTimer);
+    bgmTimer = null;
+    bgmPlaying = false;
+  };
+
+  const setMuted = (v) => {
+    muted = v;
+    localStorage.setItem('snake_muted', muted ? '1' : '0');
+    if (bgmGain) {
+      bgmGain.gain.linearRampToValueAtTime(muted ? 0 : 1, ac.currentTime + 0.05);
+    }
+  };
+
+  return {
+    eat() {
+      if (muted) return;
+      note(520, 0.08, 'square', 0.18);
+      note(780, 0.10, 'square', 0.18, 0.06);
+    },
+    gameOver() {
+      stopBGM();
+      if (muted) return;
+      note(440, 0.18, 'square', 0.14);
+      note(349, 0.18, 'square', 0.14, 0.14);
+      note(262, 0.36, 'square', 0.14, 0.28);
+    },
+    start() {
+      if (muted) return;
+      note(440, 0.08, 'square', 0.12);
+      note(554, 0.08, 'square', 0.12, 0.07);
+      note(659, 0.12, 'square', 0.12, 0.14);
+    },
+    move() {
+      if (muted) return;
+      note(220, 0.04, 'triangle', 0.06);
+    },
+    setMuted, startBGM, stopBGM
+  };
+})();
+
+const GRID = 20;
+const COLS = canvas.width / GRID;
+const ROWS = canvas.height / GRID;
+const SPEED_INIT = 130;
+const SPEED_MIN = 60;
+
+let snake, direction, nextDirection, food, score, best, loop, paused, running;
+
+best = parseInt(localStorage.getItem('snake_best') || '0');
+bestEl.textContent = best;
+
+// 音量按钮初始状态
+let muted = localStorage.getItem('snake_muted') === '1';
+if (muted) { volBtn.textContent = '🔇'; volBtn.classList.add('muted'); }
+volBtn.addEventListener('click', () => {
+  muted = !muted;
+  Audio.setMuted(muted);
+  volBtn.textContent = muted ? '🔇' : '🔊';
+  volBtn.classList.toggle('muted', muted);
+});
+
+function init() {
+  const midX = Math.floor(COLS / 2);
+  const midY = Math.floor(ROWS / 2);
+  snake = [
+    { x: midX, y: midY },
+    { x: midX - 1, y: midY },
+    { x: midX - 2, y: midY }
+  ];
+  direction = { x: 1, y: 0 };
+  nextDirection = { ...direction };
+  score = 0;
+  scoreEl.textContent = score;
+  paused = false;
+  running = true;
+  placeFood();
+  overlay.classList.add('hidden');
+  messageEl.textContent = '按空格暂停 / 继续';
+}
+
+function placeFood() {
+  let pos;
+  do {
+    pos = {
+      x: Math.floor(Math.random() * COLS),
+      y: Math.floor(Math.random() * ROWS)
+    };
+  } while (snake.some(s => s.x === pos.x && s.y === pos.y));
+  food = pos;
+}
+
+function update() {
+  if (paused) return;
+
+  direction = { ...nextDirection };
+
+  const head = {
+    x: snake[0].x + direction.x,
+    y: snake[0].y + direction.y
+  };
+
+  // 碰墙或碰自身 → 游戏结束
+  if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS ||
+      snake.some(s => s.x === head.x && s.y === head.y)) {
+    gameOver();
+    return;
+  }
+
+  snake.unshift(head);
+
+  if (head.x === food.x && head.y === food.y) {
+    score += 10;
+    scoreEl.textContent = score;
+    Audio.eat();
+    if (score > best) {
+      best = score;
+      bestEl.textContent = best;
+      localStorage.setItem('snake_best', best);
+    }
+    placeFood();
+    // 加速
+    clearInterval(loop);
+    const speed = Math.max(SPEED_MIN, SPEED_INIT - Math.floor(score / 30) * 10);
+    loop = setInterval(update, speed);
+  } else {
+    snake.pop();
+  }
+
+  draw();
+}
+
+function draw() {
+  // 背景
+  ctx.fillStyle = '#16213e';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 网格线 (淡)
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  for (let x = 0; x <= COLS; x++) {
+    ctx.beginPath(); ctx.moveTo(x * GRID, 0); ctx.lineTo(x * GRID, canvas.height); ctx.stroke();
+  }
+  for (let y = 0; y <= ROWS; y++) {
+    ctx.beginPath(); ctx.moveTo(0, y * GRID); ctx.lineTo(canvas.width, y * GRID); ctx.stroke();
+  }
+
+  // 蛇身
+  snake.forEach((seg, i) => {
+    const ratio = 1 - i / snake.length;
+    const g = Math.floor(180 + 75 * ratio);
+    ctx.fillStyle = i === 0 ? '#53d769' : `rgb(30,${g},70)`;
+    ctx.fillRect(seg.x * GRID + 1, seg.y * GRID + 1, GRID - 2, GRID - 2);
+    // 圆角
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillRect(seg.x * GRID + 3, seg.y * GRID + 3, GRID - 8, GRID - 8);
+  });
+
+  // 蛇眼
+  const head = snake[0];
+  ctx.fillStyle = '#1a1a2e';
+  const eyeSize = 3;
+  if (direction.x !== 0) {
+    ctx.fillRect(head.x * GRID + (direction.x > 0 ? 13 : 5), head.y * GRID + 5, eyeSize, eyeSize);
+    ctx.fillRect(head.x * GRID + (direction.x > 0 ? 13 : 5), head.y * GRID + 12, eyeSize, eyeSize);
+  } else {
+    ctx.fillRect(head.x * GRID + 5, head.y * GRID + (direction.y > 0 ? 13 : 5), eyeSize, eyeSize);
+    ctx.fillRect(head.x * GRID + 12, head.y * GRID + (direction.y > 0 ? 13 : 5), eyeSize, eyeSize);
+  }
+
+  // 食物
+  ctx.fillStyle = '#e94560';
+  ctx.beginPath();
+  ctx.arc(food.x * GRID + GRID / 2, food.y * GRID + GRID / 2, GRID / 2 - 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.beginPath();
+  ctx.arc(food.x * GRID + GRID / 2 - 2, food.y * GRID + GRID / 2 - 2, 3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function gameOver() {
+  Audio.gameOver();
+  running = false;
+  clearInterval(loop);
+  overlay.classList.remove('hidden');
+  overlay.querySelector('h2').textContent = '游戏结束';
+  overlay.querySelector('p').textContent = `得分: ${score}`;
+  startBtn.textContent = '再来一局';
+  messageEl.textContent = '';
+}
+
+// 键盘控制
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (!running) return;
+    paused = !paused;
+    messageEl.textContent = paused ? '已暂停 - 按空格继续' : '按空格暂停 / 继续';
+    if (paused) {
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#fff';
+      ctx.font = '28px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText('暂停', canvas.width / 2, canvas.height / 2);
+    }
+    return;
+  }
+
+  const keyMap = {
+    ArrowUp:    { x: 0, y: -1 }, KeyW: { x: 0, y: -1 },
+    ArrowDown:  { x: 0, y: 1 },  KeyS: { x: 0, y: 1 },
+    ArrowLeft:  { x: -1, y: 0 }, KeyA: { x: -1, y: 0 },
+    ArrowRight: { x: 1, y: 0 },  KeyD: { x: 1, y: 0 }
+  };
+
+  const dir = keyMap[e.code];
+  if (dir) {
+    e.preventDefault();
+    Audio.move();
+    // 防止反向
+    if (dir.x !== -direction.x || dir.y !== -direction.y) {
+      nextDirection = dir;
+    }
+  }
+});
+
+startBtn.addEventListener('click', () => {
+  Audio.start();
+  Audio.startBGM();
+  clearInterval(loop);
+  init();
+  draw();
+  loop = setInterval(update, SPEED_INIT);
+});
+
+// 初始画面
+ctx.fillStyle = '#16213e';
+ctx.fillRect(0, 0, canvas.width, canvas.height);
+</script>
+</body>
+</html>

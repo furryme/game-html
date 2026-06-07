@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小游戏合集</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    background: #0f0c29;
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 60px 20px;
+  }
+
+  h1 {
+    font-size: 3rem;
+    font-weight: 800;
+    letter-spacing: 4px;
+    margin-bottom: 12px;
+    background: linear-gradient(90deg, #f7971e, #ffd200);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-align: center;
+  }
+
+  .subtitle {
+    color: #8888aa;
+    font-size: 1.1rem;
+    margin-bottom: 50px;
+    text-align: center;
+  }
+
+  .section {
+    max-width: 960px;
+    width: 100%;
+    margin-bottom: 44px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .section-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+
+  .section-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, #444466, transparent);
+  }
+
+  .section-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .dot-done { background: #2ecc71; box-shadow: 0 0 8px #2ecc7188; }
+  .dot-wip  { background: #f39c12; box-shadow: 0 0 8px #f39c1288; }
+
+  .section-subtitle {
+    font-size: 0.85rem;
+    color: #666688;
+    margin-top: -14px;
+    margin-bottom: 20px;
+    padding-left: 2px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px;
+  }
+
+  .card {
+    position: relative;
+    border-radius: 18px;
+    padding: 36px 28px 28px;
+    text-decoration: none;
+    color: #fff;
+    transition: transform 0.25s, box-shadow 0.25s;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 18px;
+    padding: 2px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.03));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .card:hover {
+    transform: translateY(-6px) scale(1.02);
+    box-shadow: 0 18px 44px rgba(0,0,0,0.45);
+  }
+
+  .card:active { transform: translateY(-2px) scale(1.0); }
+
+  .card-icon {
+    font-size: 2.8rem;
+    line-height: 1;
+  }
+
+  .card-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+
+  .card-desc {
+    font-size: 0.92rem;
+    color: #b0b0cc;
+    line-height: 1.5;
+  }
+
+  .card-tag {
+    display: inline-block;
+    margin-top: auto;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    align-self: flex-start;
+    letter-spacing: 0.5px;
+  }
+
+  /* Per-card gradients */
+  .card-slime       { background: linear-gradient(145deg, #1a3a2a, #0d1f17); }
+  .card-slime .card-tag { background: #2ecc7133; color: #5fd997; }
+
+  .card-candy        { background: linear-gradient(145deg, #3a1a2a, #1f0d17); }
+  .card-candy .card-tag { background: #e8439333; color: #fd79a8; }
+
+  .card-brick        { background: linear-gradient(145deg, #3a2a1a, #1f170d); }
+  .card-brick .card-tag { background: #f39c1233; color: #fdcb6e; }
+
+  .card-dungeon      { background: linear-gradient(145deg, #1a1a3a, #0d0d1f); }
+  .card-dungeon .card-tag { background: #6c5ce733; color: #a29bfe; }
+
+  .card-element      { background: linear-gradient(145deg, #1a2a3a, #0d1717); }
+  .card-element .card-tag { background: #00b89433; color: #55efc4; }
+
+  footer {
+    margin-top: 60px;
+    color: #555;
+    font-size: 0.85rem;
+  }
+</style>
+</head>
+<body>
+
+<h1>GAME HUB</h1>
+<p class="subtitle">选一个游戏，立即开始</p>
+
+<!-- Completed Games -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-dot dot-done"></span>
+    <span class="section-title">已完成</span>
+    <span class="section-line"></span>
+  </div>
+  <p class="section-subtitle">可以正常游玩，功能完整</p>
+
+  <div class="grid">
+
+    <a class="card card-slime" href="games/snake.html">
+      <span class="card-icon">🐍</span>
+      <span class="card-title">贪吃蛇</span>
+      <span class="card-desc">经典贪吃蛇，操控方向吃掉食物，越吃越长，别撞到自己和墙壁。</span>
+      <span class="card-tag">经典</span>
+    </a>
+
+    <a class="card card-candy" href="games/snake_creative.html">
+      <span class="card-icon">🐉</span>
+      <span class="card-title">创意贪吃蛇</span>
+      <span class="card-desc">道具版贪吃蛇，地图上散落各种增益道具，让游戏更加刺激有趣。</span>
+      <span class="card-tag">道具</span>
+    </a>
+
+    <a class="card card-brick" href="games/breakout.html">
+      <span class="card-icon">🧱</span>
+      <span class="card-title">打砖块</span>
+      <span class="card-desc">反弹小球击碎所有砖块，别让球掉落，挑战更高分数。</span>
+      <span class="card-tag">街机</span>
+    </a>
+
+  </div>
+</div>
+
+<!-- Work in Progress -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-dot dot-wip"></span>
+    <span class="section-title">开发中</span>
+    <span class="section-line"></span>
+  </div>
+  <p class="section-subtitle">还在完善中，体验可能不够完善</p>
+
+  <div class="grid">
+
+    <a class="card card-dungeon" href="games/rpg.html">
+      <span class="card-icon">⚔️</span>
+      <span class="card-title">地牢勇者 RPG</span>
+      <span class="card-desc">探索地牢，击败怪物，收集装备，成为最强勇者。</span>
+      <span class="card-tag">RPG</span>
+    </a>
+
+    <a class="card card-element" href="games/tetris.html">
+      <span class="card-icon">🟦</span>
+      <span class="card-title">元素方块</span>
+      <span class="card-desc">经典方块消除，旋转下落填满整行，考验你的反应和策略。</span>
+      <span class="card-tag">益智</span>
+    </a>
+
+  </div>
+</div>
+
+<footer>共 5 款小游戏 &mdash; 全部免费，即点即玩</footer>
+
+</body>
+</html>

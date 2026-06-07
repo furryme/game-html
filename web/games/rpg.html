@@ -1,0 +1,1516 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>地牢勇者 RPG</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+@font-face { font-family: 'pixel'; src: local('SimHei'), local('Microsoft YaHei'); }
+body {
+  background: #0a0a14;
+  font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  color: #e0e0e0;
+  display: flex; justify-content: center; align-items: center;
+  min-height: 100vh; flex-direction: column;
+  user-select: none; overflow: hidden;
+}
+
+/* === SCREENS === */
+.screen {
+  display: none; flex-direction: column; align-items: center;
+  width: 780px; animation: fadeIn 0.3s;
+}
+.screen.active { display: flex; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* === TITLE === */
+#title-screen h1 {
+  font-size: 48px; color: #ffd700;
+  text-shadow: 0 0 30px rgba(255,215,0,0.4);
+  margin-bottom: 8px;
+}
+#title-screen .sub { color: #888; font-size: 15px; margin-bottom: 40px; }
+
+.class-grid { display: flex; gap: 16px; margin-bottom: 30px; }
+.class-card {
+  width: 200px; padding: 20px 16px; border: 2px solid #333;
+  border-radius: 12px; cursor: pointer; transition: all 0.2s;
+  background: #12121e; text-align: center;
+}
+.class-card:hover { border-color: #ffd700; transform: translateY(-4px); box-shadow: 0 8px 30px rgba(255,215,0,0.15); }
+.class-card.selected { border-color: #ffd700; background: #1a1a2e; box-shadow: 0 0 20px rgba(255,215,0,0.2); }
+.class-card .icon { font-size: 48px; margin-bottom: 8px; }
+.class-card .name { font-size: 20px; font-weight: bold; color: #ffd700; margin-bottom: 6px; }
+.class-card .desc { font-size: 12px; color: #999; margin-bottom: 12px; line-height: 1.5; }
+.stat-row { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; }
+.stat-row .label { color: #888; }
+.stat-row .val { color: #fff; font-weight: bold; }
+
+.btn {
+  padding: 12px 40px; font-size: 17px; border: none; border-radius: 8px;
+  cursor: pointer; font-weight: bold; transition: all 0.15s;
+}
+.btn-gold {
+  background: linear-gradient(135deg, #ffd700, #f0a500);
+  color: #1a1a1a;
+}
+.btn-gold:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,215,0,0.4); }
+.btn-gold:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.btn-sm { padding: 8px 20px; font-size: 14px; border-radius: 6px; }
+.btn-attack { background: #e53935; color: #fff; }
+.btn-skill { background: #7c4dff; color: #fff; }
+.btn-item { background: #43a047; color: #fff; }
+.btn-defend { background: #1e88e5; color: #fff; }
+.btn-flee { background: #555; color: #ccc; }
+.btn:hover { filter: brightness(1.2); transform: scale(1.03); }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; filter: none; }
+
+/* === GAME SCREEN === */
+#game-screen { gap: 0; }
+
+#game-top {
+  display: flex; gap: 0; width: 780px; border: 1px solid #2a2a3a;
+  border-radius: 10px 10px 0 0; overflow: hidden;
+}
+#game-left {
+  flex: 0 0 200px; background: #10101c; padding: 12px;
+  display: flex; flex-direction: column; gap: 8px; border-right: 1px solid #2a2a3a;
+}
+#game-center {
+  flex: 1; position: relative; background: #0d0d18; min-width: 0;
+}
+#game-right {
+  flex: 0 0 200px; background: #10101c; padding: 10px;
+  border-left: 1px solid #2a2a3a; overflow-y: auto;
+  font-size: 12px; line-height: 1.6;
+  height: 420px; max-height: 420px;
+}
+#game-right::-webkit-scrollbar { width: 4px; }
+#game-right::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+#game-bottom {
+  width: 780px; background: #10101c; border: 1px solid #2a2a3a;
+  border-top: none; border-radius: 0 0 10px 10px;
+  padding: 10px 16px; min-height: 70px;
+}
+
+/* Player panel */
+.player-info { font-size: 13px; }
+.player-info .p-name { font-size: 16px; font-weight: bold; color: #ffd700; margin-bottom: 4px; }
+.player-info .p-class { font-size: 11px; color: #888; margin-bottom: 8px; }
+.bar-wrap { margin: 3px 0; }
+.bar-label { font-size: 11px; color: #aaa; display: flex; justify-content: space-between; }
+.bar { height: 14px; background: #1a1a2e; border-radius: 7px; overflow: hidden; margin-top: 2px; }
+.bar-hp .fill { background: linear-gradient(90deg, #e53935, #66bb6a); height: 100%; transition: width 0.3s; }
+.bar-mp .fill { background: linear-gradient(90deg, #1565c0, #42a5f5); height: 100%; transition: width 0.3s; }
+.bar-exp .fill { background: linear-gradient(90deg, #f9a825, #ffd740); height: 100%; transition: width 0.3s; }
+
+.equip-slot { font-size: 12px; padding: 4px 0; color: #888; }
+.equip-slot .eq-name { color: #ce93d8; }
+
+.gold-display { font-size: 13px; color: #ffd700; margin-top: 4px; }
+
+/* Log */
+.log-entry { padding: 2px 0; border-bottom: 1px solid #1a1a2e; }
+.log-dmg { color: #ef5350; }
+.log-heal { color: #66bb6a; }
+.log-info { color: #64b5f6; }
+.log-loot { color: #ffd740; }
+.log-skill { color: #ce93d8; }
+
+/* Map */
+#map-canvas { display: block; width: 100%; height: 420px; image-rendering: pixelated; }
+
+/* Combat */
+#combat-view {
+  display: none; width: 100%; height: 420px;
+  flex-direction: column; align-items: center; justify-content: center;
+  position: relative; overflow: hidden;
+}
+.enemy-display { text-align: center; margin-bottom: 20px; }
+.enemy-display .e-icon { font-size: 72px; animation: enemyIdle 2s infinite; }
+.enemy-display .e-name { font-size: 20px; font-weight: bold; color: #ef5350; margin: 8px 0 4px; }
+.enemy-display .e-lvl { font-size: 12px; color: #888; }
+.enemy-hp-bar { width: 240px; margin: 8px auto; }
+.enemy-hp-bar .bar { height: 18px; }
+.enemy-hp-bar .fill { background: linear-gradient(90deg, #c62828, #e53935); height: 100%; transition: width 0.3s; }
+
+@keyframes enemyIdle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+.shake { animation: shake 0.3s; }
+
+#action-bar {
+  display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+}
+
+/* Turn indicator */
+.turn-indicator {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  font-size: 14px; padding: 4px 16px; border-radius: 12px;
+  background: rgba(0,0,0,0.6); color: #ffd700;
+}
+
+/* Floating damage */
+.float-dmg {
+  position: absolute; font-size: 28px; font-weight: bold;
+  pointer-events: none; animation: floatUp 1s forwards;
+  text-shadow: 0 0 6px rgba(0,0,0,0.8); z-index: 20;
+}
+@keyframes floatUp {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-60px) scale(0.6); }
+}
+
+/* Particles canvas overlay */
+#particles-canvas {
+  position: absolute; inset: 0; pointer-events: none; z-index: 15;
+}
+
+/* === INVENTORY MODAL === */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  display: flex; align-items: center; justify-content: center; z-index: 100;
+}
+.modal-overlay.hidden { display: none; }
+.modal {
+  background: #141422; border: 2px solid #333; border-radius: 12px;
+  padding: 24px; min-width: 400px; max-height: 80vh; overflow-y: auto;
+}
+.modal h3 { font-size: 20px; color: #ffd700; margin-bottom: 16px; text-align: center; }
+.inv-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px; margin: 4px 0; background: #1a1a2e; border-radius: 6px;
+  font-size: 14px;
+}
+.inv-item .item-info { display: flex; align-items: center; gap: 10px; }
+.inv-item .item-icon { font-size: 24px; }
+.inv-item .item-name { font-weight: bold; }
+.inv-item .item-desc { font-size: 11px; color: #888; }
+.inv-item .item-count { color: #ffd700; font-weight: bold; }
+
+.equip-section { margin-top: 16px; border-top: 1px solid #333; padding-top: 12px; }
+.equip-section h4 { font-size: 15px; color: #ce93d8; margin-bottom: 8px; }
+.drop-list { display: flex; flex-direction: column; gap: 4px; margin: 12px 0; }
+.drop-item {
+  padding: 8px 12px; background: #1a1a2e; border-radius: 6px;
+  font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px;
+}
+.drop-item:hover { background: #252540; }
+
+/* Skills panel */
+.skills-grid { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.skill-btn {
+  padding: 6px 14px; font-size: 13px; border: 1px solid #7c4dff;
+  border-radius: 6px; background: #1a1a2e; color: #ce93d8; cursor: pointer;
+  transition: all 0.15s;
+}
+.skill-btn:hover { background: #7c4dff; color: #fff; }
+.skill-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.skill-btn .cost { font-size: 11px; color: #64b5f6; }
+
+/* Floor transition */
+.floor-banner {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; z-index: 25;
+  background: rgba(0,0,0,0.85); animation: fadeIn 0.5s;
+}
+.floor-banner h2 { font-size: 36px; color: #ffd700; margin-bottom: 8px; }
+.floor-banner p { color: #aaa; font-size: 16px; }
+
+/* Victory screen */
+#victory-screen h1 { font-size: 42px; color: #ffd700; margin-bottom: 12px; }
+#victory-screen .stats { font-size: 16px; color: #ccc; margin-bottom: 20px; line-height: 2; }
+
+/* Game Over */
+#gameover-screen h1 { font-size: 42px; color: #e53935; margin-bottom: 12px; }
+#gameover-screen .stats { font-size: 15px; color: #999; margin-bottom: 20px; }
+
+/* Explore actions */
+#explore-actions {
+  display: flex; gap: 8px; justify-content: center; margin-top: 8px;
+}
+
+/* Responsive */
+@media (max-width: 800px) {
+  #game-top { flex-direction: column; width: 95vw; }
+  #game-left, #game-right { width: 100%; flex-direction: row; }
+  #game-bottom { width: 95vw; }
+  .screen { width: 95vw; }
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== TITLE SCREEN ==================== -->
+<div id="title-screen" class="screen active">
+  <h1>⚔️ 地牢勇者</h1>
+  <p class="sub">选择你的职业，踏上传奇之旅</p>
+  <div class="class-grid" id="class-grid"></div>
+  <button class="btn btn-gold" id="start-btn" disabled>开始冒险</button>
+</div>
+
+<!-- ==================== GAME SCREEN ==================== -->
+<div id="game-screen" class="screen">
+  <div id="game-top">
+    <div id="game-left">
+      <div class="player-info" id="player-panel"></div>
+      <div id="equip-panel"></div>
+      <div class="gold-display" id="gold-display"></div>
+      <div style="margin-top:auto; display:flex; gap:6px;">
+        <button class="btn btn-sm btn-item" id="inv-btn" style="flex:1;">🎒 背包</button>
+        <button class="btn btn-sm btn-skill" id="skills-btn" style="flex:1;">✨ 技能</button>
+      </div>
+    </div>
+    <div id="game-center">
+      <!-- Explore Mode -->
+      <canvas id="map-canvas" width="540" height="420"></canvas>
+      <!-- Combat Mode -->
+      <div id="combat-view">
+        <canvas id="particles-canvas" width="540" height="420"></canvas>
+        <div class="enemy-display" id="enemy-display"></div>
+        <div class="turn-indicator" id="turn-indicator"></div>
+      </div>
+      <!-- Floor banner overlay -->
+      <div id="floor-overlay"></div>
+    </div>
+    <div id="game-right">
+      <div id="log"></div>
+    </div>
+  </div>
+  <div id="game-bottom" id="action-area"></div>
+</div>
+
+<!-- ==================== VICTORY ==================== -->
+<div id="victory-screen" class="screen">
+  <h1>🏆 胜利！</h1>
+  <p class="stats" id="victory-stats"></p>
+  <button class="btn btn-gold" onclick="location.reload()">再来一次</button>
+</div>
+
+<!-- ==================== GAME OVER ==================== -->
+<div id="gameover-screen" class="screen">
+  <h1>💀 阵亡</h1>
+  <p class="stats" id="gameover-stats"></p>
+  <button class="btn btn-gold" onclick="location.reload()">重新挑战</button>
+</div>
+
+<!-- ==================== MODALS ==================== -->
+<div id="modal-overlay" class="modal-overlay hidden"></div>
+
+<script>
+// ================================================================
+//  DATA
+// ================================================================
+
+const CLASSES = {
+  warrior: {
+    name: '战士', icon: '⚔️', color: '#e53935',
+    desc: '高生命高防御的坦克，近战输出稳定',
+    base: { hp: 120, mp: 30, atk: 14, def: 10, spd: 8 },
+    growth: { hp: 18, mp: 4, atk: 3, def: 3, spd: 1 },
+    skills: [
+      { name: '猛击', mp: 8, desc: '1.8倍攻击力', lvl: 1, type: 'dmg', mult: 1.8 },
+      { name: '旋风斩', mp: 15, desc: '1.5倍攻击，回复10%HP', lvl: 3, type: 'dmg_heal', mult: 1.5, heal: 0.1 },
+      { name: '怒火冲锋', mp: 25, desc: '2.5倍攻击，自身承受30%反伤', lvl: 5, type: 'dmg_self', mult: 2.5, self: 0.3 },
+    ]
+  },
+  mage: {
+    name: '法师', icon: '🔮', color: '#7c4dff',
+    desc: '强大的魔法输出，但身板较脆',
+    base: { hp: 70, mp: 80, atk: 8, def: 5, spd: 10 },
+    growth: { hp: 10, mp: 14, atk: 2, def: 1, spd: 2 },
+    skills: [
+      { name: '火球术', mp: 10, desc: '2.2倍魔法攻击', lvl: 1, type: 'dmg', mult: 2.2 },
+      { name: '治疗术', mp: 18, desc: '回复40%最大HP', lvl: 3, type: 'heal', mult: 0.4 },
+      { name: '冰封爆裂', mp: 30, desc: '3.5倍魔法攻击', lvl: 5, type: 'dmg', mult: 3.5 },
+    ]
+  },
+  rogue: {
+    name: '游侠', icon: '🗡️', color: '#66bb6a',
+    desc: '高暴击高速度，擅长连击爆发',
+    base: { hp: 90, mp: 50, atk: 11, def: 6, spd: 15 },
+    growth: { hp: 13, mp: 7, atk: 3, def: 1, spd: 3 },
+    skills: [
+      { name: '背刺', mp: 8, desc: '2倍攻击，必暴击', lvl: 1, type: 'crit', mult: 2.0 },
+      { name: '毒刃', mp: 14, desc: '1.2倍+每回合中毒3回合', lvl: 3, type: 'dmg_dot', mult: 1.2, dot: 3 },
+      { name: '暗影突袭', mp: 22, desc: '2.8倍攻击，闪避下次攻击', lvl: 5, type: 'dmg_dodge', mult: 2.8 },
+    ]
+  }
+};
+
+const ENEMIES = [
+  // Floor 1
+  { name: '史莱姆', icon: '🟢', hp: 30, atk: 6, def: 2, exp: 12, gold: [3, 8] },
+  { name: '蝙蝠', icon: '🦇', hp: 22, atk: 9, def: 1, exp: 10, gold: [2, 6] },
+  { name: '地鼠', icon: '🐀', hp: 40, atk: 7, def: 4, exp: 15, gold: [4, 10] },
+  // Floor 2
+  { name: '骷髅兵', icon: '💀', hp: 55, atk: 12, def: 6, exp: 22, gold: [6, 15] },
+  { name: '毒蜘蛛', icon: '🕷️', hp: 45, atk: 15, def: 4, exp: 25, gold: [8, 14] },
+  { name: '哥布林', icon: '👺', hp: 60, atk: 11, def: 7, exp: 20, gold: [5, 18] },
+  // Floor 3
+  { name: '骷髅弓手', icon: '🏹', hp: 50, atk: 18, def: 5, exp: 35, gold: [10, 20] },
+  { name: '幽灵', icon: '👻', hp: 65, atk: 16, def: 8, exp: 38, gold: [12, 22] },
+  { name: '石像鬼', icon: '🗿', hp: 90, atk: 14, def: 14, exp: 40, gold: [10, 25] },
+  // Floor 4
+  { name: '恶魔犬', icon: '🐺', hp: 80, atk: 22, def: 10, exp: 50, gold: [15, 30] },
+  { name: '巫毒师', icon: '🧙', hp: 60, atk: 28, def: 6, exp: 55, gold: [18, 35] },
+  { name: '暗影刺客', icon: '🥷', hp: 70, atk: 25, def: 12, exp: 52, gold: [14, 32] },
+  // Floor 5 boss
+  { name: '👑 暗黑龙', icon: '🐉', hp: 350, atk: 35, def: 18, exp: 200, gold: [80, 120], boss: true },
+];
+
+const ITEMS_DATA = {
+  hp_potion:  { name: '生命药水',  icon: '❤️',  desc: '回复80HP',       type: 'consumable', effect: 'hp',  val: 80,  price: 25 },
+  mp_potion:  { name: '魔力药水',  icon: '💙',  desc: '回复40MP',       type: 'consumable', effect: 'mp',  val: 40,  price: 20 },
+  big_hp:     { name: '大生命药水', icon: '💖', desc: '回复200HP',      type: 'consumable', effect: 'hp',  val: 200, price: 60 },
+  elixir:     { name: '万能药',    icon: '✨',  desc: '全回复HP+MP',    type: 'consumable', effect: 'all', val: 0,   price: 100 },
+  bomb:       { name: '炸弹',      icon: '💣',  desc: '对敌人造成60伤害', type: 'consumable', effect: 'dmg', val: 60,  price: 35 },
+  antidote:   { name: '解毒药',    icon: '🧪',  desc: '解除中毒',       type: 'consumable', effect: 'cure',val: 0,   price: 15 },
+};
+
+const EQUIP_TEMPLATES = {
+  weapon: [
+    { name: '铁剑',     icon: '🗡️', atk: 4,  minFloor: 1 },
+    { name: '钢剑',     icon: '⚔️', atk: 8,  minFloor: 2 },
+    { name: '魔法杖',   icon: '🪄', atk: 6,  mp: 15, minFloor: 1 },
+    { name: '烈火剑',   icon: '🔥', atk: 14, minFloor: 3 },
+    { name: '暗影匕首', icon: '🌑', atk: 12, crit: 15, minFloor: 2 },
+    { name: '圣剑',     icon: '✨', atk: 20, minFloor: 4 },
+  ],
+  armor: [
+    { name: '布甲',   icon: '👕', def: 3,  minFloor: 1 },
+    { name: '锁子甲', icon: '🦺', def: 6,  minFloor: 1 },
+    { name: '铁甲',   icon: '🛡️', def: 10, minFloor: 2 },
+    { name: '秘银甲', icon: '💎', def: 16, minFloor: 4 },
+    { name: '龙鳞甲', icon: '🐲', def: 22, minFloor: 5 },
+  ]
+};
+
+// ================================================================
+//  STATE
+// ================================================================
+let player = null;
+let currentFloor = 1;
+let map = null;
+let playerPos = null;
+let stairsPos = null;
+let combatState = null;
+let pendingEquipItem = null;
+let modalOpen = false;
+let inCombat = false;
+let selectedClass = null;
+let turnCount = 0;
+let totalKills = 0;
+let mapRevealed = null;  // fog of war
+
+// ================================================================
+//  UTILITIES
+// ================================================================
+function rng(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function addLog(text, cls = '') {
+  const log = document.getElementById('log');
+  const div = document.createElement('div');
+  div.className = 'log-entry' + (cls ? ' log-' + cls : '');
+  div.innerHTML = text;
+  log.prepend(div);
+  if (log.children.length > 25) log.lastChild.remove();
+}
+
+// ================================================================
+//  CLASS SELECTION
+// ================================================================
+(function initClassSelect() {
+  const grid = document.getElementById('class-grid');
+  for (const [key, c] of Object.entries(CLASSES)) {
+    const card = document.createElement('div');
+    card.className = 'class-card';
+    card.dataset.cls = key;
+    card.innerHTML = `
+      <div class="icon">${c.icon}</div>
+      <div class="name">${c.name}</div>
+      <div class="desc">${c.desc}</div>
+      <div class="stat-row"><span class="label">HP</span><span class="val">${c.base.hp}</span></div>
+      <div class="stat-row"><span class="label">MP</span><span class="val">${c.base.mp}</span></div>
+      <div class="stat-row"><span class="label">ATK</span><span class="val">${c.base.atk}</span></div>
+      <div class="stat-row"><span class="label">DEF</span><span class="val">${c.base.def}</span></div>
+      <div class="stat-row"><span class="label">SPD</span><span class="val">${c.base.spd}</span></div>
+    `;
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.class-card').forEach(x => x.classList.remove('selected'));
+      card.classList.add('selected');
+      selectedClass = key;
+      document.getElementById('start-btn').disabled = false;
+    });
+    grid.appendChild(card);
+  }
+})();
+
+document.getElementById('start-btn').addEventListener('click', () => {
+  if (!selectedClass) return;
+  initPlayer();
+  showScreen('game-screen');
+  generateFloor(1);
+  renderAll();
+  addLog('冒险开始了！使用 <b>方向键/WASD</b> 移动，找到 <b>🚪楼梯</b> 前往下一层。', 'info');
+  addLog('地图上可见的图标是敌人，走到它们身上进入战斗。', 'info');
+  addLog('当前目标：探索地牢，击败每层的怪物。', 'info');
+});
+
+// ================================================================
+//  PLAYER
+// ================================================================
+function initPlayer() {
+  const c = CLASSES[selectedClass];
+  player = {
+    cls: selectedClass,
+    clsData: c,
+    name: c.name,
+    icon: c.icon,
+    lvl: 1, exp: 0, expNext: 30,
+    hp: c.base.hp, maxHp: c.base.hp,
+    mp: c.base.mp, maxMp: c.base.mp,
+    baseAtk: c.base.atk, baseDef: c.base.def, baseSpd: c.base.spd,
+    equip: { weapon: null, armor: null },
+    inventory: {
+      hp_potion: 3,
+      mp_potion: 1,
+      antidote: 1,
+    },
+    gold: 20,
+    buffs: [],       // { type, turns }
+    poison: 0,       // poison turns remaining
+  };
+}
+
+function getPlayerAtk() {
+  let a = player.baseAtk;
+  if (player.equip.weapon) a += player.equip.weapon.atk || 0;
+  return a;
+}
+function getPlayerDef() {
+  let d = player.baseDef;
+  if (player.equip.armor) d += player.equip.armor.def || 0;
+  return d;
+}
+function getPlayerCrit() {
+  let c = 5; // base 5%
+  if (player.equip.weapon && player.equip.weapon.crit) c += player.equip.weapon.crit;
+  return c;
+}
+function getMaxMp() {
+  return player.maxMp + (player.equip.weapon?.mp || 0);
+}
+
+function gainExp(amount) {
+  player.exp += amount;
+  while (player.exp >= player.expNext) {
+    player.exp -= player.expNext;
+    player.lvl++;
+    const g = player.clsData.growth;
+    player.maxHp += g.hp;
+    player.maxMp += g.mp;
+    player.baseAtk += g.atk;
+    player.baseDef += g.def;
+    player.baseSpd += g.spd;
+    player.hp = player.maxHp;
+    player.mp = getMaxMp();
+    player.expNext = Math.floor(30 * Math.pow(1.5, player.lvl - 1));
+    addLog(`🎉 <b>升级！</b> 达到等级 ${player.lvl}！全属性提升，HP/MP 回满！`, 'heal');
+    if (inCombat) showFloatText(pcCanvas.width / 2, pcCanvas.height / 2 - 40, 'LEVEL UP!', '#ffd700');
+  }
+}
+
+function invCount(type) { return (player.inventory[type] || 0); }
+function invAdd(type, n = 1) { player.inventory[type] = (player.inventory[type] || 0) + n; }
+function invRemove(type, n = 1) {
+  if ((player.inventory[type] || 0) >= n) { player.inventory[type] -= n; return true; }
+  return false;
+}
+function invKeys() { return Object.keys(player.inventory).filter(k => (player.inventory[k] || 0) > 0); }
+
+// ================================================================
+//  MAP GENERATION
+// ================================================================
+const TILE = { WALL: 0, FLOOR: 1, CORRIDOR: 2 };
+const MAP_W = 27, MAP_H = 21;
+
+function generateFloor(floorNum) {
+  currentFloor = floorNum;
+  const grid = Array.from({ length: MAP_H }, () => Array(MAP_W).fill(TILE.WALL));
+  mapRevealed = Array.from({ length: MAP_H }, () => Array(MAP_W).fill(false));
+
+  // BSP-like room placement
+  const rooms = [];
+  function carveRoom(x, y, w, h) {
+    for (let ry = y; ry < y + h && ry < MAP_H - 1; ry++)
+      for (let rx = x; rx < x + w && rx < MAP_W - 1; rx++)
+        grid[ry][rx] = TILE.FLOOR;
+    rooms.push({ x, y, w, h, cx: Math.floor(x + w / 2), cy: Math.floor(y + h / 2) });
+  }
+
+  // Generate 5-8 rooms
+  const roomCount = rng(5, Math.min(8, 4 + floorNum));
+  for (let i = 0; i < roomCount * 10 && rooms.length < roomCount; i++) {
+    const w = rng(4, 7), h = rng(3, 5);
+    const x = rng(1, MAP_W - w - 1), y = rng(1, MAP_H - h - 1);
+    // Check overlap
+    let ok = true;
+    for (const r of rooms) {
+      if (x - 1 < r.x + r.w && x + w + 1 > r.x && y - 1 < r.y + r.h && y + h + 1 > r.y) { ok = false; break; }
+    }
+    if (ok) carveRoom(x, y, w, h);
+  }
+
+  // Connect rooms with corridors
+  for (let i = 1; i < rooms.length; i++) {
+    const a = rooms[i - 1], b = rooms[i];
+    let cx = a.cx, cy = a.cy;
+    while (cx !== b.cx) {
+      if (grid[cy]) grid[cy][cx] = TILE.CORRIDOR;
+      cx += cx < b.cx ? 1 : -1;
+    }
+    while (cy !== b.cy) {
+      if (grid[cy]) grid[cy][cx] = TILE.CORRIDOR;
+      cy += cy < b.cy ? 1 : -1;
+    }
+  }
+
+  map = { grid, rooms };
+
+  // Player starts in first room
+  const startRoom = rooms[0];
+  playerPos = { x: startRoom.cx, y: startRoom.cy };
+
+  // Stairs in last room
+  const endRoom = rooms[rooms.length - 1];
+  stairsPos = { x: endRoom.cx, y: endRoom.cy };
+
+  // Place enemies on map
+  map.enemies = [];
+  const enemyCount = 4 + floorNum * 2;
+  for (let i = 0; i < enemyCount; i++) {
+    const room = pick(rooms.slice(1));
+    const ex = rng(room.x, room.x + room.w - 1);
+    const ey = rng(room.y, room.y + room.h - 1);
+    if (ex === playerPos.x && ey === playerPos.y) continue;
+    if (ex === stairsPos.x && ey === stairsPos.y) continue;
+    // Pick enemy pool based on floor
+    const pool = ENEMIES.filter(e => {
+      if (e.boss) return false;
+      const ef = Math.ceil(ENEMIES.indexOf(e) / 3);
+      return ef <= floorNum;
+    });
+    const template = pick(pool);
+    const scale = 1 + (floorNum - 1) * 0.15;
+    map.enemies.push({
+      ...template,
+      x: ex, y: ey,
+      hp: Math.floor(template.hp * scale),
+      maxHp: Math.floor(template.hp * scale),
+      atk: Math.floor(template.atk * scale),
+      def: Math.floor(template.def * scale),
+    });
+  }
+
+  // Place items on map
+  map.items = [];
+  const itemCount = rng(3, 5);
+  for (let i = 0; i < itemCount; i++) {
+    const room = pick(rooms);
+    const ix = rng(room.x, room.x + room.w - 1);
+    const iy = rng(room.y, room.y + room.h - 1);
+    const r = Math.random();
+    let itemType;
+    if (r < 0.35) itemType = 'hp_potion';
+    else if (r < 0.6) itemType = 'mp_potion';
+    else if (r < 0.75) itemType = 'bomb';
+    else if (r < 0.88) itemType = 'antidote';
+    else itemType = 'big_hp';
+    map.items.push({ x: ix, y: iy, type: itemType });
+  }
+
+  // Boss on floor 5
+  if (floorNum === 5) {
+    const bossRoom = rooms[rooms.length - 1];
+    const template = ENEMIES.find(e => e.boss);
+    map.enemies.push({
+      ...template, x: bossRoom.cx - 1, y: bossRoom.cy,
+      hp: template.hp, maxHp: template.hp,
+    });
+  }
+
+  revealAround(playerPos);
+}
+
+function revealAround(pos) {
+  const r = 3;
+  for (let dy = -r; dy <= r; dy++)
+    for (let dx = -r; dx <= r; dx++) {
+      const nx = pos.x + dx, ny = pos.y + dy;
+      if (nx >= 0 && nx < MAP_W && ny >= 0 && ny < MAP_H)
+        mapRevealed[ny][nx] = true;
+    }
+}
+
+// ================================================================
+//  RENDERING
+// ================================================================
+const mapCanvas = document.getElementById('map-canvas');
+const mapCtx = mapCanvas.getContext('2d');
+const TILE_SIZE = 20;
+
+function renderAll() {
+  renderPlayerPanel();
+  renderEquipPanel();
+  renderGold();
+  if (!inCombat) {
+    renderMap();
+    renderExploreActions();
+  }
+}
+
+function renderPlayerPanel() {
+  const mpMax = getMaxMp();
+  const panel = document.getElementById('player-panel');
+  panel.innerHTML = `
+    <div class="p-name">${player.icon} ${player.name}</div>
+    <div class="p-class">Lv.${player.lvl} ${player.clsData.name}</div>
+    <div class="bar-wrap">
+      <div class="bar-label"><span>HP</span><span>${player.hp}/${player.maxHp}</span></div>
+      <div class="bar bar-hp"><div class="fill" style="width:${(player.hp / player.maxHp * 100).toFixed(1)}%"></div></div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-label"><span>MP</span><span>${player.mp}/${mpMax}</span></div>
+      <div class="bar bar-mp"><div class="fill" style="width:${(player.mp / mpMax * 100).toFixed(1)}%"></div></div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-label"><span>EXP</span><span>${player.exp}/${player.expNext}</span></div>
+      <div class="bar bar-exp"><div class="fill" style="width:${(player.exp / player.expNext * 100).toFixed(1)}%"></div></div>
+    </div>
+    <div style="font-size:11px; margin-top:4px; color:#888;">
+      ATK:${getPlayerAtk()} DEF:${getPlayerDef()} SPD:${player.baseSpd} 暴击:${getPlayerCrit()}%
+    </div>
+    ${player.poison > 0 ? '<div style="font-size:11px;color:#ce93d8;">☠️ 中毒 (' + player.poison + '回合)</div>' : ''}
+    ${player.buffs.length > 0 ? player.buffs.map(b => `<div style="font-size:11px;color:#64b5f6;">${b.icon} ${b.name} (${b.turns}回合)</div>`).join('') : ''}
+  `;
+}
+
+function renderEquipPanel() {
+  const panel = document.getElementById('equip-panel');
+  panel.innerHTML = `
+    <div class="equip-slot">武器: <span class="eq-name">${player.equip.weapon ? player.equip.weapon.icon + ' ' + player.equip.weapon.name : '— 无 —'}</span></div>
+    <div class="equip-slot">防具: <span class="eq-name">${player.equip.armor ? player.equip.armor.icon + ' ' + player.equip.armor.name : '— 无 —'}</span></div>
+  `;
+}
+
+function renderGold() {
+  document.getElementById('gold-display').textContent = '💰 ' + player.gold;
+}
+
+function renderMap() {
+  const ctx = mapCtx;
+  const ts = TILE_SIZE;
+  ctx.fillStyle = '#0a0a14';
+  ctx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
+
+  const offX = (mapCanvas.width - MAP_W * ts) / 2;
+  const offY = (mapCanvas.height - MAP_H * ts) / 2;
+  ctx.save();
+  ctx.translate(offX, offY);
+
+  for (let y = 0; y < MAP_H; y++) {
+    for (let x = 0; x < MAP_W; x++) {
+      if (!mapRevealed[y][x]) {
+        ctx.fillStyle = '#050510';
+        ctx.fillRect(x * ts, y * ts, ts, ts);
+        continue;
+      }
+      const inView = Math.abs(x - playerPos.x) <= 3 && Math.abs(y - playerPos.y) <= 3;
+      const tile = map.grid[y][x];
+      if (tile === TILE.WALL) {
+        ctx.fillStyle = inView ? '#2a2a3e' : '#1a1a28';
+        ctx.fillRect(x * ts, y * ts, ts, ts);
+        if (inView) {
+          ctx.fillStyle = '#333349';
+          ctx.fillRect(x * ts + 1, y * ts + 1, ts - 2, ts - 2);
+        }
+      } else {
+        ctx.fillStyle = inView ? '#1e1e30' : '#141420';
+        ctx.fillRect(x * ts, y * ts, ts, ts);
+        // Floor pattern
+        if (inView && (x + y) % 2 === 0) {
+          ctx.fillStyle = '#222238';
+          ctx.fillRect(x * ts + 4, y * ts + 4, ts - 8, ts - 8);
+        }
+      }
+    }
+  }
+
+  // Items
+  for (const item of map.items) {
+    if (!mapRevealed[item.y][item.x]) continue;
+    const inView = Math.abs(item.x - playerPos.x) <= 3 && Math.abs(item.y - playerPos.y) <= 3;
+    if (!inView) continue;
+    const idata = ITEMS_DATA[item.type];
+    ctx.font = '14px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(idata.icon, item.x * ts + ts / 2, item.y * ts + ts - 3);
+  }
+
+  // Enemies
+  for (const e of map.enemies) {
+    if (!mapRevealed[e.y][e.x]) continue;
+    const inView = Math.abs(e.x - playerPos.x) <= 3 && Math.abs(e.y - playerPos.y) <= 3;
+    if (!inView) continue;
+    ctx.font = '15px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(e.icon, e.x * ts + ts / 2, e.y * ts + ts - 2);
+  }
+
+  // Stairs
+  const inViewS = Math.abs(stairsPos.x - playerPos.x) <= 3 && Math.abs(stairsPos.y - playerPos.y) <= 3;
+  if (inViewS && mapRevealed[stairsPos.y][stairsPos.x]) {
+    ctx.font = '15px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🚪', stairsPos.x * ts + ts / 2, stairsPos.y * ts + ts - 2);
+  }
+
+  // Player
+  ctx.font = '16px serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(player.icon, playerPos.x * ts + ts / 2, playerPos.y * ts + ts - 2);
+  // Player glow
+  ctx.shadowColor = player.clsData.color;
+  ctx.shadowBlur = 10;
+  ctx.fillText('●', playerPos.x * ts + ts / 2, playerPos.y * ts + 18);
+  ctx.shadowBlur = 0;
+
+  ctx.restore();
+
+  // Floor indicator
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(4, 4, 120, 24);
+  ctx.fillStyle = '#ffd700';
+  ctx.font = '13px Segoe UI';
+  ctx.textAlign = 'left';
+  ctx.fillText(`第 ${currentFloor} 层`, 12, 20);
+}
+
+function renderExploreActions() {
+  const area = document.getElementById('game-bottom');
+  area.innerHTML = `
+    <div style="text-align:center; font-size:13px; color:#888;">
+      方向键/WASD 移动 · 走到怪物身上进入战斗 · 走到 🚪 下楼
+    </div>
+  `;
+}
+
+// ================================================================
+//  MOVEMENT & EXPLORATION
+// ================================================================
+document.addEventListener('keydown', e => {
+  if (inCombat) return;
+  let dx = 0, dy = 0;
+  switch (e.code) {
+    case 'ArrowUp': case 'KeyW': dy = -1; break;
+    case 'ArrowDown': case 'KeyS': dy = 1; break;
+    case 'ArrowLeft': case 'KeyA': dx = -1; break;
+    case 'ArrowRight': case 'KeyD': dx = 1; break;
+    default: return;
+  }
+  e.preventDefault();
+  movePlayer(dx, dy);
+});
+
+function movePlayer(dx, dy) {
+  const nx = playerPos.x + dx, ny = playerPos.y + dy;
+  if (nx < 0 || nx >= MAP_W || ny < 0 || ny >= MAP_H) return;
+  if (map.grid[ny][nx] === TILE.WALL) return;
+
+  playerPos.x = nx; playerPos.y = ny;
+  revealAround(playerPos);
+  turnCount++;
+
+  // Check enemies
+  const eIdx = map.enemies.findIndex(e => e.x === nx && e.y === ny);
+  if (eIdx >= 0) {
+    const enemy = map.enemies[eIdx];
+    addLog(`遭遇了 <b>${enemy.icon} ${enemy.name}</b>！`, 'dmg');
+    startCombat(enemy, eIdx);
+    return;
+  }
+
+  // Check items
+  const iIdx = map.items.findIndex(i => i.x === nx && i.y === ny);
+  if (iIdx >= 0) {
+    const item = map.items[iIdx];
+    map.items.splice(iIdx, 1);
+    invAdd(item.type);
+    const idata = ITEMS_DATA[item.type];
+    addLog(`获得了 <b>${idata.icon} ${idata.name}</b>！`, 'loot');
+  }
+
+  // Check stairs
+  if (nx === stairsPos.x && ny === stairsPos.y) {
+    if (currentFloor < 5) {
+      addLog(`来到了楼梯口，前往下一个区域...`, 'info');
+      showFloorBanner(currentFloor + 1, () => {
+        generateFloor(currentFloor + 1);
+        renderAll();
+      });
+    } else {
+      // On floor 5, check if boss is dead
+      const bossAlive = map.enemies.some(e => e.boss);
+      if (!bossAlive) {
+        addLog('楼梯已经无法继续前进，击败暗黑龙吧！', 'dmg');
+      } else {
+        addLog('必须先击败暗黑龙才能离开！', 'dmg');
+      }
+    }
+  }
+
+  renderAll();
+}
+
+function showFloorBanner(floor, cb) {
+  const ov = document.getElementById('floor-overlay');
+  ov.innerHTML = `<div class="floor-banner"><h2>第 ${floor} 层</h2><p>危险在前方等待...</p></div>`;
+  setTimeout(() => { ov.innerHTML = ''; cb(); }, 1200);
+}
+
+// ================================================================
+//  COMBAT
+// ================================================================
+const combatView = document.getElementById('combat-view');
+const pcCanvas = document.getElementById('particles-canvas');
+const pcCtx = pcCanvas.getContext('2d');
+let combatParticles = [];
+
+function startCombat(enemy, mapIdx) {
+  inCombat = true;
+  modalOpen = false;
+  hideModal();
+  document.getElementById('map-canvas').style.display = 'none';
+  combatView.style.display = 'flex';
+  combatState = {
+    enemy,
+    mapIdx,
+    defending: false,
+    dodgeNext: false,
+    enemyStunned: false,
+  };
+  addLog(`战斗开始！ ${enemy.icon} ${enemy.name}${enemy.boss ? ' (BOSS)' : ''}`, 'info');
+  renderCombat();
+}
+
+function renderCombat() {
+  const e = combatState.enemy;
+  const ed = document.getElementById('enemy-display');
+  ed.innerHTML = `
+    <div class="e-icon">${e.icon}</div>
+    <div class="e-name">${e.name}</div>
+    <div class="e-lvl">${e.boss ? '★ BOSS' : '敌人'} · ATK:${e.atk} DEF:${e.def}</div>
+    <div class="enemy-hp-bar">
+      <div class="bar-label"><span>HP</span><span>${e.hp}/${e.maxHp}</span></div>
+      <div class="bar"><div class="fill" style="width:${(e.hp / e.maxHp * 100).toFixed(1)}%"></div></div>
+    </div>
+  `;
+
+  const area = document.getElementById('game-bottom');
+  area.innerHTML = `
+    <div id="action-bar">
+      <button class="btn btn-sm btn-attack" id="btn-attack">⚔️ 攻击</button>
+      <button class="btn btn-sm btn-skill" id="btn-skill">✨ 技能</button>
+      <button class="btn btn-sm btn-item" id="btn-item">🎒 道具</button>
+      <button class="btn btn-sm btn-defend" id="btn-defend">🛡️ 防御</button>
+      <button class="btn btn-sm btn-flee" id="btn-flee">🏃 逃跑</button>
+    </div>
+    <div class="skills-grid" id="skill-quick"></div>
+  `;
+
+  // Bind action buttons
+  document.getElementById('btn-attack').addEventListener('click', doAttack);
+  document.getElementById('btn-skill').addEventListener('click', showSkillMenu);
+  document.getElementById('btn-item').addEventListener('click', showCombatItemMenu);
+  document.getElementById('btn-defend').addEventListener('click', doDefend);
+  document.getElementById('btn-flee').addEventListener('click', doFlee);
+
+  // Build quick skill buttons
+  buildSkillButtons();
+
+  document.getElementById('turn-indicator').textContent = `第 ${turnCount} 回合`;
+  renderPlayerPanel();
+}
+
+function buildSkillButtons() {
+  const sq = document.getElementById('skill-quick');
+  if (!sq) return;
+  sq.innerHTML = '';
+  const availableSkills = player.clsData.skills.filter(s => s.lvl <= player.lvl);
+  for (const s of availableSkills) {
+    const btn = document.createElement('button');
+    btn.className = 'skill-btn';
+    btn.disabled = player.mp < s.mp;
+    const idx = player.clsData.skills.indexOf(s);
+    btn.innerHTML = `${s.name} <span class="cost">${s.mp}MP</span>`;
+    btn.onclick = () => { if (!modalOpen) doSkill(idx); };
+    sq.appendChild(btn);
+  }
+}
+
+function doAttack() {
+  if (!inCombat || modalOpen) return;
+  playerTurn(() => {
+    const atk = getPlayerAtk();
+    const def = combatState.enemy.def;
+    const crit = Math.random() * 100 < getPlayerCrit();
+    let dmg = Math.max(1, atk - def / 2 + rng(-3, 3));
+    if (crit) dmg = Math.floor(dmg * 1.8);
+    combatState.enemy.hp -= dmg;
+    addLog(`你发动攻击，造成 <b>${dmg}</b> 点伤害${crit ? ' <span style="color:#ffd700">暴击！</span>' : ''}`, 'dmg');
+    showFloatText(pcCanvas.width / 2, pcCanvas.height / 2 - 40, `-${dmg}`, crit ? '#ffd700' : '#ef5350');
+    spawnCombatParticles(crit ? '#ffd700' : '#e53935', 8);
+    shakeElement(document.getElementById('enemy-display'));
+    combatState.defending = false;
+    resolveTurn();
+  });
+}
+
+function doSkill(idx) {
+  if (!inCombat || modalOpen) return;
+  const skill = player.clsData.skills[idx];
+  if (player.mp < skill.mp) { addLog('MP不足！', 'info'); return; }
+  player.mp -= skill.mp;
+
+  const atk = getPlayerAtk();
+  const def = combatState.enemy.def;
+
+  switch (skill.type) {
+    case 'dmg': {
+      const dmg = Math.max(1, Math.floor(atk * skill.mult) - def / 2 + rng(-2, 2));
+      combatState.enemy.hp -= dmg;
+      addLog(`使用 <b>${skill.name}</b>！造成 <b>${dmg}</b> 点伤害！`, 'skill');
+      showFloatText(pcCanvas.width / 2, pcCanvas.height / 2 - 40, `-${dmg}`, '#ce93d8');
+      spawnCombatParticles('#7c4dff', 15);
+      break;
+    }
+    case 'dmg_heal': {
+      const dmg = Math.max(1, Math.floor(atk * skill.mult) - def / 2);
+      combatState.enemy.hp -= dmg;
+      const heal = Math.floor(player.maxHp * skill.heal);
+      player.hp = Math.min(player.maxHp, player.hp + heal);
+      addLog(`使用 <b>${skill.name}</b>！造成 <b>${dmg}</b> 伤害，回复 <b>${heal}</b> HP！`, 'skill');
+      showFloatText(pcCanvas.width / 2, pcCanvas.height / 2 - 40, `-${dmg}`, '#ce93d8');
+      showFloatText(pcCanvas.width / 2 + 60, pcCanvas.height / 2, `+${heal}`, '#66bb6a');
+      spawnCombatParticles('#66bb6a', 12);
+      break;
+    }
+    case 'dmg_self': {
+      const dmg = Math.max(1, Math.floor(atk * skill.mult) - def / 2);
+      combatState.enemy.hp -= dmg;
+      const selfDmg = Math.floor(dmg * skill.self);
+      player.hp -= selfDmg;
+      addLog(`使用 <b>${skill.name}</b>！造成 <b>${dmg}</b> 伤害，自身承受 <b>${selfDmg}</b> 反伤！`, 'skill');
+      showFloatText(pcCanvas.width / 2, pcCanvas.height / 2 - 40, `-${dmg}`, '#ff9800');
+      spawnCombatParticles('#ff5722', 20);
+      break;
+    }
+    case 'crit': {
+      const dmg = Math.max(1, Math.floor(atk * skill.mult) - def / 2);
+      combatState.enemy.hp -= dmg;
+      addLog(`使用 <b>${skill.name}</b>！暴击造成 <b>${dmg}</b> 伤害！`, 'skill');
+      showFloatText(pcCanvas.width / 2, pcCanvas.height / 2 - 40, `-${dmg}`, '#ffd700');
+      spawnCombatParticles('#ffd700', 15);
+      break;
+    }
+    case 'dmg_dot': {
+      const dmg = Math.max(1, Math.floor(atk * skill.mult) - def / 2);
+      combatState.enemy.hp -= dmg;
+      combatState.enemyPoison = (combatState.enemyPoison || 0) + skill.dot;
+      addLog(`使用 <b>${skill.name}</b>！造成 <b>${dmg}</b> 伤害，敌人中毒 ${skill.dot} 回合！`, 'skill');
+      showFloatText(pcCanvas.width / 2, pcCanvas.height / 2 - 40, `-${dmg}`, '#ce93d8');
+      spawnCombatParticles('#ab47bc', 12);
+      break;
+    }
+    case 'heal': {
+      const heal = Math.floor(player.maxHp * skill.mult);
+      player.hp = Math.min(player.maxHp, player.hp + heal);
+      addLog(`使用 <b>${skill.name}</b>！回复 <b>${heal}</b> HP！`, 'heal');
+      showFloatText(pcCanvas.width / 2, pcCanvas.height / 2, `+${heal}`, '#66bb6a');
+      spawnCombatParticles('#66bb6a', 15);
+      break;
+    }
+    case 'dmg_dodge': {
+      const dmg = Math.max(1, Math.floor(atk * skill.mult) - def / 2);
+      combatState.enemy.hp -= dmg;
+      combatState.dodgeNext = true;
+      addLog(`使用 <b>${skill.name}</b>！造成 <b>${dmg}</b> 伤害，闪避下一次攻击！`, 'skill');
+      showFloatText(pcCanvas.width / 2, pcCanvas.height / 2 - 40, `-${dmg}`, '#64b5f6');
+      spawnCombatParticles('#42a5f5', 15);
+      break;
+    }
+  }
+
+  combatState.defending = false;
+  resolveTurn();
+}
+
+function doDefend() {
+  if (!inCombat || modalOpen) return;
+  combatState.defending = true;
+  const mpRestore = Math.floor(getMaxMp() * 0.08);
+  player.mp = Math.min(getMaxMp(), player.mp + mpRestore);
+  addLog(`你举起防御，受到伤害减半，回复 <b>${mpRestore}</b> MP。`, 'info');
+  showFloatText(pcCanvas.width / 2, pcCanvas.height / 2, '🛡️', '#1e88e5');
+  resolveTurn();
+}
+
+function doFlee() {
+  if (!inCombat || modalOpen) return;
+  if (combatState.enemy.boss) {
+    addLog('无法从BOSS战中逃跑！', 'dmg');
+    return;
+  }
+  const chance = 40 + player.baseSpd * 3;
+  if (Math.random() * 100 < chance) {
+    addLog('成功逃跑！', 'info');
+    endCombat(false);
+  } else {
+    addLog('逃跑失败！', 'dmg');
+    enemyAttack();
+    resolveTurn();
+  }
+}
+
+function showSkillMenu() {
+  if (modalOpen) return;
+  const available = player.clsData.skills.filter(s => s.lvl <= player.lvl);
+  const locked = player.clsData.skills.filter(s => s.lvl > player.lvl);
+  let html = '<h3>✨ 技能</h3>';
+  for (const s of available) {
+    const canUse = player.mp >= s.mp;
+    const idx = player.clsData.skills.indexOf(s);
+    html += `<div class="inv-item" onclick="skillMenuUse(${idx})" style="cursor:pointer;${canUse ? '' : 'opacity:0.4;cursor:not-allowed;'}">
+      <div class="item-info"><span class="item-icon">✨</span>
+        <div><div class="item-name">${s.name}</div><div class="item-desc">${s.desc} · ${s.mp}MP</div></div>
+      </div></div>`;
+  }
+  for (const s of locked) {
+    html += `<div class="inv-item" style="opacity:0.3;"><div class="item-info"><span class="item-icon">🔒</span>
+      <div><div class="item-name">${s.name} (Lv.${s.lvl}解锁)</div></div></div></div>`;
+  }
+  showModal(html);
+  modalOpen = true;
+}
+
+window.skillMenuUse = function(idx) {
+  const skill = player.clsData.skills[idx];
+  if (player.mp < skill.mp) return;
+  modalOpen = false;
+  hideModal();
+  doSkill(idx);
+};
+
+function showCombatItemMenu() {
+  if (modalOpen) return;
+  const keys = invKeys();
+  let html = '<h3>🎒 使用道具</h3>';
+  if (keys.length === 0) { html += '<p style="text-align:center;color:#888;">背包空空如也</p>'; }
+  for (const key of keys) {
+    const d = ITEMS_DATA[key];
+    html += `<div class="inv-item" onclick="combatItemUse('${key}')" style="cursor:pointer;">
+      <div class="item-info"><span class="item-icon">${d.icon}</span>
+        <div><div class="item-name">${d.name}</div><div class="item-desc">${d.desc}</div></div>
+      </div><div class="item-count">x${player.inventory[key]}</div></div>`;
+  }
+  showModal(html);
+  modalOpen = true;
+}
+
+window.combatItemUse = function(key) {
+  modalOpen = false;
+  hideModal();
+  useCombatItem(key);
+};
+
+function useCombatItem(type) {
+  hideModal();
+  if (!inCombat) return;
+  const d = ITEMS_DATA[type];
+  if (!invRemove(type)) return;
+
+  switch (d.effect) {
+    case 'hp':
+      player.hp = Math.min(player.maxHp, player.hp + d.val);
+      addLog(`使用 <b>${d.name}</b>，回复 <b>${d.val}</b> HP。`, 'heal');
+      showFloatText(pcCanvas.width / 2, pcCanvas.height / 2, `+${d.val}`, '#66bb6a');
+      break;
+    case 'mp':
+      player.mp = Math.min(getMaxMp(), player.mp + d.val);
+      addLog(`使用 <b>${d.name}</b>，回复 <b>${d.val}</b> MP。`, 'info');
+      showFloatText(pcCanvas.width / 2, pcCanvas.height / 2, `+${d.val}`, '#42a5f5');
+      break;
+    case 'all':
+      player.hp = player.maxHp; player.mp = getMaxMp();
+      player.poison = 0;
+      addLog(`使用 <b>${d.name}</b>，HP/MP 完全回复！`, 'heal');
+      showFloatText(pcCanvas.width / 2, pcCanvas.height / 2, 'FULL HEAL', '#ffd700');
+      break;
+    case 'dmg':
+      combatState.enemy.hp -= d.val;
+      addLog(`向敌人投掷 <b>${d.name}</b>！造成 <b>${d.val}</b> 伤害！`, 'dmg');
+      showFloatText(pcCanvas.width / 2, pcCanvas.height / 2 - 40, `-${d.val}`, '#ff5722');
+      spawnCombatParticles('#ff5722', 12);
+      break;
+    case 'cure':
+      player.poison = 0;
+      addLog(`使用 <b>${d.name}</b>，中毒解除。`, 'heal');
+      break;
+  }
+  combatState.defending = false;
+  renderAll();
+  renderCombat();
+  resolveTurn();
+}
+
+function playerTurn(action) {
+  // Poison tick
+  if (player.poison > 0) {
+    const dotDmg = Math.floor(player.maxHp * 0.04);
+    player.hp -= dotDmg;
+    player.poison--;
+    addLog(`中毒造成 <b>${dotDmg}</b> 伤害 (${player.poison}回合剩余)`, 'dmg');
+    if (player.hp <= 0) { player.hp = 0; playerDied(); return; }
+  }
+  action();
+}
+
+function resolveTurn() {
+  // Check enemy death
+  if (combatState.enemy.hp <= 0) {
+    combatState.enemy.hp = 0;
+    enemyDefeated();
+    return;
+  }
+
+  // Enemy turn
+  setTimeout(() => {
+    if (!inCombat) return;
+    enemyAttack();
+    // Poison tick on enemy
+    if (combatState.enemyPoison && combatState.enemyPoison > 0) {
+      const dot = Math.max(1, Math.floor(player.clsData.base.atk * 0.3));
+      combatState.enemy.hp -= dot;
+      combatState.enemyPoison--;
+      addLog(`毒素对敌人造成 <b>${dot}</b> 伤害`, 'skill');
+      showFloatText(pcCanvas.width / 2, pcCanvas.height / 2 - 30, `-${dot}`, '#ab47bc');
+      if (combatState.enemy.hp <= 0) {
+        combatState.enemy.hp = 0;
+        enemyDefeated();
+        return;
+      }
+    }
+    // Check player death
+    if (player.hp <= 0) { player.hp = 0; playerDied(); return; }
+    renderCombat();
+  }, 400);
+}
+
+function enemyAttack() {
+  const e = combatState.enemy;
+  let atk = e.atk;
+  let def = getPlayerDef();
+  if (combatState.defending) def *= 2;
+
+  // Dodge
+  if (combatState.dodgeNext) {
+    combatState.dodgeNext = false;
+    addLog(`${e.icon} ${e.name} 发起攻击，被你 <b>闪避</b> 了！`, 'info');
+    showFloatText(pcCanvas.width / 2, pcCanvas.height / 2, 'MISS', '#64b5f6');
+    return;
+  }
+
+  let dmg = Math.max(1, atk - def / 2 + rng(-2, 2));
+  player.hp -= dmg;
+  addLog(`${e.icon} ${e.name} 攻击了你，造成 <b>${dmg}</b> 点伤害${combatState.defending ? ' (防御中)' : ''}`, 'dmg');
+  showFloatText(pcCanvas.width / 2 + 80, pcCanvas.height / 2 + 20, `-${dmg}`, '#ef5350');
+  spawnCombatParticles('#ef5350', 6);
+  combatState.defending = false;
+}
+
+function enemyDefeated() {
+  const e = combatState.enemy;
+  addLog(`🎉 击败了 <b>${e.icon} ${e.name}</b>！`, 'loot');
+  const exp = e.exp;
+  const gold = rng(e.gold[0], e.gold[1]);
+  gainExp(exp);
+  player.gold += gold;
+  totalKills++;
+  addLog(`获得 <b>${exp} EXP</b> 和 <b>${gold} 💰</b>。`, 'loot');
+
+  // Equipment drop
+  if (e.boss || Math.random() < 0.18) {
+    dropEquipment();
+  }
+
+  // Remove from map
+  if (combatState.mapIdx >= 0) {
+    map.enemies.splice(combatState.mapIdx, 1);
+  }
+
+  // Boss = victory
+  if (e.boss) {
+    setTimeout(() => {
+      endCombat(true);
+      setTimeout(() => showVictory(), 500);
+    }, 600);
+    return;
+  }
+
+  endCombat(true);
+}
+
+function dropEquipment() {
+  const pool = [...EQUIP_TEMPLATES.weapon, ...EQUIP_TEMPLATES.armor];
+  const valid = pool.filter(t => t.minFloor <= currentFloor);
+  const t = pick(valid);
+  const item = { ...t, slot: t.atk ? 'weapon' : 'armor' };
+
+  let html = `<h3>🎁 战利品！</h3>
+    <div style="text-align:center;font-size:40px;margin:12px 0;">${item.icon}</div>
+    <div style="text-align:center;font-size:18px;color:#ce93d8;margin-bottom:4px;">${item.name}</div>
+    <div style="text-align:center;font-size:13px;color:#888;margin-bottom:16px;">
+      ${item.atk ? 'ATK+' + item.atk : ''} ${item.def ? 'DEF+' + item.def : ''} ${item.mp ? 'MP+' + item.mp : ''} ${item.crit ? '暴击+' + item.crit + '%' : ''}
+    </div>
+    <div class="drop-list">
+      <div class="drop-item" onclick="equipDrop('${item.slot}')">✅ 装备</div>
+      <div class="drop-item" onclick="sellDrop()">💰 出售 (+${Math.floor((item.atk || item.def || 5) * 8)}金)</div>
+      <div class="drop-item" onclick="discardDrop()">❌ 丢弃</div>
+    </div>`;
+  showModal(html);
+  modalOpen = true;
+  pendingEquipItem = item;
+}
+
+window.equipDrop = function(slot) {
+  const item = pendingEquipItem;
+  if (!item) return;
+  modalOpen = false;
+  hideModal();
+  const old = player.equip[slot];
+  player.equip[slot] = item;
+  pendingEquipItem = null;
+  addLog(`装备了 <b>${item.icon} ${item.name}</b>！`, 'loot');
+  if (old) addLog(`卸下了 ${old.icon} ${old.name}。`, 'info');
+  renderAll();
+};
+window.sellDrop = function() {
+  const item = pendingEquipItem;
+  if (!item) return;
+  modalOpen = false;
+  hideModal();
+  const val = Math.floor((item.atk || item.def || 5) * 8);
+  player.gold += val;
+  pendingEquipItem = null;
+  addLog(`出售了 ${item.name}，获得 <b>${val} 💰</b>。`, 'loot');
+  renderAll();
+};
+window.discardDrop = function() {
+  const item = pendingEquipItem;
+  if (!item) return;
+  modalOpen = false;
+  hideModal();
+  pendingEquipItem = null;
+  addLog(`丢弃了 ${item.name}。`, 'info');
+};
+
+function playerDied() {
+  inCombat = false;
+  modalOpen = false;
+  hideModal();
+  document.getElementById('gameover-stats').innerHTML =
+    `等级: ${player.lvl} · 分数: ${player.gold}💰 · 击杀: ${totalKills}<br>到达: 第 ${currentFloor} 层`;
+  setTimeout(() => showScreen('gameover-screen'), 800);
+}
+
+function endCombat(won) {
+  inCombat = false;
+  modalOpen = false;
+  hideModal();
+  combatView.style.display = 'none';
+  document.getElementById('map-canvas').style.display = 'block';
+  combatState = null;
+  renderAll();
+}
+
+function showVictory() {
+  modalOpen = false;
+  hideModal();
+  document.getElementById('victory-stats').innerHTML =
+    `最终等级: <b>${player.lvl}</b><br>武器: ${player.equip.weapon?.name || '无'} · 防具: ${player.equip.armor?.name || '无'}<br>金币: <b>${player.gold}</b> · 击杀: <b>${totalKills}</b>`;
+  showScreen('victory-screen');
+}
+
+// ================================================================
+//  MODALS
+// ================================================================
+function showModal(html) {
+  const ov = document.getElementById('modal-overlay');
+  ov.innerHTML = `<div class="modal">${html}</div>`;
+  ov.classList.remove('hidden');
+}
+function hideModal() {
+  document.getElementById('modal-overlay').classList.add('hidden');
+}
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) {
+    modalOpen = false;
+    hideModal();
+  }
+});
+
+// Inventory button
+document.getElementById('inv-btn').addEventListener('click', () => {
+  if (inCombat) return;
+  const keys = invKeys();
+  let html = '<h3>🎒 背包</h3>';
+  if (keys.length === 0) html += '<p style="text-align:center;color:#888;">空空如也</p>';
+  for (const key of keys) {
+    const d = ITEMS_DATA[key];
+    html += `<div class="inv-item">
+      <div class="item-info"><span class="item-icon">${d.icon}</span>
+        <div><div class="item-name">${d.name}</div><div class="item-desc">${d.desc}</div></div>
+      </div><div class="item-count">x${player.inventory[key]}</div></div>`;
+  }
+
+  // Shop
+  html += `<div style="margin-top:16px;border-top:1px solid #333;padding-top:12px;">
+    <h4 style="color:#ffd700;margin-bottom:8px;">💰 商店 (${player.gold}金)</h4>`;
+  for (const [key, d] of Object.entries(ITEMS_DATA)) {
+    const canBuy = player.gold >= d.price;
+    html += `<div class="inv-item" onclick="shopBuy('${key}')" style="cursor:pointer;${canBuy ? '' : 'opacity:0.4;'}">
+      <div class="item-info"><span class="item-icon">${d.icon}</span>
+        <div><div class="item-name">${d.name}</div><div class="item-desc">${d.desc}</div></div>
+      </div><div class="item-count">${d.price}💰</div></div>`;
+  }
+  html += '</div>';
+  showModal(html);
+});
+
+window.shopBuy = function(key) {
+  const d = ITEMS_DATA[key];
+  if (player.gold < d.price) return;
+  player.gold -= d.price;
+  invAdd(key);
+  addLog(`购买了 <b>${d.icon} ${d.name}</b>，花费 ${d.price}💰。`, 'loot');
+  renderGold();
+  document.getElementById('inv-btn').click(); // refresh
+};
+
+// Skills button
+document.getElementById('skills-btn').addEventListener('click', () => {
+  if (inCombat) return;
+  const available = player.clsData.skills.filter(s => s.lvl <= player.lvl);
+  const locked = player.clsData.skills.filter(s => s.lvl > player.lvl);
+  let html = `<h3>${player.icon} ${player.clsData.name} 技能</h3>`;
+  for (const s of available) {
+    html += `<div class="inv-item"><div class="item-info"><span class="item-icon">✨</span>
+      <div><div class="item-name">${s.name} <span style="color:#64b5f6;font-size:11px;">${s.mp}MP</span></div>
+      <div class="item-desc">${s.desc}</div></div></div></div>`;
+  }
+  for (const s of locked) {
+    html += `<div class="inv-item" style="opacity:0.3;"><div class="item-info"><span class="item-icon">🔒</span>
+      <div><div class="item-name">${s.name} (Lv.${s.lvl}解锁)</div></div></div></div>`;
+  }
+  showModal(html);
+});
+
+// ================================================================
+//  FLOAT TEXT & PARTICLES
+// ================================================================
+function showFloatText(x, y, text, color) {
+  const el = document.createElement('div');
+  el.className = 'float-dmg';
+  el.style.left = x + 'px'; el.style.top = y + 'px';
+  el.style.color = color;
+  el.textContent = text;
+  document.getElementById('game-center').appendChild(el);
+  setTimeout(() => el.remove(), 1000);
+}
+
+function canvasCenter() { return pcCanvas.width / 2; }
+
+function shakeElement(el) {
+  el.classList.add('shake');
+  setTimeout(() => el.classList.remove('shake'), 300);
+}
+
+function spawnCombatParticles(color, count) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1 + Math.random() * 3;
+    combatParticles.push({
+      x: pcCanvas.width / 2, y: pcCanvas.height / 2 - 20,
+      vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+      life: 1, decay: 0.02 + Math.random() * 0.02,
+      size: 2 + Math.random() * 3, color,
+    });
+  }
+  if (!combatAnimating) animateCombatParticles();
+}
+
+let combatAnimating = false;
+function animateCombatParticles() {
+  combatAnimating = true;
+  pcCtx.clearRect(0, 0, pcCanvas.width, pcCanvas.height);
+  for (let i = combatParticles.length - 1; i >= 0; i--) {
+    const p = combatParticles[i];
+    p.x += p.vx; p.y += p.vy;
+    p.life -= p.decay;
+    if (p.life <= 0) { combatParticles.splice(i, 1); continue; }
+    pcCtx.globalAlpha = p.life;
+    pcCtx.fillStyle = p.color;
+    pcCtx.beginPath();
+    pcCtx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+    pcCtx.fill();
+  }
+  pcCtx.globalAlpha = 1;
+  if (combatParticles.length > 0) {
+    requestAnimationFrame(animateCombatParticles);
+  } else {
+    combatAnimating = false;
+  }
+}
+
+// ================================================================
+//  GLOBAL MAKE FUNCTIONS ACCESSIBLE
+// ================================================================
+window.doAttack = doAttack;
+window.doSkill = doSkill;
+window.doDefend = doDefend;
+window.doFlee = doFlee;
+window.showSkillMenu = showSkillMenu;
+window.showCombatItemMenu = showCombatItemMenu;
+window.useCombatItem = useCombatItem;
+window.hideModal = hideModal;
+
+</script>
+</body>
+</html>
