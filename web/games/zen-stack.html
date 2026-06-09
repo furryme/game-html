@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>禅意叠叠乐</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #1a1a2e;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  #game-container {
+    position: relative;
+    width: 400px;
+    height: 600px;
+  }
+
+  canvas {
+    display: block;
+    border-radius: 12px;
+  }
+
+  #ui {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  #score {
+    font-size: 48px;
+    font-weight: 200;
+    color: #e0e0e0;
+    text-shadow: 0 0 20px rgba(255,255,255,0.1);
+  }
+
+  #combo-label {
+    font-size: 14px;
+    color: #ff6b6b;
+    opacity: 0;
+    transition: opacity 0.3s;
+    text-align: right;
+  }
+
+  #combo-label.show {
+    opacity: 1;
+  }
+
+  #overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: rgba(22, 33, 62, 0.85);
+    border-radius: 12px;
+    z-index: 20;
+    transition: opacity 0.5s;
+  }
+
+  #overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  #overlay h1 {
+    font-size: 36px;
+    font-weight: 100;
+    color: #e0e0e0;
+    margin-bottom: 8px;
+    letter-spacing: 8px;
+  }
+
+  #overlay .subtitle {
+    font-size: 14px;
+    color: #888;
+    margin-bottom: 40px;
+    letter-spacing: 2px;
+  }
+
+  #overlay .final-score {
+    font-size: 20px;
+    color: #aaa;
+    margin-bottom: 30px;
+    display: none;
+  }
+
+  #overlay .final-score.show {
+    display: block;
+  }
+
+  #start-btn {
+    padding: 14px 48px;
+    font-size: 16px;
+    font-weight: 300;
+    letter-spacing: 4px;
+    color: #e0e0e0;
+    background: transparent;
+    border: 1px solid rgba(224, 224, 224, 0.3);
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s;
+    pointer-events: auto;
+  }
+
+  #start-btn:hover {
+    background: rgba(224, 224, 224, 0.1);
+    border-color: rgba(224, 224, 224, 0.6);
+  }
+
+  #perfect-text {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 28px;
+    font-weight: 200;
+    color: #ffd700;
+    letter-spacing: 6px;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 15;
+    text-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+  }
+
+  #mute-btn {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #aaa;
+    font-size: 14px;
+    cursor: pointer;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    transition: background 0.2s;
+  }
+
+  #mute-btn:hover {
+    background: rgba(255,255,255,0.15);
+  }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <canvas id="canvas" width="400" height="600"></canvas>
+
+  <div id="ui">
+    <div id="score">0</div>
+    <div id="combo-label">PERFECT<br><span id="combo-count">0</span></div>
+  </div>
+
+  <div id="perfect-text">PERFECT</div>
+
+  <div id="overlay">
+    <h1>叠叠乐</h1>
+    <div class="subtitle">ZEN STACK</div>
+    <div class="final-score" id="final-score">得分 <span id="final-num">0</span></div>
+    <button id="start-btn">开 始</button>
+  </div>
+
+  <button id="mute-btn" title="静音/开启">🔊</button>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('start-btn');
+const finalScoreEl = document.getElementById('final-score');
+const finalNumEl = document.getElementById('final-num');
+const perfectText = document.getElementById('perfect-text');
+const comboLabel = document.getElementById('combo-label');
+const comboCount = document.getElementById('combo-count');
+const muteBtn = document.getElementById('mute-btn');
+
+const W = canvas.width;
+const H = canvas.height;
+const BLOCK_H = 28;
+const BASE_W = 200;
+const PERFECT_TOLERANCE = 8;
+const BASE_SPEED = 2.5;
+
+// Color palette - zen inspired gradients
+const COLORS = [
+  ['#667eea', '#764ba2'],
+  ['#f093fb', '#f5576c'],
+  ['#4facfe', '#00f2fe'],
+  ['#43e97b', '#38f9d7'],
+  ['#fa709a', '#fee140'],
+  ['#a18cd1', '#fbc2eb'],
+  ['#fccb90', '#d57eeb'],
+  ['#e0c3fc', '#8ec5fc'],
+  ['#f5576c', '#ff6a00'],
+  ['#0c3483', '#a2b6df'],
+  ['#c471f5', '#fa71cd'],
+  ['#48c6ef', '#6f86d6'],
+  ['#feada6', '#f5efef'],
+  ['#e8198b', '#c7eafd'],
+  ['#7028e4', '#e5b2ca'],
+];
+
+let blocks = [];
+let fallingPieces = [];
+let particles = [];
+let currentBlock = null;
+let score = 0;
+let combo = 0;
+let gameRunning = false;
+let cameraY = 0;
+let targetCameraY = 0;
+let animFrame = null;
+let direction = 1;
+let gameSpeed = BASE_SPEED;
+let hueShift = 0;
+
+// ─── Zen Background State ───
+let zenParticles = [];
+let bgStars = [];
+let mistLines = [];
+let bgTime = 0;
+
+// Background sky stages based on height
+const SKY_STAGES = [
+  { maxH: 0,        top: '#0f0c29', mid: '#302b63', bot: '#24243e', label: '深夜' },
+  { maxH: 400,      top: '#1a1a3e', mid: '#4a3070', bot: '#834158', label: '破晓' },
+  { maxH: 900,      top: '#2d5078', mid: '#4a8db7', bot: '#c3aed6', label: '清晨' },
+  { maxH: 1600,     top: '#2193b0', mid: '#6dd5ed', bot: '#ffd89b', label: '正午' },
+  { maxH: 2500,     top: '#2c3e6b', mid: '#b74e6f', bot: '#ff7b54', label: '黄昏' },
+  { maxH: 3500,     top: '#0c0c2e', mid: '#1a1a4e', bot: '#3d2b5a', label: '入夜' },
+  { maxH: Infinity, top: '#020111', mid: '#070828', bot: '#15163c', label: '星空' },
+];
+
+// ─── Audio Engine ───
+let audioCtx = null;
+let audioMuted = false;
+let masterGain = null;
+let musicPlaying = false;
+let musicNodes = [];
+let nextNoteTime = 0;
+
+// Pentatonic scale frequencies (C D E G A across octaves)
+const PENTATONIC = [
+  130.81, 146.83, 164.81, 196.00, 220.00, // C3-A3
+  261.63, 293.66, 329.63, 392.00, 440.00, // C4-A4
+  523.25, 587.33, 659.25, 783.99, 880.00,  // C5-A5
+];
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = audioMuted ? 0 : 0.5;
+  masterGain.connect(audioCtx.destination);
+}
+
+function resumeAudio() {
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
+
+function playTone(freq, duration, type, vol, delay, filterFreq) {
+  if (!audioCtx || audioMuted) return;
+  const t = audioCtx.currentTime + (delay || 0);
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  const filter = audioCtx.createBiquadFilter();
+
+  osc.type = type || 'sine';
+  osc.frequency.value = freq;
+
+  filter.type = 'lowpass';
+  filter.frequency.value = filterFreq || 2000;
+  filter.Q.value = 1;
+
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(vol || 0.15, t + 0.05);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(masterGain);
+
+  osc.start(t);
+  osc.stop(t + duration);
+}
+
+// Block placement sound - zen bell
+function playPlaceSound(perfect) {
+  if (perfect) {
+    // Crystal chime for perfect
+    const note = PENTATONIC[Math.floor(Math.random() * 5) + 10]; // Higher octave
+    playTone(note, 1.5, 'sine', 0.2, 0);
+    playTone(note * 1.5, 1.2, 'sine', 0.1, 0.05); // Harmony
+    playTone(note * 2, 0.8, 'triangle', 0.05, 0.1); // Shimmer
+  } else {
+    // Zen bell / temple bell - warm low tone with long sustain
+    const baseFreq = 180 + Math.random() * 40;
+    playTone(baseFreq, 2.0, 'sine', 0.12, 0);
+    playTone(baseFreq * 2, 1.5, 'sine', 0.05, 0.02);
+    playTone(baseFreq * 3, 1.0, 'triangle', 0.03, 0.04);
+  }
+}
+
+// Game over sound - descending tone
+function playGameOverSound() {
+  const notes = [440, 392, 329.63, 293.66, 261.63];
+  notes.forEach((n, i) => {
+    playTone(n, 0.8, 'sine', 0.12, i * 0.15);
+  });
+}
+
+// Ambient music scheduler - pentatonic drone
+function startMusic() {
+  if (!audioCtx || musicPlaying) return;
+  musicPlaying = true;
+  nextNoteTime = audioCtx.currentTime;
+  scheduleMusic();
+}
+
+function stopMusic() {
+  musicPlaying = false;
+  musicNodes.forEach(n => { try { n.stop(); } catch(e) {} });
+  musicNodes = [];
+}
+
+function scheduleMusic() {
+  if (!musicPlaying || !audioCtx) return;
+
+  // Schedule notes ahead
+  while (nextNoteTime < audioCtx.currentTime + 0.5) {
+    // Sparse pentatonic melody - ~20% chance per beat
+    if (Math.random() < 0.2) {
+      const note = PENTATONIC[Math.floor(Math.random() * PENTATONIC.length)];
+      const dur = 1.5 + Math.random() * 2;
+      const vol = 0.03 + Math.random() * 0.04;
+      playTone(note, dur, 'sine', vol, nextNoteTime - audioCtx.currentTime, 800);
+    }
+
+    // Low drone every 4 beats
+    if (Math.random() < 0.05) {
+      const drone = 65.41 + Math.random() * 20; // C2 area
+      playTone(drone, 4, 'sine', 0.04, nextNoteTime - audioCtx.currentTime, 400);
+    }
+
+    nextNoteTime += 0.5 + Math.random() * 0.5;
+  }
+
+  if (musicPlaying) {
+    setTimeout(scheduleMusic, 100);
+  }
+}
+
+// ─── Zen Background Initialization ───
+function initZenBackground() {
+  zenParticles = [];
+  bgStars = [];
+  mistLines = [];
+
+  // Pre-generate stars
+  for (let i = 0; i < 120; i++) {
+    bgStars.push({
+      x: Math.random() * W,
+      y: Math.random() * 3000 - 2000,
+      size: 0.5 + Math.random() * 2,
+      twinkleSpeed: 0.5 + Math.random() * 2,
+      twinkleOffset: Math.random() * Math.PI * 2,
+      brightness: 0.3 + Math.random() * 0.7,
+    });
+  }
+
+  // Pre-generate mist lines
+  for (let i = 0; i < 8; i++) {
+    mistLines.push({
+      y: Math.random() * 2000 - 1500,
+      speed: 0.2 + Math.random() * 0.3,
+      width: 100 + Math.random() * 200,
+      x: Math.random() * W,
+      alpha: 0.02 + Math.random() * 0.04,
+      height: 1 + Math.random() * 2,
+    });
+  }
+}
+
+function spawnZenParticle() {
+  if (zenParticles.length > 25) return;
+  zenParticles.push({
+    x: Math.random() * W,
+    y: H - 20,
+    vx: (Math.random() - 0.5) * 0.5,
+    vy: -0.3 - Math.random() * 0.5,
+    size: 1 + Math.random() * 3,
+    life: 1,
+    decay: 0.002 + Math.random() * 0.003,
+    pulseOffset: Math.random() * Math.PI * 2,
+  });
+}
+
+// ─── Background Drawing ───
+function lerpColor(a, b, t) {
+  const ah = parseInt(a.replace('#', ''), 16);
+  const bh = parseInt(b.replace('#', ''), 16);
+  const ar = (ah >> 16) & 0xff, ag = (ah >> 8) & 0xff, ab = ah & 0xff;
+  const br = (bh >> 16) & 0xff, bg = (bh >> 8) & 0xff, bb = bh & 0xff;
+  const rr = Math.round(ar + (br - ar) * t);
+  const rg = Math.round(ag + (bg - ag) * t);
+  const rb = Math.round(ab + (bb - ab) * t);
+  return `rgb(${rr},${rg},${rb})`;
+}
+
+function getSkyColors(camY) {
+  const h = Math.max(0, camY);
+  let stageA = SKY_STAGES[0];
+  let stageB = SKY_STAGES[0];
+  let t = 0;
+
+  for (let i = 0; i < SKY_STAGES.length - 1; i++) {
+    if (h >= SKY_STAGES[i].maxH && h < SKY_STAGES[i + 1].maxH) {
+      stageA = SKY_STAGES[i];
+      stageB = SKY_STAGES[i + 1];
+      t = (h - stageA.maxH) / (stageB.maxH - stageA.maxH);
+      break;
+    }
+  }
+
+  return {
+    top: lerpColor(stageA.top, stageB.top, t),
+    mid: lerpColor(stageA.mid, stageB.mid, t),
+    bot: lerpColor(stageA.bot, stageB.bot, t),
+  };
+}
+
+function drawBackground(camY) {
+  const sky = getSkyColors(camY);
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, sky.top);
+  grad.addColorStop(0.5, sky.mid);
+  grad.addColorStop(1, sky.bot);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Stars - visibility increases with height
+  const starVisibility = Math.max(0, Math.min(1, (camY - 1500) / 1000));
+  if (starVisibility > 0) {
+    bgStars.forEach(s => {
+      const screenY = ((s.y + camY * 0.3) % (H + 100));
+      if (screenY < -10 || screenY > H + 10) return;
+      const twinkle = 0.5 + 0.5 * Math.sin(bgTime * s.twinkleSpeed + s.twinkleOffset);
+      const alpha = starVisibility * s.brightness * twinkle;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(s.x, screenY, s.size * starVisibility, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  // Mist lines
+  mistLines.forEach(m => {
+    const screenY = ((m.y + camY * 0.15) % (H + 200)) - 100;
+    const driftX = (m.x + bgTime * m.speed * 20) % (W + m.width) - m.width / 2;
+    ctx.globalAlpha = m.alpha;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(driftX, screenY, m.width, m.height);
+  });
+  ctx.globalAlpha = 1;
+
+  // Zen floating particles (fireflies)
+  zenParticles.forEach(p => {
+    const pulse = 0.5 + 0.5 * Math.sin(bgTime * 2 + p.pulseOffset);
+    ctx.globalAlpha = p.life * 0.6 * pulse;
+    const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 3);
+    glow.addColorStop(0, 'rgba(255,255,200,0.8)');
+    glow.addColorStop(1, 'rgba(255,255,200,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.globalAlpha = p.life * pulse;
+    ctx.fillStyle = '#fffde0';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  // Subtle moon at higher altitudes
+  const moonVisibility = Math.max(0, Math.min(1, (camY - 2000) / 800));
+  if (moonVisibility > 0) {
+    const moonX = W * 0.75;
+    const moonY = 100 + Math.sin(camY * 0.001) * 30;
+    ctx.globalAlpha = moonVisibility * 0.6;
+
+    // Moon glow
+    const moonGlow = ctx.createRadialGradient(moonX, moonY, 10, moonX, moonY, 60);
+    moonGlow.addColorStop(0, 'rgba(255,250,230,0.3)');
+    moonGlow.addColorStop(1, 'rgba(255,250,230,0)');
+    ctx.fillStyle = moonGlow;
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, 60, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Moon body
+    ctx.globalAlpha = moonVisibility * 0.8;
+    ctx.fillStyle = '#fff8e7';
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, 15, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ─── Classes ───
+class Block {
+  constructor(x, y, width, depth, colorIdx, isBase = false) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.depth = depth;
+    this.colorIdx = colorIdx % COLORS.length;
+    this.isBase = isBase;
+    this.settled = isBase;
+    this.alpha = 1;
+  }
+
+  draw(ctx, camY) {
+    const screenY = this.y + camY;
+    if (screenY > H + 50 || screenY < -60) return;
+
+    const colors = COLORS[this.colorIdx];
+    const grad = ctx.createLinearGradient(
+      this.x, screenY,
+      this.x + this.width, screenY
+    );
+    grad.addColorStop(0, colors[0]);
+    grad.addColorStop(1, colors[1]);
+
+    ctx.globalAlpha = this.alpha;
+
+    // Shadow / depth layer (3D effect)
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    roundRect(ctx, this.x + 3, screenY + 3, this.width, BLOCK_H, 4, true);
+
+    // Main block
+    ctx.fillStyle = grad;
+    roundRect(ctx, this.x, screenY, this.width, BLOCK_H, 4, true);
+
+    // Top highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    roundRect(ctx, this.x + 2, screenY + 1, this.width - 4, BLOCK_H * 0.45, 3, true);
+
+    ctx.globalAlpha = 1;
+  }
+}
+
+class FallingPiece {
+  constructor(x, y, width, colorIdx) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.vy = 0;
+    this.colorIdx = colorIdx;
+    this.gravity = 0.45;
+    this.alive = true;
+    this.rotation = 0;
+  }
+
+  update() {
+    this.vy += this.gravity;
+    this.y += this.vy;
+    this.rotation += 0.02;
+    if (this.y > H + 200) this.alive = false;
+  }
+
+  draw(ctx, camY) {
+    const screenY = this.y + camY;
+    const colors = COLORS[this.colorIdx];
+    const grad = ctx.createLinearGradient(this.x, screenY, this.x + this.width, screenY);
+    grad.addColorStop(0, colors[0]);
+    grad.addColorStop(1, colors[1]);
+
+    ctx.save();
+    ctx.globalAlpha = 0.8;
+    ctx.translate(this.x + this.width / 2, screenY + BLOCK_H / 2);
+    ctx.rotate(this.rotation);
+    ctx.fillStyle = grad;
+    roundRect(ctx, -this.width / 2, -BLOCK_H / 2, this.width, BLOCK_H, 4, true);
+    ctx.restore();
+  }
+}
+
+class Particle {
+  constructor(x, y, color) {
+    this.x = x;
+    this.y = y;
+    this.vx = (Math.random() - 0.5) * 6;
+    this.vy = (Math.random() - 0.5) * 6 - 2;
+    this.life = 1;
+    this.decay = 0.015 + Math.random() * 0.02;
+    this.size = 2 + Math.random() * 4;
+    this.color = color;
+  }
+
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+    this.vy += 0.1;
+    this.life -= this.decay;
+  }
+
+  draw(ctx, camY) {
+    const screenY = this.y + camY;
+    ctx.globalAlpha = this.life;
+    ctx.fillStyle = this.color;
+    ctx.beginPath();
+    ctx.arc(this.x, screenY, this.size * this.life, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r, fill) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+  if (fill) ctx.fill();
+}
+
+// ─── Game Logic ───
+function init() {
+  blocks = [];
+  fallingPieces = [];
+  particles = [];
+  score = 0;
+  combo = 0;
+  cameraY = 0;
+  targetCameraY = 0;
+  direction = 1;
+  gameSpeed = BASE_SPEED;
+  hueShift = 0;
+  bgTime = 0;
+  scoreEl.textContent = '0';
+  comboLabel.classList.remove('show');
+
+  initZenBackground();
+
+  // Base block
+  const base = new Block(
+    (W - BASE_W) / 2,
+    H - BLOCK_H - 20,
+    BASE_W,
+    0,
+    0,
+    true
+  );
+  blocks.push(base);
+
+  spawnBlock();
+}
+
+function spawnBlock() {
+  const top = blocks[blocks.length - 1];
+  const colorIdx = blocks.length;
+  const newY = top.y - BLOCK_H;
+  const newBlock = new Block(
+    -BASE_W,
+    newY,
+    top.width,
+    top.depth + 1,
+    colorIdx
+  );
+  currentBlock = newBlock;
+  gameSpeed = BASE_SPEED + blocks.length * 0.12;
+}
+
+function placeBlock() {
+  if (!currentBlock || currentBlock._placed) return;
+  currentBlock._placed = true;
+
+  const prev = blocks[blocks.length - 1];
+  const dx = currentBlock.x - prev.x;
+  const overlap = currentBlock.width - Math.abs(dx);
+
+  if (overlap <= 0) {
+    fallingPieces.push(new FallingPiece(
+      currentBlock.x, currentBlock.y, currentBlock.width, currentBlock.colorIdx
+    ));
+    playGameOverSound();
+    gameOver();
+    return;
+  }
+
+  const isPerfect = Math.abs(dx) <= PERFECT_TOLERANCE;
+
+  if (isPerfect) {
+    currentBlock.x = prev.x;
+    currentBlock.width = prev.width;
+    combo++;
+    score += 10 + combo * 2;
+
+    if (combo >= 3) {
+      comboLabel.classList.add('show');
+      comboCount.textContent = combo;
+    }
+
+    showPerfect();
+    spawnParticles(currentBlock.x, currentBlock.y, '#ffd700', 20);
+  } else {
+    combo = 0;
+    comboLabel.classList.remove('show');
+    score++;
+
+    const pieceX = dx > 0 ? currentBlock.x + overlap : currentBlock.x;
+    const pieceWidth = Math.abs(dx);
+
+    fallingPieces.push(new FallingPiece(
+      pieceX, currentBlock.y, pieceWidth, currentBlock.colorIdx
+    ));
+
+    spawnParticles(
+      pieceX, currentBlock.y,
+      COLORS[currentBlock.colorIdx][0],
+      10
+    );
+
+    currentBlock.x = Math.max(currentBlock.x, prev.x);
+    currentBlock.width = overlap;
+  }
+
+  playPlaceSound(isPerfect);
+
+  currentBlock.settled = true;
+  currentBlock.depth = prev.depth + 1;
+  blocks.push(currentBlock);
+
+  scoreEl.textContent = score;
+
+  if (currentBlock.y + cameraY < H * 0.45) {
+    targetCameraY = H * 0.45 - currentBlock.y;
+  }
+
+  // Check if block is too small
+  if (currentBlock.width < 15) {
+    playGameOverSound();
+    gameOver();
+    return;
+  }
+
+  setTimeout(() => {
+    if (gameRunning) spawnBlock();
+  }, 200);
+}
+
+function showPerfect() {
+  const topBlock = blocks[blocks.length - 1];
+  perfectText.style.top = (topBlock.y + cameraY - 30) + 'px';
+  perfectText.style.opacity = '1';
+  perfectText.style.transition = 'none';
+  setTimeout(() => {
+    perfectText.style.transition = 'opacity 0.8s, transform 0.8s';
+    perfectText.style.opacity = '0';
+    perfectText.style.transform = 'translateX(-50%) translateY(-40px)';
+  }, 30);
+}
+
+function spawnParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    particles.push(new Particle(
+      x + Math.random() * (currentBlock ? currentBlock.width : 50),
+      y + Math.random() * BLOCK_H,
+      color
+    ));
+  }
+}
+
+function gameOver() {
+  gameRunning = false;
+  currentBlock = null;
+  stopMusic();
+
+  setTimeout(() => {
+    overlay.classList.remove('hidden');
+    finalScoreEl.classList.add('show');
+    finalNumEl.textContent = score;
+    startBtn.textContent = '重 玩';
+  }, 600);
+}
+
+function update() {
+  bgTime += 0.016;
+
+  if (currentBlock && !currentBlock.settled) {
+    currentBlock.x += gameSpeed * direction;
+    if (currentBlock.x + currentBlock.width > W + 100) direction = -1;
+    if (currentBlock.x < -100) direction = 1;
+  }
+
+  cameraY += (targetCameraY - cameraY) * 0.06;
+
+  // Update zen particles
+  if (gameRunning && Math.random() < 0.08) spawnZenParticle();
+  zenParticles.forEach(p => {
+    p.x += p.vx + Math.sin(bgTime + p.pulseOffset) * 0.2;
+    p.y += p.vy;
+    p.life -= p.decay;
+  });
+  zenParticles = zenParticles.filter(p => p.life > 0 && p.y > -20);
+
+  fallingPieces.forEach(p => p.update());
+  fallingPieces = fallingPieces.filter(p => p.alive);
+
+  particles.forEach(p => p.update());
+  particles = particles.filter(p => p.life > 0);
+}
+
+function draw() {
+  // Background
+  drawBackground(cameraY);
+
+  // Subtle grid lines for depth
+  ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+  ctx.lineWidth = 1;
+  for (let y = (cameraY % 40); y < H; y += 40) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    ctx.stroke();
+  }
+
+  blocks.forEach(b => b.draw(ctx, cameraY));
+
+  if (currentBlock && !currentBlock.settled) {
+    currentBlock.draw(ctx, cameraY);
+  }
+
+  fallingPieces.forEach(p => p.draw(ctx, cameraY));
+  particles.forEach(p => p.draw(ctx, cameraY));
+
+  // Guide line
+  if (currentBlock && !currentBlock.settled && blocks.length > 0) {
+    const top = blocks[blocks.length - 1];
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 6]);
+    const screenY = currentBlock.y + cameraY;
+    ctx.beginPath();
+    ctx.moveTo(top.x, screenY);
+    ctx.lineTo(top.x, screenY + BLOCK_H);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(top.x + top.width, screenY);
+    ctx.lineTo(top.x + top.width, screenY + BLOCK_H);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+function loop() {
+  if (!gameRunning && fallingPieces.length === 0 && particles.length === 0) return;
+  update();
+  draw();
+  animFrame = requestAnimationFrame(loop);
+}
+
+function startGame() {
+  initAudio();
+  resumeAudio();
+  overlay.classList.add('hidden');
+  finalScoreEl.classList.remove('show');
+  gameRunning = true;
+  init();
+  startMusic();
+  if (animFrame) cancelAnimationFrame(animFrame);
+  loop();
+}
+
+// ─── Input ───
+startBtn.addEventListener('click', startGame);
+
+canvas.addEventListener('click', () => {
+  if (gameRunning && currentBlock && !currentBlock._placed) {
+    placeBlock();
+  }
+});
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (gameRunning && currentBlock && !currentBlock._placed) {
+    placeBlock();
+  }
+}, { passive: false });
+
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (!gameRunning && !overlay.classList.contains('hidden')) {
+      startGame();
+    } else if (gameRunning && currentBlock && !currentBlock._placed) {
+      placeBlock();
+    }
+  }
+});
+
+// Mute toggle
+muteBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  audioMuted = !audioMuted;
+  muteBtn.textContent = audioMuted ? '🔇' : '🔊';
+  if (masterGain) {
+    masterGain.gain.value = audioMuted ? 0 : 0.5;
+  }
+  if (audioMuted) {
+    stopMusic();
+  } else if (gameRunning) {
+    initAudio();
+    resumeAudio();
+    startMusic();
+  }
+});
+
+// Initial draw
+initZenBackground();
+drawBackground(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,1515 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>弦月 Chord Moon</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0e1a; }
+canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+#muteBtn, #modeBtn {
+  position: fixed; top: 16px; z-index: 10;
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.5); font: 14px/1 system-ui, sans-serif;
+  padding: 6px 14px; border-radius: 20px; cursor: pointer;
+  transition: all 0.3s;
+}
+#muteBtn { right: 16px; }
+#modeBtn { left: 16px; }
+#muteBtn:hover, #modeBtn:hover { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.8); }
+#levelIndicator {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 10;
+  color: rgba(255,255,255,0.4); font: 14px/1 system-ui, sans-serif;
+  letter-spacing: 0.15em;
+  pointer-events: none; transition: opacity 1.5s;
+}
+#celebration {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 20;
+  display: none; align-items: center; justify-content: center; flex-direction: column;
+  background: rgba(5,8,18,0.7); backdrop-filter: blur(4px);
+  animation: fadeIn 0.8s ease;
+}
+#celebration.show { display: flex; }
+#celebration h2 {
+  color: rgba(255,220,180,0.9); font: 28px/1 system-ui, sans-serif;
+  letter-spacing: 0.3em; margin-bottom: 12px; text-shadow: 0 0 30px rgba(255,180,100,0.4);
+}
+#celebration p {
+  color: rgba(200,210,240,0.5); font: 13px/1 system-ui, sans-serif;
+  letter-spacing: 0.1em; margin-bottom: 30px;
+}
+#celebration button {
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,220,180,0.7); font: 14px/1 system-ui, sans-serif;
+  padding: 10px 30px; border-radius: 24px; cursor: pointer; transition: all 0.3s;
+  letter-spacing: 0.15em;
+}
+#celebration button:hover { background: rgba(255,255,255,0.15); color: rgba(255,220,180,1); }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+#constellationList {
+  position: fixed; right: 16px; top: 50%; transform: translateY(-50%); z-index: 10;
+  display: flex; flex-direction: column; gap: 6px;
+  opacity: 0; transition: opacity 0.5s;
+}
+#constellationList.show { opacity: 1; }
+.constellationItem {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+  padding: 6px 12px; border-radius: 16px; cursor: pointer;
+  transition: all 0.3s; min-width: 130px;
+}
+.constellationItem:hover { background: rgba(255,255,255,0.1); }
+.constellationItem.active { background: rgba(255,200,150,0.1); border-color: rgba(255,200,150,0.25); }
+.constellationItem.completed { background: rgba(255,200,150,0.06); border-color: rgba(255,200,150,0.15); }
+.constellationNum {
+  font: 12px/1 system-ui, sans-serif; color: rgba(200,210,240,0.25);
+  min-width: 16px;
+}
+.constellationItem.active .constellationNum { color: rgba(255,200,150,0.7); }
+.constellationItem.completed .constellationNum { color: rgba(255,200,150,0.5); }
+.constellationName {
+  font: 13px/1 system-ui, sans-serif; color: rgba(200,210,240,0.35);
+  flex: 1; letter-spacing: 0.05em;
+}
+.constellationItem.active .constellationName { color: rgba(255,220,180,0.85); }
+.constellationItem.completed .constellationName { color: rgba(255,220,180,0.5); }
+.constellationDots {
+  display: flex; gap: 3px; align-items: center;
+}
+.constellationDot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(200,210,240,0.15); transition: background 0.3s;
+}
+.constellationDot.lit { background: rgba(255,200,150,0.7); box-shadow: 0 0 4px rgba(255,180,120,0.4); }
+.constellationItem.completed .constellationDot.lit { background: rgba(255,200,150,0.5); }
+.constellationCheck {
+  font-size: 12px; color: rgba(255,200,150,0.6); display: none;
+}
+.constellationItem.completed .constellationCheck { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<button id="modeBtn">关卡</button>
+<button id="muteBtn">♪</button>
+<div id="levelIndicator"></div>
+<div id="celebration">
+  <h2 id="celebTitle"></h2>
+  <p id="celebSub"></p>
+  <button id="celebBtn">下一个星座</button>
+</div>
+<div id="constellationList"></div>
+<script>
+// ============================================================
+// 弦月 Chord Moon - Physics Intuition Game
+// ============================================================
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const muteBtn = document.getElementById('muteBtn');
+const levelEl = document.getElementById('levelIndicator');
+
+// --- Resize ---
+let railH = 80;
+const rw = () => window.innerWidth;
+const rh = () => window.innerHeight;
+const stars = [];
+function initStars() {
+  stars.length = 0;
+  for (let i = 0; i < 200; i++) {
+    stars.push({
+      x: Math.random() * rw(),
+      y: Math.random() * (rh() - railH - 20),
+      r: Math.random() * 1.5 + 0.3,
+      alpha: Math.random() * 0.6 + 0.2,
+      twinkleSpeed: Math.random() * 0.002 + 0.001,
+      twinklePhase: Math.random() * Math.PI * 2
+    });
+  }
+}
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = window.innerWidth * dpr;
+  canvas.height = window.innerHeight * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  railH = Math.max(80, window.innerHeight * 0.12);
+  initStars();
+}
+window.addEventListener('resize', resize);
+resize();
+
+// --- Audio (Web Audio API) ---
+let audioCtx = null;
+let muted = false;
+let lastChargeSound = 0;
+
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+muteBtn.addEventListener('click', () => {
+  muted = !muted;
+  muteBtn.textContent = muted ? '✕' : '♪';
+});
+
+// ============================================================
+// Constellation Data
+// ============================================================
+const CONSTELLATIONS = [
+  {
+    name: '猎户座',
+    sub: 'Orion',
+    // Stars as normalized positions (0-1), with musical notes
+    stars: [
+      { nx: 0.3, ny: 0.15, note: 523.25, name: '参宿四' },   // Betelgeuse - C5
+      { nx: 0.7, ny: 0.12, note: 587.33, name: '参宿七' },   // Bellatrix - D5
+      { nx: 0.48, ny: 0.38, note: 659.25, name: '参宿五' },  // Mintaka - E5
+      { nx: 0.50, ny: 0.44, note: 698.46, name: '参宿六' },  // Alnilam - F5
+      { nx: 0.52, ny: 0.50, note: 783.99, name: '参宿七' },  // Alnitak - G5
+      { nx: 0.35, ny: 0.75, note: 880.00, name: '参宿一' },  // Saiph - A5
+      { nx: 0.65, ny: 0.72, note: 987.77, name: '参宿二' },  // Rigel - B5
+    ],
+    // Lines connecting stars (indices)
+    lines: [[0,2],[1,2],[2,3],[3,4],[4,5],[4,6]],
+    // Melody: sequence of star indices with durations (ms)
+    melody: [[2,250],[3,250],[4,250],[6,350],[4,150],[6,350],[3,200],[2,200],[1,200],[0,500]],
+  },
+  {
+    name: '北斗七星',
+    sub: 'Big Dipper',
+    stars: [
+      { nx: 0.05, ny: 0.2, note: 261.63, name: '天枢' },   // C4
+      { nx: 0.22, ny: 0.22, note: 293.66, name: '天璇' },   // D4
+      { nx: 0.38, ny: 0.18, note: 329.63, name: '天玑' },   // E4
+      { nx: 0.52, ny: 0.12, note: 349.23, name: '天权' },   // F4
+      { nx: 0.68, ny: 0.20, note: 392.00, name: '玉衡' },   // G4
+      { nx: 0.82, ny: 0.10, note: 440.00, name: '开阳' },   // A4
+      { nx: 0.95, ny: 0.05, note: 493.88, name: '摇光' },   // B4
+    ],
+    lines: [[0,1],[1,2],[2,3],[3,4],[4,5],[5,6]],
+    melody: [[0,300],[1,300],[2,300],[3,200],[4,200],[5,200],[6,500],[4,150],[6,350]],
+  },
+  {
+    name: '天蝎座',
+    sub: 'Scorpius',
+    stars: [
+      { nx: 0.15, ny: 0.10, note: 196.00, name: '心宿三' },  // G3
+      { nx: 0.28, ny: 0.22, note: 220.00, name: '房宿三' },  // A3
+      { nx: 0.40, ny: 0.18, note: 246.94, name: '心宿二' },  // B3
+      { nx: 0.50, ny: 0.30, note: 261.63, name: '尾宿八' },  // C4
+      { nx: 0.58, ny: 0.45, note: 293.66, name: '翼宿九' },  // D4
+      { nx: 0.65, ny: 0.60, note: 329.63, name: '翼宿十' }, // E4
+      { nx: 0.75, ny: 0.72, note: 349.23, name: '尾宿四' }, // F4
+      { nx: 0.85, ny: 0.82, note: 392.00, name: '尾宿五' }, // G4
+      { nx: 0.92, ny: 0.75, note: 440.00, name: '尾宿六' }, // A4
+    ],
+    lines: [[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8]],
+    melody: [[2,400],[3,200],[4,200],[5,200],[6,200],[7,300],[8,200],[7,100],[8,400],[6,150],[4,150],[2,600]],
+  },
+  {
+    name: '南十字',
+    sub: 'Crux',
+    stars: [
+      { nx: 0.50, ny: 0.05, note: 523.25, name: '十字架一' }, // C5
+      { nx: 0.50, ny: 0.30, note: 587.33, name: '十字架二' }, // D5
+      { nx: 0.50, ny: 0.55, note: 659.25, name: '十字架三' }, // E5
+      { nx: 0.50, ny: 0.80, note: 698.46, name: '十字架四' }, // F5
+      { nx: 0.22, ny: 0.30, note: 783.99, name: '南十字三' }, // G5
+      { nx: 0.78, ny: 0.30, note: 880.00, name: '南十字四' }, // A5
+    ],
+    lines: [[0,1],[1,2],[2,3],[1,4],[1,5]],
+    melody: [[4,300],[5,300],[0,200],[1,200],[2,200],[3,400],[2,150],[3,350],[1,200],[0,500]],
+  },
+  {
+    name: '夏季大三角',
+    sub: 'Summer Triangle',
+    stars: [
+      { nx: 0.15, ny: 0.70, note: 392.00, name: '织女' },   // G4
+      { nx: 0.85, ny: 0.15, note: 440.00, name: '牛郎' },   // A4
+      { nx: 0.80, ny: 0.75, note: 349.23, name: '天津四' }, // F4
+      { nx: 0.50, ny: 0.40, note: 523.25, name: '辇道' },   // C5
+    ],
+    lines: [[0,1],[1,2],[2,0],[0,3],[1,3],[2,3]],
+    melody: [[3,400],[0,300],[1,300],[2,300],[3,200],[0,200],[1,200],[2,400],[3,600]],
+  },
+];
+
+// ============================================================
+// Mode Management
+// ============================================================
+let gameMode = 'free'; // 'free' or 'level'
+let constellationIndex = 0;
+let constellationStars = []; // transformed stars with screen positions
+let constellationLines = [];
+let melodyPlaying = false;
+let levelReady = true; // can shoot in level mode
+let completedConstellations = new Set(); // tracks completed constellation indices
+
+const modeBtn = document.getElementById('modeBtn');
+const celebrationEl = document.getElementById('celebration');
+const celebTitle = document.getElementById('celebTitle');
+const celebSub = document.getElementById('celebSub');
+const celebBtn = document.getElementById('celebBtn');
+
+modeBtn.addEventListener('click', () => {
+  if (gameMode === 'free') {
+    gameMode = 'level';
+    modeBtn.textContent = '自由';
+    enterLevelMode();
+  } else {
+    gameMode = 'free';
+    modeBtn.textContent = '关卡';
+    exitLevelMode();
+  }
+});
+
+celebBtn.addEventListener('click', () => {
+  celebrationEl.classList.remove('show');
+  nextConstellation();
+});
+
+function enterLevelMode() {
+  // Clear ink lines from free mode
+  inkLines = [];
+  projectiles = [];
+  particles = [];
+  constellationListEl.classList.add('show');
+  loadConstellation(constellationIndex);
+}
+
+function exitLevelMode() {
+  celebrationEl.classList.remove('show');
+  constellationListEl.classList.remove('show');
+  melodyPlaying = false;
+  levelReady = true;
+  obstacles = [];
+  constellationStars = [];
+  constellationLines = [];
+  // Reset to free mode state
+  target.alive = true;
+  placeTarget();
+  generateObstacles();
+  updateLevelUI();
+}
+
+function loadConstellation(index) {
+  constellationIndex = index % CONSTELLATIONS.length;
+  const c = CONSTELLATIONS[constellationIndex];
+
+  // Calculate constellation bounding box and scale to fit screen
+  const padding = 100;
+  const skyTop = 60;
+  const skyBottom = rh() - railH - 60;
+  const skyLeft = padding;
+  const skyRight = rw() - padding;
+  const skyW = skyRight - skyLeft;
+  const skyH = skyBottom - skyTop;
+
+  let minNx = 1, maxNx = 0, minNy = 1, maxNy = 0;
+  for (const s of c.stars) {
+    if (s.nx < minNx) minNx = s.nx;
+    if (s.nx > maxNx) maxNx = s.nx;
+    if (s.ny < minNy) minNy = s.ny;
+    if (s.ny > maxNy) maxNy = s.ny;
+  }
+  const contentW = maxNx - minNx || 1;
+  const contentH = maxNy - minNy || 1;
+  const scale = Math.min(skyW / contentW, skyH / contentH) * 0.75;
+  const offsetX = skyLeft + (skyW - contentW * scale) / 2;
+  const offsetY = skyTop + (skyH - contentH * scale) / 2;
+
+  // Create star targets
+  constellationStars = c.stars.map((s, i) => ({
+    x: offsetX + (s.nx - minNx) * scale,
+    y: offsetY + (s.ny - minNy) * scale,
+    note: s.note,
+    name: s.name,
+    lit: false,
+    radius: 10,
+    index: i,
+    litTime: 0,
+  }));
+
+  constellationLines = c.lines.map(([a, b]) => ({ a, b }));
+
+  // Generate obstacles for the level
+  generateLevelObstacles();
+
+  // Update UI
+  levelReady = true;
+  updateLevelUI();
+}
+
+function nextConstellation() {
+  constellationIndex = (constellationIndex + 1) % CONSTELLATIONS.length;
+  loadConstellation(constellationIndex);
+}
+
+function updateLevelUI() {
+  if (gameMode === 'level') {
+    const c = CONSTELLATIONS[constellationIndex];
+    const lit = constellationStars.filter(s => s.lit).length;
+    levelEl.textContent = `${c.name} ${c.sub}  ${lit}/${constellationStars.length}`;
+    levelEl.style.opacity = '0.7';
+    updateConstellationList();
+  } else {
+    levelEl.textContent = `弦月 ${level}`;
+    levelEl.style.opacity = '0.6';
+    setTimeout(() => { if (gameMode === 'free') levelEl.style.opacity = '0.25'; }, 2000);
+  }
+}
+
+// ============================================================
+// Constellation List UI
+// ============================================================
+const constellationListEl = document.getElementById('constellationList');
+
+function buildConstellationList() {
+  constellationListEl.innerHTML = '';
+  CONSTELLATIONS.forEach((c, idx) => {
+    const item = document.createElement('div');
+    item.className = 'constellationItem';
+    item.dataset.index = idx;
+
+    const num = document.createElement('span');
+    num.className = 'constellationNum';
+    num.textContent = idx + 1;
+
+    const name = document.createElement('span');
+    name.className = 'constellationName';
+    name.textContent = c.name;
+
+    const dots = document.createElement('span');
+    dots.className = 'constellationDots';
+    for (let d = 0; d < c.stars.length; d++) {
+      const dot = document.createElement('span');
+      dot.className = 'constellationDot';
+      dots.appendChild(dot);
+    }
+
+    const check = document.createElement('span');
+    check.className = 'constellationCheck';
+    check.textContent = '✦';
+
+    item.appendChild(num);
+    item.appendChild(name);
+    item.appendChild(dots);
+    item.appendChild(check);
+
+    item.addEventListener('click', () => {
+      if (gameMode === 'level') {
+        loadConstellation(idx);
+      }
+    });
+
+    constellationListEl.appendChild(item);
+  });
+}
+
+function updateConstellationList() {
+  const items = constellationListEl.querySelectorAll('.constellationItem');
+  items.forEach((item, idx) => {
+    // Classes
+    item.classList.remove('active', 'completed');
+    if (idx === constellationIndex) item.classList.add('active');
+    else if (completedConstellations.has(idx)) item.classList.add('completed');
+
+    // Dots
+    const dots = item.querySelectorAll('.constellationDot');
+    if (idx === constellationIndex) {
+      // Current constellation - show live progress
+      constellationStars.forEach((star, di) => {
+        if (di < dots.length) {
+          dots[di].classList.toggle('lit', star.lit);
+        }
+      });
+    } else if (completedConstellations.has(idx)) {
+      // Completed - all dots lit
+      dots.forEach(d => d.classList.add('lit'));
+    } else {
+      // Not started - no dots lit
+      dots.forEach(d => d.classList.remove('lit'));
+    }
+  });
+}
+
+function markConstellationComplete(idx) {
+  completedConstellations.add(idx);
+  updateConstellationList();
+}
+
+buildConstellationList();
+
+// ============================================================
+// Melody Playback
+// ============================================================
+function playNote(freq, startTime, duration) {
+  if (muted || !audioCtx) return;
+  const t = audioCtx.currentTime + startTime;
+  const dur = duration / 1000;
+
+  // Main tone
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(0.15, t + 0.03);
+  gain.gain.setValueAtTime(0.12, t + dur * 0.5);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.95);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t); osc.stop(t + dur);
+
+  // Harmonic
+  const osc2 = audioCtx.createOscillator();
+  const gain2 = audioCtx.createGain();
+  osc2.type = 'triangle';
+  osc2.frequency.value = freq * 2;
+  gain2.gain.setValueAtTime(0, t);
+  gain2.gain.linearRampToValueAtTime(0.03, t + 0.02);
+  gain2.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.7);
+  osc2.connect(gain2).connect(audioCtx.destination);
+  osc2.start(t); osc2.stop(t + dur);
+
+  // Bell-like overtone
+  const osc3 = audioCtx.createOscillator();
+  const gain3 = audioCtx.createGain();
+  osc3.type = 'sine';
+  osc3.frequency.value = freq * 3;
+  gain3.gain.setValueAtTime(0, t);
+  gain3.gain.linearRampToValueAtTime(0.01, t + 0.01);
+  gain3.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.4);
+  osc3.connect(gain3).connect(audioCtx.destination);
+  osc3.start(t); osc3.stop(t + dur * 0.5);
+}
+
+function playMelody(constellation) {
+  if (melodyPlaying) return;
+  melodyPlaying = true;
+  levelReady = false;
+
+  let time = 0.3; // small delay before starting
+  const events = [];
+
+  for (const [starIdx, duration] of constellation.melody) {
+    const star = constellationStars[starIdx];
+    if (star) {
+      events.push({ time, freq: star.note, duration });
+      // Pulse the star visually
+      setTimeout(() => {
+        star.pulsePhase = 1;
+      }, time * 1000);
+    }
+    time += duration / 1000 + 0.05; // small gap between notes
+  }
+
+  // Play all notes
+  events.forEach(e => playNote(e.freq, e.time, e.duration));
+
+  // Restart melody after a pause for a beautiful repeat
+  const totalDuration = time * 1000 + 2000;
+  setTimeout(() => {
+    // Play a softer second pass
+    playMelodySoft(constellation);
+  }, totalDuration);
+}
+
+function playMelodySoft(constellation) {
+  if (!melodyPlaying || gameMode !== 'level') return;
+
+  let time = 0.2;
+  const events = [];
+
+  for (const [starIdx, duration] of constellation.melody) {
+    const star = constellationStars[starIdx];
+    if (star) {
+      events.push({ time, freq: star.note, duration });
+      setTimeout(() => {
+        star.pulsePhase = (star.pulsePhase || 0) + 0.5;
+      }, time * 1000);
+    }
+    time += duration / 1000 + 0.05;
+  }
+
+  // Softer second pass
+  for (const e of events) {
+    if (muted || !audioCtx) continue;
+    const t = audioCtx.currentTime + e.time;
+    const dur = e.duration / 1000;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = e.freq;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.06, t + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.9);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + dur);
+  }
+
+  const totalTime = time * 1000 + 1000;
+  setTimeout(() => {
+    melodyPlaying = false;
+  }, totalTime);
+}
+
+function playStarNote(freq) {
+  // Single note played when hitting a star
+  if (muted || !audioCtx) return;
+  const t = audioCtx.currentTime;
+  const dur = 0.8;
+
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(0.12, t + 0.02);
+  gain.gain.setValueAtTime(0.1, t + dur * 0.3);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t); osc.stop(t + dur + 0.1);
+
+  // Overtone
+  const osc2 = audioCtx.createOscillator();
+  const gain2 = audioCtx.createGain();
+  osc2.type = 'triangle';
+  osc2.frequency.value = freq * 2;
+  gain2.gain.setValueAtTime(0, t);
+  gain2.gain.linearRampToValueAtTime(0.025, t + 0.01);
+  gain2.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.6);
+  osc2.connect(gain2).connect(audioCtx.destination);
+  osc2.start(t); osc2.stop(t + dur);
+}
+
+// ============================================================
+// Draw Constellation
+// ============================================================
+function drawConstellation(time) {
+  if (gameMode !== 'level') return;
+
+  // Draw connection lines
+  for (const line of constellationLines) {
+    const sa = constellationStars[line.a];
+    const sb = constellationStars[line.b];
+    if (!sa || !sb) continue;
+
+    const bothLit = sa.lit && sb.lit;
+    const eitherLit = sa.lit || sb.lit;
+
+    ctx.beginPath();
+    ctx.moveTo(sa.x, sa.y);
+    ctx.lineTo(sb.x, sb.y);
+
+    if (bothLit) {
+      // Glowing line
+      ctx.strokeStyle = 'rgba(255,200,150,0.25)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,220,180,0.5)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    } else if (eitherLit) {
+      ctx.strokeStyle = 'rgba(150,170,200,0.12)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    } else {
+      ctx.strokeStyle = 'rgba(100,120,160,0.06)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 6]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  // Draw stars
+  for (const star of constellationStars) {
+    const pulse = star.pulsePhase || 0;
+
+    if (star.lit) {
+      // Lit star - bright with glow
+      const grad = ctx.createRadialGradient(star.x, star.y, 0, star.x, star.y, star.radius * 4);
+      grad.addColorStop(0, `rgba(255,220,170,${0.2 + pulse * 0.3})`);
+      grad.addColorStop(0.3, 'rgba(255,180,120,0.08)');
+      grad.addColorStop(1, 'rgba(255,180,120,0)');
+      ctx.beginPath();
+      ctx.arc(star.x, star.y, star.radius * 4, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Core
+      ctx.beginPath();
+      ctx.arc(star.x, star.y, star.radius * (0.8 + pulse * 0.4), 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,230,190,${0.8 + pulse * 0.2})`;
+      ctx.fill();
+
+      // Bright center
+      ctx.beginPath();
+      ctx.arc(star.x, star.y, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,250,230,${0.9 + pulse * 0.1})`;
+      ctx.fill();
+
+      // Cross flare
+      const flareAlpha = 0.3 + pulse * 0.4;
+      ctx.strokeStyle = `rgba(255,220,180,${flareAlpha})`;
+      ctx.lineWidth = 1;
+      const flareLen = star.radius * 2 * (1 + pulse * 0.5);
+      ctx.beginPath();
+      ctx.moveTo(star.x - flareLen, star.y);
+      ctx.lineTo(star.x + flareLen, star.y);
+      ctx.moveTo(star.x, star.y - flareLen);
+      ctx.lineTo(star.x, star.y + flareLen);
+      ctx.stroke();
+    } else {
+      // Unlit star - dim, waiting to be hit
+      const breathe = Math.sin(time * 0.002 + star.index) * 0.15 + 0.85;
+
+      // Subtle glow
+      const grad = ctx.createRadialGradient(star.x, star.y, 0, star.x, star.y, star.radius * 2.5);
+      grad.addColorStop(0, `rgba(140,160,200,${0.08 * breathe})`);
+      grad.addColorStop(1, 'rgba(140,160,200,0)');
+      ctx.beginPath();
+      ctx.arc(star.x, star.y, star.radius * 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Dim core
+      ctx.beginPath();
+      ctx.arc(star.x, star.y, star.radius * 0.5 * breathe, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(140,160,200,${0.35 * breathe})`;
+      ctx.fill();
+
+      // Outer ring
+      ctx.beginPath();
+      ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(140,160,200,${0.12 * breathe})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // Decay pulse
+    if (star.pulsePhase > 0) {
+      star.pulsePhase *= 0.96;
+      if (star.pulsePhase < 0.01) star.pulsePhase = 0;
+    }
+  }
+}
+
+function playCharge(power) {
+  if (muted || !audioCtx) return;
+  const now = audioCtx.currentTime;
+  if (now - lastChargeSound < 0.15) return; // throttle
+  lastChargeSound = now;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(80 + power * 160, now);
+  osc.frequency.linearRampToValueAtTime(100 + power * 200, now + 0.2);
+  gain.gain.setValueAtTime(0.04, now);
+  gain.gain.linearRampToValueAtTime(0, now + 0.25);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(now); osc.stop(now + 0.3);
+}
+
+function playFire() {
+  if (muted || !audioCtx) return;
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.15, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    const t = i / d.length;
+    d[i] = (Math.random() * 2 - 1) * Math.exp(-t * 8) * 0.15;
+  }
+  const src = audioCtx.createBufferSource();
+  const filt = audioCtx.createBiquadFilter();
+  filt.type = 'bandpass'; filt.frequency.value = 2000; filt.Q.value = 0.5;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+  src.buffer = buf;
+  src.connect(filt).connect(gain).connect(audioCtx.destination);
+  src.start();
+}
+
+function playHit() {
+  if (muted || !audioCtx) return;
+  const t = audioCtx.currentTime;
+  const freqs = [440, 554.37, 659.25];
+  freqs.forEach((f, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine'; osc.frequency.value = f;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.1, t + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 3.0);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t + i * 0.05); osc.stop(t + 3.2);
+  });
+  const osc2 = audioCtx.createOscillator();
+  const g2 = audioCtx.createGain();
+  osc2.type = 'triangle'; osc2.frequency.value = 1318.5;
+  g2.gain.setValueAtTime(0, t);
+  g2.gain.linearRampToValueAtTime(0.03, t + 0.08);
+  g2.gain.exponentialRampToValueAtTime(0.001, t + 4.0);
+  osc2.connect(g2).connect(audioCtx.destination);
+  osc2.start(t); osc2.stop(t + 4.2);
+}
+
+function playDeflect() {
+  if (muted || !audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(180, audioCtx.currentTime);
+  osc.frequency.linearRampToValueAtTime(140, audioCtx.currentTime + 0.5);
+  gain.gain.setValueAtTime(0.07, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.7);
+}
+
+// --- 1D Perlin Noise ---
+class PerlinNoise {
+  constructor(seed) {
+    this.perm = new Uint8Array(512);
+    const p = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) p[i] = i;
+    let s = seed || 42;
+    for (let i = 255; i > 0; i--) {
+      s = (s * 16807 + 0) % 2147483647;
+      const j = s % (i + 1);
+      [p[i], p[j]] = [p[j], p[i]];
+    }
+    for (let i = 0; i < 512; i++) this.perm[i] = p[i & 255];
+  }
+  fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+  lerp(a, b, t) { return a + t * (b - a); }
+  grad(hash, x) { return (hash & 1) === 0 ? x : -x; }
+  noise(x) {
+    const X = Math.floor(x) & 255;
+    const xf = x - Math.floor(x);
+    const u = this.fade(xf);
+    const a = this.perm[X], b = this.perm[X + 1];
+    return this.lerp(this.grad(this.perm[a], xf), this.grad(this.perm[b], xf - 1), u);
+  }
+  fbm(x, octaves = 4) {
+    let val = 0, amp = 1, freq = 1, max = 0;
+    for (let i = 0; i < octaves; i++) {
+      val += this.noise(x * freq) * amp;
+      max += amp; amp *= 0.5; freq *= 2;
+    }
+    return val / max;
+  }
+}
+
+// --- Stars (moved before resize to avoid TDZ) ---
+
+// --- Game State ---
+const GRAVITY = 0.35;
+const MAX_POWER = 18;
+const INK_FADE_TIME = 4.5;
+const PREVIEW_POINTS = 100;
+
+let level = 1;
+let gameTime = 0;
+let slowMoFactor = 1;
+let slowMoTarget = 1;
+let projectiles = [];
+let particles = [];
+let inkLines = [];
+let obstacles = [];
+let target = { x: 0, y: 0, alive: true, radius: 12 };
+let perlin = new PerlinNoise(Math.random() * 10000);
+let windEnabled = false;
+let windStrength = 0;
+let shotCount = 0;
+let shotsInLevel = 0;
+let levelTransitionTimer = 0;
+let levelShotsNeeded = 5;
+let pendingLevelUp = false;
+
+// --- Charge rail ---
+const railCenter = () => ({ x: rw() / 2, y: rh() - railH / 2 });
+let charging = false;
+let chargeStart = { x: 0, y: 0 };
+let chargeEnd = { x: 0, y: 0 };
+let chargePower = 0;
+let chargeAngle = 0;
+
+// --- Obstacle Generation ---
+function generateObstaclesForLevel(difficulty) {
+  // Generates obstacles scaled to a 0-1 difficulty value
+  const numBands = Math.floor(1.5 + difficulty * 3);
+  const hasWind = difficulty > 0.4;
+  const usableH = rh() - railH - 80;
+  const bandSpacing = usableH / (numBands + 1);
+  const gapSize = Math.max(100, 180 - difficulty * 80);
+
+  const obs = [];
+  for (let i = 0; i < numBands; i++) {
+    const baseY = 70 + bandSpacing * (i + 1);
+    const bandType = Math.random();
+    if (bandType < 0.6) {
+      const a = Math.floor(Math.random() * 3) + 1;
+      const b = Math.floor(Math.random() * 3) + 1;
+      const A = 40 + Math.random() * 60 * difficulty;
+      const B = 8 + Math.random() * 15;
+      const delta = Math.random() * Math.PI * 2;
+      const speed = (0.005 + Math.random() * 0.008) * (0.5 + difficulty);
+      const thickness = 5 + Math.random() * 4;
+      obs.push({
+        type: 'lissajous',
+        baseY, a, b, A, B, delta, speed, thickness, gapSize,
+        phaseOffset: Math.random() * Math.PI * 2
+      });
+    } else {
+      const numGaps = Math.max(1, Math.floor(2 - difficulty * 0.5));
+      const gaps = [];
+      for (let g = 0; g < numGaps; g++) {
+        gaps.push({
+          cx: (rw() / (numGaps + 1)) * (g + 1) + (Math.random() - 0.5) * 80,
+          width: gapSize
+        });
+      }
+      const speed = (0.003 + Math.random() * 0.006) * (0.5 + difficulty);
+      obs.push({
+        type: 'barrier',
+        baseY, gaps, speed, thickness: 4 + Math.random() * 3,
+        phaseOffset: Math.random() * Math.PI * 2,
+        driftAmp: 15 + 20 * difficulty
+      });
+    }
+  }
+  return { obstacles: obs, windEnabled: hasWind, windStrength: hasWind ? 0.15 * difficulty : 0 };
+}
+
+function generateObstacles() {
+  const difficulty = Math.min(level / 10, 1);
+  const result = generateObstaclesForLevel(difficulty);
+  obstacles = result.obstacles;
+  windEnabled = result.windEnabled;
+  windStrength = result.windStrength;
+  placeTarget();
+}
+
+function generateLevelObstacles() {
+  // Obstacles for level mode - scales with constellation index
+  const difficulty = Math.min(0.2 + constellationIndex * 0.15, 0.8);
+  const result = generateObstaclesForLevel(difficulty);
+  obstacles = result.obstacles;
+  windEnabled = result.windEnabled;
+  windStrength = result.windStrength;
+}
+
+function placeTarget() {
+  const margin = 80;
+  let bestX = rw() * 0.6 + Math.random() * rw() * 0.3;
+  let bestY = rh() * 0.2 + Math.random() * rh() * 0.3;
+  const rc = railCenter();
+
+  // Try to find a valid target
+  for (let a = 0; a < 60; a++) {
+    const tx = margin + Math.random() * (rw() - margin * 2);
+    const ty = margin + Math.random() * (rh() * 0.45);
+    const testSim = simulateTrajectory(rc.x, rc.y, tx, ty, MAX_POWER * (0.6 + Math.random() * 0.3));
+    if (testSim.hit === 'target') {
+      bestX = tx; bestY = ty; break;
+    }
+  }
+
+  target.x = bestX;
+  target.y = bestY;
+  target.alive = true;
+  target.radius = 10 + Math.random() * 6;
+}
+
+// --- Physics helpers ---
+function getObstacleY(obs) {
+  if (obs.type === 'lissajous') {
+    const t = gameTime * obs.speed + obs.phaseOffset;
+    return (x) => obs.baseY + obs.B * Math.sin(obs.b * t) +
+                  obs.A * Math.sin(obs.a * t + obs.delta) * Math.sin(x / 200);
+  } else {
+    const t = gameTime * obs.speed + obs.phaseOffset;
+    const by = obs.baseY + Math.sin(t) * obs.driftAmp;
+    return () => by;
+  }
+}
+
+function getWindForce(y) {
+  if (!windEnabled) return 0;
+  return perlin.fbm(y * 0.003 + gameTime * 0.1, 3) * windStrength;
+}
+
+// --- Trajectory Simulation ---
+function simulateTrajectory(sx, sy, tx, ty, power) {
+  const dx = tx - sx, dy = ty - sy;
+  const angle = Math.atan2(dy, dx);
+  let x = sx, y = sy;
+  let xv = Math.cos(angle) * power;
+  let yv = Math.sin(angle) * power;
+  const points = [];
+  let hit = 'miss';
+  const dt = 0.4;
+
+  for (let i = 0; i < 400; i++) {
+    xv += getWindForce(y) * dt * 0.05;
+    yv += GRAVITY * dt * 0.05;
+    x += xv * dt;
+    y += yv * dt;
+    points.push({ x, y });
+
+    const tdx = x - target.x, tdy = y - target.y;
+    if (Math.sqrt(tdx * tdx + tdy * tdy) < target.radius + 5) { hit = 'target'; break; }
+
+    for (const obs of obstacles) {
+      const getY = getObstacleY(obs);
+      if (Math.abs(y - getY(x)) < obs.thickness + 3) {
+        if (obs.type === 'barrier') {
+          let inGap = false;
+          for (const g of obs.gaps) {
+            if (Math.abs(x - g.cx) < g.width / 2) { inGap = true; break; }
+          }
+          if (inGap) continue;
+        }
+        hit = 'obstacle'; break;
+      }
+    }
+    if (hit === 'obstacle') break;
+    if (y > rh() + 50 || x < -50 || x > rw() + 50) { hit = 'offscreen'; break; }
+  }
+  return { points, hit };
+}
+
+// --- Preview ---
+function getPreviewPoints(sx, sy, angle, power) {
+  let x = sx, y = sy;
+  let xv = Math.cos(angle) * power;
+  let yv = Math.sin(angle) * power;
+  const points = [];
+  const dt = 0.4;
+
+  for (let i = 0; i < PREVIEW_POINTS; i++) {
+    xv += getWindForce(y) * dt * 0.05;
+    yv += GRAVITY * dt * 0.05;
+    x += xv * dt;
+    y += yv * dt;
+    points.push({ x, y });
+    if (y > rh() + 50 || x < -100 || x > rw() + 100) break;
+  }
+  return points;
+}
+
+// --- Input ---
+function onPointerDown(ex, ey) {
+  initAudio();
+  const rc = railCenter();
+  const dist = Math.sqrt((ex - rc.x) ** 2 + (ey - rc.y) ** 2);
+  if (dist < 150 || ey > rh() - railH - 30) {
+    charging = true;
+    chargeStart = { x: rc.x, y: rc.y };
+    chargeEnd = { x: ex, y: ey };
+  }
+}
+
+function onPointerMove(ex, ey) {
+  if (!charging) return;
+  chargeEnd = { x: ex, y: ey };
+  const dx = chargeEnd.x - chargeStart.x;
+  const dy = chargeEnd.y - chargeStart.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  chargePower = Math.min(dist / 200, 1) * MAX_POWER;
+  chargeAngle = Math.atan2(dy, dx);
+  playCharge(chargePower / MAX_POWER);
+}
+
+function onPointerUp() {
+  if (!charging) return;
+  charging = false;
+  if (chargePower < 1) return;
+
+  initAudio();
+  playFire();
+  shotCount++;
+  shotsInLevel++;
+  pendingLevelUp = false;
+
+  const rc = railCenter();
+  projectiles.push({
+    x: rc.x, y: rc.y,
+    vx: Math.cos(chargeAngle) * chargePower,
+    vy: Math.sin(chargeAngle) * chargePower,
+    trail: [], alive: true, age: 0,
+    hue: (shotCount * 37 + 20) % 40 + 15
+  });
+  chargePower = 0;
+}
+
+canvas.addEventListener('mousedown', e => onPointerDown(e.clientX, e.clientY));
+canvas.addEventListener('mousemove', e => onPointerMove(e.clientX, e.clientY));
+canvas.addEventListener('mouseup', () => onPointerUp());
+canvas.addEventListener('touchstart', e => { e.preventDefault(); const t = e.touches[0]; onPointerDown(t.clientX, t.clientY); }, { passive: false });
+canvas.addEventListener('touchmove', e => { e.preventDefault(); const t = e.touches[0]; onPointerMove(t.clientX, t.clientY); }, { passive: false });
+canvas.addEventListener('touchend', e => { e.preventDefault(); onPointerUp(); }, { passive: false });
+
+// --- Particles ---
+function spawnBloom(x, y, hue) {
+  for (let i = 0; i < 60; i++) {
+    const angle = (Math.PI * 2 / 60) * i + Math.random() * 0.3;
+    const speed = 1 + Math.random() * 3;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 1,
+      life: 1, decay: 0.003 + Math.random() * 0.005,
+      r: 2 + Math.random() * 4,
+      hue: hue + Math.random() * 30 - 15, type: 'bloom'
+    });
+  }
+  for (let i = 0; i < 30; i++) {
+    const angle = (Math.PI * 2 / 30) * i;
+    const speed = 0.5 + Math.random() * 1;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+      life: 1, decay: 0.005 + Math.random() * 0.008,
+      r: 1 + Math.random() * 2, hue: hue, type: 'sparkle'
+    });
+  }
+}
+
+function spawnDeflect(x, y, hue) {
+  for (let i = 0; i < 20; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 0.5 + Math.random() * 2;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+      life: 1, decay: 0.01 + Math.random() * 0.02,
+      r: 1 + Math.random() * 2, hue: hue, type: 'deflect'
+    });
+  }
+}
+
+// --- Level Management ---
+function nextLevel() {
+  level++;
+  levelShotsNeeded = Math.min(5 + Math.floor(level / 3), 8);
+  perlin = new PerlinNoise(Math.random() * 10000);
+  inkLines = [];
+  shotsInLevel = 0;
+  pendingLevelUp = false;
+  generateObstacles();
+  updateLevelUI();
+}
+
+updateLevelUI();
+
+// --- Render ---
+function drawStars(time) {
+  for (const s of stars) {
+    const twinkle = Math.sin(time * s.twinkleSpeed + s.twinklePhase) * 0.3 + 0.7;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(200,210,240,${s.alpha * twinkle})`;
+    ctx.fill();
+  }
+}
+
+function drawObstacles() {
+  ctx.lineCap = 'round';
+  for (const obs of obstacles) {
+    if (obs.type === 'lissajous') {
+      const t = gameTime * obs.speed + obs.phaseOffset;
+      ctx.beginPath();
+      const steps = Math.floor(rw() / 2);
+      for (let i = 0; i <= steps; i++) {
+        const x = (rw() / steps) * i;
+        const y = obs.baseY + obs.B * Math.sin(obs.b * t) +
+                  obs.A * Math.sin(obs.a * t + obs.delta) * Math.sin(x / 200);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      // Glow pass
+      ctx.strokeStyle = 'rgba(100,130,180,0.06)';
+      ctx.lineWidth = obs.thickness * 4;
+      ctx.stroke();
+      // Core
+      ctx.strokeStyle = 'rgba(100,130,180,0.22)';
+      ctx.lineWidth = obs.thickness;
+      ctx.stroke();
+    } else {
+      const t = gameTime * obs.speed + obs.phaseOffset;
+      const by = obs.baseY + Math.sin(t) * obs.driftAmp;
+      ctx.fillStyle = 'rgba(80,110,160,0.18)';
+      for (let gi = 0; gi <= obs.gaps.length; gi++) {
+        let left = 0, right = rw();
+        if (gi > 0) left = obs.gaps[gi - 1].cx + obs.gaps[gi - 1].width / 2;
+        if (gi < obs.gaps.length) right = obs.gaps[gi].cx - obs.gaps[gi].width / 2;
+        if (right > left) {
+          // Glow
+          const grad = ctx.createLinearGradient(0, by - obs.thickness * 3, 0, by + obs.thickness * 3);
+          grad.addColorStop(0, 'rgba(80,110,160,0)');
+          grad.addColorStop(0.5, 'rgba(80,110,160,0.05)');
+          grad.addColorStop(1, 'rgba(80,110,160,0)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(left, by - obs.thickness * 3, right - left, obs.thickness * 6);
+          // Core
+          ctx.fillStyle = 'rgba(80,110,160,0.18)';
+          ctx.fillRect(left, by - obs.thickness / 2, right - left, obs.thickness);
+        }
+      }
+    }
+  }
+}
+
+function drawTarget(time) {
+  if (!target.alive) return;
+  const pulse = Math.sin(time * 0.003) * 0.2 + 0.8;
+  const r = target.radius * pulse;
+
+  const grad = ctx.createRadialGradient(target.x, target.y, 0, target.x, target.y, r * 3);
+  grad.addColorStop(0, 'rgba(255,200,150,0.15)');
+  grad.addColorStop(0.5, 'rgba(255,180,120,0.05)');
+  grad.addColorStop(1, 'rgba(255,180,120,0)');
+  ctx.beginPath();
+  ctx.arc(target.x, target.y, r * 3, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(target.x, target.y, r, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(255,210,160,${0.6 * pulse})`;
+  ctx.fill();
+  ctx.strokeStyle = `rgba(255,220,180,${0.8 * pulse})`;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(target.x, target.y, 2, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(255,240,200,${pulse})`;
+  ctx.fill();
+}
+
+function drawProjectile(p) {
+  if (p.trail.length > 1) {
+    for (let i = 1; i < p.trail.length; i++) {
+      const t = i / p.trail.length;
+      ctx.beginPath();
+      ctx.moveTo(p.trail[i - 1].x, p.trail[i - 1].y);
+      ctx.lineTo(p.trail[i].x, p.trail[i].y);
+      ctx.strokeStyle = `hsla(${p.hue},80%,70%,${t * 0.5})`;
+      ctx.lineWidth = t * 2;
+      ctx.stroke();
+    }
+  }
+  const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 6);
+  grad.addColorStop(0, `hsla(${p.hue},90%,85%,1)`);
+  grad.addColorStop(0.6, `hsla(${p.hue},80%,65%,0.8)`);
+  grad.addColorStop(1, `hsla(${p.hue},80%,50%,0)`);
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+}
+
+function drawInkLines() {
+  for (const ink of inkLines) {
+    if (ink.alpha <= 0.01 || ink.points.length < 2) continue;
+    ctx.beginPath();
+    ctx.moveTo(ink.points[0].x, ink.points[0].y);
+    for (let i = 1; i < ink.points.length; i++) {
+      ctx.lineTo(ink.points[i].x, ink.points[i].y);
+    }
+    ctx.strokeStyle = `hsla(${ink.hue},75%,65%,${ink.alpha * 0.6})`;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.strokeStyle = `hsla(${ink.hue},60%,50%,${ink.alpha * 0.15})`;
+    ctx.lineWidth = 6;
+    ctx.stroke();
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    if (p.life <= 0) continue;
+    const a = p.life;
+    if (p.type === 'sparkle') {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r * a, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${p.hue},90%,85%,${a})`;
+      ctx.fill();
+    } else {
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * a);
+      grad.addColorStop(0, `hsla(${p.hue},80%,75%,${a})`);
+      grad.addColorStop(1, `hsla(${p.hue},60%,50%,0)`);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r * a, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+  }
+}
+
+function drawPreviewLine() {
+  if (!charging || chargePower < 1) return;
+  const rc = railCenter();
+  const pts = getPreviewPoints(rc.x, rc.y, chargeAngle, chargePower);
+  if (pts.length < 2) return;
+
+  ctx.setLineDash([4, 8]);
+  ctx.lineDashOffset = -gameTime * 30;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.strokeStyle = 'hsla(35,80%,75%,0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  const rc2 = railCenter();
+  const powerRatio = chargePower / MAX_POWER;
+  const indicatorR = 20 + powerRatio * 20;
+  ctx.beginPath();
+  ctx.arc(rc2.x, rc2.y, indicatorR, chargeAngle - 0.3, chargeAngle + 0.3);
+  ctx.strokeStyle = `hsla(35,80%,70%,${0.3 + powerRatio * 0.4})`;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function drawRail() {
+  const grad = ctx.createLinearGradient(0, rh() - railH, 0, rh());
+  grad.addColorStop(0, 'rgba(15,20,40,0)');
+  grad.addColorStop(0.3, 'rgba(15,20,40,0.6)');
+  grad.addColorStop(1, 'rgba(15,20,40,0.9)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, rh() - railH, rw(), railH);
+
+  const rc = railCenter();
+  ctx.beginPath();
+  ctx.arc(rc.x, rc.y, 5, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,220,180,0.3)';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(rc.x, rc.y, 25, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,220,180,0.1)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+function drawWindField() {
+  if (!windEnabled) return;
+  const numLines = 8;
+  for (let i = 0; i < numLines; i++) {
+    const y = 80 + (rh() - railH - 160) / (numLines - 1) * i;
+    const force = getWindForce(y);
+    const alpha = Math.abs(force) * 0.3;
+    if (alpha < 0.02) continue;
+    const dir = force > 0 ? 1 : -1;
+    ctx.beginPath();
+    ctx.moveTo(rw() * 0.05, y);
+    ctx.lineTo(rw() * 0.05 + dir * alpha * 80, y);
+    ctx.strokeStyle = `rgba(150,180,220,${alpha})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    const ax = rw() * 0.05 + dir * alpha * 80;
+    ctx.beginPath();
+    ctx.moveTo(ax, y);
+    ctx.lineTo(ax - dir * 4, y - 3);
+    ctx.moveTo(ax, y);
+    ctx.lineTo(ax - dir * 4, y + 3);
+    ctx.stroke();
+  }
+}
+
+// --- Main Update ---
+function update(dt) {
+  slowMoFactor += (slowMoTarget - slowMoFactor) * 0.05;
+  if (Math.abs(slowMoFactor - slowMoTarget) < 0.01) slowMoFactor = slowMoTarget;
+
+  const effectiveDt = dt * slowMoFactor;
+  gameTime += effectiveDt;
+
+  for (const p of projectiles) {
+    if (!p.alive) continue;
+    p.age += effectiveDt;
+
+    p.vx += getWindForce(p.y) * effectiveDt;
+    p.vy += GRAVITY * effectiveDt;
+    p.x += p.vx * effectiveDt * 60;
+    p.y += p.vy * effectiveDt * 60;
+
+    p.trail.push({ x: p.x, y: p.y });
+    if (p.trail.length > 300) p.trail.shift();
+
+    // Target hit
+    if (gameMode === 'free') {
+      // Free mode: hit the single target
+      const tdx = p.x - target.x, tdy = p.y - target.y;
+      if (Math.sqrt(tdx * tdx + tdy * tdy) < target.radius + 3 && target.alive) {
+        target.alive = false;
+        p.alive = false;
+        spawnBloom(target.x, target.y, p.hue);
+        playHit();
+
+        inkLines.push({
+          points: [...p.trail], alpha: 0.8,
+          fadeStart: gameTime, hue: p.hue
+        });
+
+        slowMoTarget = 0.2;
+        setTimeout(() => { slowMoTarget = 0.5; }, 200);
+        setTimeout(() => { slowMoTarget = 1; }, 800);
+
+        setTimeout(() => { target.alive = true; placeTarget(); }, 3000);
+        continue;
+      }
+    } else {
+      // Level mode: hit constellation stars
+      for (const star of constellationStars) {
+        if (star.lit) continue;
+        const sdx = p.x - star.x, sdy = p.y - star.y;
+        if (Math.sqrt(sdx * sdx + sdy * sdy) < star.radius + 5) {
+          star.lit = true;
+          star.litTime = gameTime;
+          star.pulsePhase = 1;
+          p.alive = false;
+          spawnBloom(star.x, star.y, p.hue);
+          playStarNote(star.note);
+
+          inkLines.push({
+            points: [...p.trail], alpha: 0.8,
+            fadeStart: gameTime, hue: p.hue
+          });
+
+          slowMoTarget = 0.3;
+          setTimeout(() => { slowMoTarget = 0.6; }, 200);
+          setTimeout(() => { slowMoTarget = 1; }, 600);
+
+          updateLevelUI();
+
+          // Check if all stars are lit
+          const allLit = constellationStars.every(s => s.lit);
+          if (allLit) {
+            markConstellationComplete(constellationIndex);
+            setTimeout(() => {
+              const c = CONSTELLATIONS[constellationIndex];
+              playMelody(c);
+              celebTitle.textContent = c.name;
+              celebSub.textContent = c.sub + ' — ' + c.stars.map(s => s.name).join(' · ');
+              celebrationEl.classList.add('show');
+            }, 1500);
+          }
+          break;
+        }
+      }
+    }
+
+    // Obstacle collision
+    for (const obs of obstacles) {
+      const getY = getObstacleY(obs);
+      if (Math.abs(p.y - getY(p.x)) < obs.thickness + 3) {
+        if (obs.type === 'barrier') {
+          let inGap = false;
+          for (const g of obs.gaps) {
+            if (Math.abs(p.x - g.cx) < g.width / 2) { inGap = true; break; }
+          }
+          if (inGap) continue;
+        }
+        p.vy = -Math.abs(p.vy) * 0.5;
+        p.vx *= 0.8;
+        p.y = getY(p.x) - obs.thickness - 4;
+        spawnDeflect(p.x, p.y, p.hue);
+        playDeflect();
+        break;
+      }
+    }
+
+    // Off screen
+    if (p.y > rh() + 100 || p.x < -100 || p.x > rw() + 100) {
+      p.alive = false;
+      if (p.trail.length > 5) {
+        inkLines.push({
+          points: [...p.trail], alpha: 0.5,
+          fadeStart: gameTime, hue: p.hue
+        });
+      }
+    }
+  }
+  projectiles = projectiles.filter(p => p.alive);
+
+  for (const p of particles) {
+    p.x += p.vx * effectiveDt * 60;
+    p.y += p.vy * effectiveDt * 60;
+    p.vy += 0.05 * effectiveDt * 60;
+    p.life -= p.decay * effectiveDt * 60;
+  }
+  particles = particles.filter(p => p.life > 0);
+
+  // Fade ink
+  for (const ink of inkLines) {
+    const elapsed = gameTime - ink.fadeStart;
+    ink.alpha = Math.max(0, 0.8 * (1 - elapsed / INK_FADE_TIME));
+  }
+  inkLines = inkLines.filter(ink => ink.alpha > 0);
+
+  // Level transition (free mode only)
+  if (gameMode === 'free' && !pendingLevelUp) {
+    const allFaded = inkLines.length === 0;
+    const noProjectiles = projectiles.length === 0;
+    if (allFaded && shotsInLevel >= levelShotsNeeded && noProjectiles) {
+      pendingLevelUp = true;
+      levelTransitionTimer = 1.5;
+    }
+  }
+  if (pendingLevelUp) {
+    levelTransitionTimer -= dt;
+    if (levelTransitionTimer <= 0) {
+      nextLevel();
+    }
+  }
+}
+
+// --- Main Render ---
+function render() {
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, rh());
+  bgGrad.addColorStop(0, '#0a0e1a');
+  bgGrad.addColorStop(0.5, '#0d1525');
+  bgGrad.addColorStop(1, '#111a2e');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, rw(), rh());
+
+  drawStars(gameTime * 0.06);
+  drawWindField();
+  drawObstacles();
+  if (gameMode === 'free') {
+    drawTarget(gameTime * 0.06);
+  } else {
+    drawConstellation(gameTime * 0.06);
+  }
+  drawInkLines();
+  for (const p of projectiles) drawProjectile(p);
+  drawParticles();
+  drawRail();
+  drawPreviewLine();
+}
+
+// --- Main Loop ---
+let lastTime = performance.now();
+function loop(now) {
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+  update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+
+// --- Init ---
+generateObstacles();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

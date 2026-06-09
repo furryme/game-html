@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>反向贪吃蛇</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: #eee;
+  overflow: hidden;
+  user-select: none;
+}
+canvas {
+  border-radius: 10px;
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.6), 0 0 120px rgba(48, 43, 99, 0.4);
+  cursor: default;
+}
+#volBtn {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid #555;
+  border-radius: 6px;
+  color: #eee;
+  font-size: 18px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+  line-height: 1;
+  z-index: 10;
+}
+#volBtn:hover { background: rgba(255,255,255,0.2); }
+#volBtn.muted { color: #666; border-color: #444; }
+
+#helpBtn {
+  position: fixed; top: 16px; left: 16px;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(255,255,255,0.08); border: 1px solid #555;
+  color: #eee; font-size: 18px; font-weight: bold; cursor: pointer;
+  transition: background 0.2s; z-index: 10;
+  display: flex; align-items: center; justify-content: center;
+}
+#helpBtn:hover { background: rgba(255,255,255,0.2); }
+
+#helpOverlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.85); z-index: 100;
+  display: none; justify-content: center; align-items: center;
+}
+#helpOverlay.show { display: flex; }
+#helpOverlay .help-box {
+  background: linear-gradient(135deg, #1a1a3e, #0d0d1f);
+  border: 1px solid rgba(255,215,0,0.3); border-radius: 16px;
+  padding: 32px 40px; max-width: 440px; text-align: center;
+  box-shadow: 0 0 40px rgba(255,215,0,0.1);
+}
+#helpOverlay h2 {
+  color: #ffd700; font-size: 22px; margin-bottom: 16px;
+  text-shadow: 0 0 10px rgba(255,215,0,0.5);
+}
+#helpOverlay .help-grid {
+  text-align: left; font-size: 14px; color: #ccc; line-height: 2;
+  margin-bottom: 16px;
+}
+#helpOverlay .help-grid kbd {
+  background: rgba(255,255,255,0.12); padding: 2px 8px; border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.2); font-family: inherit; margin-right: 6px;
+}
+#helpOverlay .close-hint {
+  color: #666; font-size: 12px;
+}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<button id="volBtn">🔊</button>
+<button id="helpBtn">?</button>
+<div id="helpOverlay">
+  <div class="help-box">
+    <h2>🍎 反向贪吃蛇 — 玩法说明</h2>
+    <div class="help-grid">
+      <div><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动食物</div>
+      <div><kbd>空格</kbd> 放置陷阱（阻挡蛇的移动）</div>
+      <div><kbd>空格/点击</kbd> 开始游戏 / 重新开始</div>
+    </div>
+    <div style="text-align:left;font-size:13px;color:#aaa;line-height:1.8;margin-bottom:12px;">
+      • 你是"食物"，AI 蛇会追逐你<br>
+      • 存活时间 = 得分<br>
+      • 每 15 秒新增一条蛇<br>
+      • 每 30 秒所有蛇加速<br>
+      • 陷阱最多 5 个，每 4 秒恢复 1 个<br>
+      • 陷阱持续 5 秒，蛇靠近或踩中会被减速
+    </div>
+    <div class="close-hint">按 Esc 或点击背景关闭</div>
+  </div>
+</div>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+/* ── Canvas sizing ── */
+const GRID = 20;
+const COLS = 20, ROWS = 20;
+const W = COLS * GRID; // 400
+const H = ROWS * GRID; // 400
+canvas.width = W;
+canvas.height = H;
+
+/* ── Audio engine (Web Audio API) ── */
+const Audio = (() => {
+  let ac, muted = localStorage.getItem('reverse_snake_muted') === '1';
+  let bgmGain, bgmTimer, bgmPlaying = false;
+  const init = () => { if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)(); };
+
+  const note = (freq, dur, type = 'square', vol = 0.15, delay = 0) => {
+    if (muted) return;
+    init();
+    const t = ac.currentTime + delay;
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(ac.destination);
+    o.start(t);
+    o.stop(t + dur);
+  };
+
+  const BEAT = 0.18;
+  const melody = [330,392,440,392,330,294,330,392,440,523,440,392,330,294,262,294];
+  const bass   = [110,110,147,147,98,98,110,110,147,147,98,98,110,110,73,73];
+  const loopDur = melody.length * BEAT;
+
+  const playLoop = () => {
+    if (muted || !ac) return;
+    const t = ac.currentTime + 0.05;
+    for (let i = 0; i < melody.length; i++) {
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      o.type = 'square';
+      o.frequency.setValueAtTime(melody[i], t + i * BEAT);
+      g.gain.setValueAtTime(0.025, t + i * BEAT);
+      g.gain.exponentialRampToValueAtTime(0.001, t + i * BEAT + BEAT * 0.8);
+      o.connect(g).connect(bgmGain);
+      o.start(t + i * BEAT);
+      o.stop(t + i * BEAT + BEAT * 0.85);
+    }
+    for (let i = 0; i < bass.length; i++) {
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(bass[i], t + i * BEAT);
+      g.gain.setValueAtTime(0.04, t + i * BEAT);
+      g.gain.exponentialRampToValueAtTime(0.001, t + i * BEAT + BEAT * 0.9);
+      o.connect(g).connect(bgmGain);
+      o.start(t + i * BEAT);
+      o.stop(t + i * BEAT + BEAT * 0.95);
+    }
+  };
+
+  const startBGM = () => {
+    if (bgmPlaying || muted) return;
+    init();
+    if (!bgmGain) { bgmGain = ac.createGain(); bgmGain.connect(ac.destination); }
+    bgmGain.gain.setValueAtTime(1, ac.currentTime);
+    bgmPlaying = true;
+    playLoop();
+    bgmTimer = setInterval(playLoop, loopDur * 1000);
+  };
+
+  const stopBGM = () => {
+    if (!bgmPlaying) return;
+    clearInterval(bgmTimer);
+    bgmTimer = null;
+    bgmPlaying = false;
+  };
+
+  const setMuted = (v) => {
+    muted = v;
+    localStorage.setItem('reverse_snake_muted', muted ? '1' : '0');
+    if (bgmGain && ac) {
+      bgmGain.gain.linearRampToValueAtTime(muted ? 0 : 1, ac.currentTime + 0.05);
+    }
+  };
+
+  return {
+    start() {
+      note(440, 0.1, 'square', 0.12);
+      note(554, 0.1, 'square', 0.12, 0.08);
+      note(659, 0.14, 'square', 0.12, 0.16);
+    },
+    trapPlace() {
+      note(600, 0.08, 'sine', 0.1);
+      note(900, 0.12, 'sine', 0.1, 0.05);
+    },
+    snakeHitTrap() {
+      note(200, 0.15, 'sawtooth', 0.08);
+    },
+    snakeSpawn() {
+      note(220, 0.1, 'sawtooth', 0.06);
+      note(165, 0.15, 'sawtooth', 0.06, 0.08);
+    },
+    speedUp() {
+      note(440, 0.06, 'square', 0.08);
+      note(554, 0.06, 'square', 0.08, 0.06);
+      note(659, 0.1, 'square', 0.08, 0.12);
+    },
+    gameOver() {
+      stopBGM();
+      note(440, 0.2, 'square', 0.15);
+      note(349, 0.25, 'square', 0.15, 0.18);
+      note(262, 0.4, 'square', 0.15, 0.4);
+    },
+    milestone() {
+      note(523, 0.08, 'sine', 0.12);
+      note(659, 0.08, 'sine', 0.12, 0.07);
+      note(784, 0.12, 'sine', 0.12, 0.14);
+    },
+    setMuted, startBGM, stopBGM
+  };
+})();
+
+const volBtn = document.getElementById('volBtn');
+let muted = localStorage.getItem('reverse_snake_muted') === '1';
+if (muted) { volBtn.textContent = '🔇'; volBtn.classList.add('muted'); }
+volBtn.addEventListener('click', () => {
+  muted = !muted;
+  Audio.setMuted(muted);
+  volBtn.textContent = muted ? '🔇' : '🔊';
+  volBtn.classList.toggle('muted', muted);
+});
+
+// Help overlay
+const helpOverlay = document.getElementById('helpOverlay');
+const helpBtnEl = document.getElementById('helpBtn');
+let helpVisible = false;
+helpBtnEl.addEventListener('click', () => {
+  helpVisible = true;
+  helpOverlay.classList.add('show');
+});
+function closeHelp() {
+  helpVisible = false;
+  helpOverlay.classList.remove('show');
+}
+helpOverlay.addEventListener('click', (e) => {
+  if (e.target === helpOverlay) closeHelp();
+});
+document.addEventListener('keydown', (e) => {
+  if (helpVisible && e.code === 'Escape') closeHelp();
+});
+
+/* ── Game constants ── */
+const MAX_TRAPS = 5;
+const TRAP_DURATION = 5000;
+const TRAP_REGEN_INTERVAL = 4000;
+const SNAKE_SPAWN_INTERVAL = 15000;
+const SPEED_UP_INTERVAL = 30000;
+const INITIAL_SNAKE_SPEED = 220; // ms per move
+const MIN_SNAKE_SPEED = 60;
+const SPEED_DECREASE = 20; // ms faster per speed-up
+const COUNTDOWN_SECONDS = 3;
+
+/* ── Game state ── */
+let state = 'menu'; // menu | countdown | playing | gameover
+let score = 0;
+let highScore = parseInt(localStorage.getItem('reverse_snake_high') || '0');
+let player = { x: 10, y: 10 };
+let dirX = 0, dirY = 0;
+let nextDirX = 0, nextDirY = 0;
+let snakes = [];
+let traps = [];
+let trapCount = MAX_TRAPS;
+let trapRegenTimer = 0;
+let particles = [];
+let bgStars = [];
+let gameStartTime = 0;
+let lastSnakeSpawn = 0;
+let lastSpeedUp = 0;
+let snakeSpeed = INITIAL_SNAKE_SPEED;
+let lastSnakeMove = 0;
+let countdownValue = COUNTDOWN_SECONDS;
+let countdownTimer = 0;
+let moveTimer = 0;
+let elapsed = 0;
+let shakeTimer = 0;
+let shakeIntensity = 0;
+let speedLevel = 0;
+let lastTimestamp = 0;
+
+// Initialize background stars
+for (let i = 0; i < 50; i++) {
+  bgStars.push({
+    x: Math.random() * W,
+    y: Math.random() * H,
+    r: Math.random() * 1.2 + 0.3,
+    alpha: Math.random() * 0.4 + 0.1,
+    pulse: Math.random() * Math.PI * 2
+  });
+}
+
+/* ── Snake class ── */
+function createSnake(x, y) {
+  const headColor = Math.random() > 0.5 ? '#00ffcc' : '#39ff14';
+  const bodyColor = '#1a3a2a';
+  const length = 3 + Math.min(3, Math.floor(snakes.length / 2));
+  const segments = [];
+  // spawn moving away from center initially
+  const dirs = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
+  const dir = dirs[Math.floor(Math.random() * dirs.length)];
+  for (let i = 0; i < length; i++) {
+    segments.push({ x: x - dir.x * i, y: y - dir.y * i });
+  }
+  return {
+    segments,
+    headColor,
+    bodyColor,
+    dir: { ...dir },
+    moveAccum: 0
+  };
+}
+
+function spawnSnake() {
+  // Pick a random edge position
+  let x, y;
+  const edge = Math.floor(Math.random() * 4);
+  switch (edge) {
+    case 0: x = 0; y = Math.floor(Math.random() * ROWS); break;
+    case 1: x = COLS - 1; y = Math.floor(Math.random() * ROWS); break;
+    case 2: x = Math.floor(Math.random() * COLS); y = 0; break;
+    case 3: x = Math.floor(Math.random() * COLS); y = ROWS - 1; break;
+  }
+  // Don't spawn too close to player
+  if (Math.abs(x - player.x) + Math.abs(y - player.y) < 6) {
+    x = (x + Math.floor(COLS / 2)) % COLS;
+    y = (y + Math.floor(ROWS / 2)) % ROWS;
+  }
+  snakes.push(createSnake(x, y));
+  Audio.snakeSpawn();
+}
+
+/* ── BFS pathfinding for snake AI ── */
+function bfs(startX, startY, targetX, targetY) {
+  const key = (x, y) => x + ',' + y;
+  const visited = new Set();
+  const queue = [{ x: startX, y: startY, path: [] }];
+  visited.add(key(startX, startY));
+
+  const dirs = [{x:0,y:-1},{x:0,y:1},{x:-1,y:0},{x:1,y:0}];
+
+  while (queue.length > 0) {
+    const cur = queue.shift();
+    if (cur.x === targetX && cur.y === targetY) {
+      return cur.path.length > 0 ? cur.path[0] : dirs[Math.floor(Math.random() * 4)];
+    }
+    // Shuffle dirs for more natural movement
+    const shuffled = [...dirs].sort(() => Math.random() - 0.5);
+    for (const d of shuffled) {
+      const nx = cur.x + d.x;
+      const ny = cur.y + d.y;
+      if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+      if (visited.has(key(nx, ny))) continue;
+      // Check if blocked by another snake body (not head) or trap
+      let blocked = false;
+      for (const s of snakes) {
+        for (let i = 1; i < s.segments.length; i++) {
+          if (s.segments[i].x === nx && s.segments[i].y === ny) { blocked = true; break; }
+        }
+        if (blocked) break;
+      }
+      // Check traps
+      for (const t of traps) {
+        if (t.col === nx && t.row === ny) { blocked = true; break; }
+      }
+      if (blocked) continue;
+      visited.add(key(nx, ny));
+      queue.push({ x: nx, y: ny, path: [d, ...cur.path] });
+    }
+  }
+  // No path found, return random valid direction
+  const fallbackDirs = [...dirs].sort(() => Math.random() - 0.5);
+  for (const d of fallbackDirs) {
+    const nx = startX + d.x;
+    const ny = startY + d.y;
+    if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS) {
+      // Don't move onto another snake's body
+      let valid = true;
+      for (const s of snakes) {
+        for (let i = 1; i < s.segments.length; i++) {
+          if (s.segments[i].x === nx && s.segments[i].y === ny) { valid = false; break; }
+        }
+        if (!valid) break;
+      }
+      if (valid) return d;
+    }
+  }
+  return dirs[0];
+}
+
+/* ── Particles ── */
+function spawnParticles(x, y, color, count = 20) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1 + Math.random() * 5;
+    particles.push({
+      x: x * GRID + GRID / 2,
+      y: y * GRID + GRID / 2,
+      dx: Math.cos(angle) * speed,
+      dy: Math.sin(angle) * speed,
+      life: 1,
+      decay: 0.015 + Math.random() * 0.025,
+      size: 2 + Math.random() * 5,
+      color
+    });
+  }
+}
+
+function spawnDeathExplosion() {
+  const cx = player.x * GRID + GRID / 2;
+  const cy = player.y * GRID + GRID / 2;
+  const colors = ['#ffd700', '#ff8c00', '#ff4500', '#ffff00', '#ff6347'];
+  for (let i = 0; i < 60; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1 + Math.random() * 7;
+    particles.push({
+      x: cx, y: cy,
+      dx: Math.cos(angle) * speed,
+      dy: Math.sin(angle) * speed,
+      life: 1,
+      decay: 0.01 + Math.random() * 0.02,
+      size: 3 + Math.random() * 7,
+      color: colors[Math.floor(Math.random() * colors.length)]
+    });
+  }
+}
+
+/* ── Input ── */
+const keys = {};
+document.addEventListener('keydown', e => {
+  keys[e.code] = true;
+
+  if (state === 'menu') {
+    if (e.code === 'Space' || e.code === 'Enter') {
+      startCountdown();
+    }
+    return;
+  }
+
+  if (state === 'gameover') {
+    if (e.code === 'Space' || e.code === 'Enter') {
+      startCountdown();
+    }
+    return;
+  }
+
+  if (state === 'playing') {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      placeTrap();
+      return;
+    }
+
+    const keyMap = {
+      ArrowUp: { x: 0, y: -1 }, KeyW: { x: 0, y: -1 },
+      ArrowDown: { x: 0, y: 1 }, KeyS: { x: 0, y: 1 },
+      ArrowLeft: { x: -1, y: 0 }, KeyA: { x: -1, y: 0 },
+      ArrowRight: { x: 1, y: 0 }, KeyD: { x: 1, y: 0 }
+    };
+    const d = keyMap[e.code];
+    if (d) {
+      e.preventDefault();
+      // Bean can move any direction — no 180° restriction
+      nextDirX = d.x;
+      nextDirY = d.y;
+    }
+  }
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// Mouse tracking for buttons
+let mouseX = W / 2, mouseY = H / 2;
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = (e.clientX - rect.left) * (W / rect.width);
+  mouseY = (e.clientY - rect.top) * (H / rect.height);
+});
+
+// Click to start / restart / home
+canvas.addEventListener('click', () => {
+  // Check home button
+  if (window._homeBtnRect) {
+    const b = window._homeBtnRect;
+    if (mouseX >= b.x && mouseX <= b.x + b.w && mouseY >= b.y && mouseY <= b.y + b.h) {
+      window.location.href = '../index.html';
+      return;
+    }
+  }
+  if (state === 'menu' || state === 'gameover') {
+    startCountdown();
+  }
+});
+
+/* ── Game logic ── */
+function startCountdown() {
+  state = 'countdown';
+  countdownValue = COUNTDOWN_SECONDS;
+  countdownTimer = 0;
+  player = { x: Math.floor(COLS / 2), y: Math.floor(ROWS / 2) };
+  dirX = 0; dirY = 0;
+  nextDirX = 0; nextDirY = 0;
+  snakes = [];
+  traps = [];
+  particles = [];
+  trapCount = MAX_TRAPS;
+  trapRegenTimer = 0;
+  snakeSpeed = INITIAL_SNAKE_SPEED;
+  speedLevel = 0;
+  score = 0;
+  elapsed = 0;
+  shakeTimer = 0;
+  lastTimestamp = performance.now();
+  moveTimer = 0;
+  lastSnakeMove = 0;
+  gameStartTime = 0;
+  lastSnakeSpawn = 0;
+  lastSpeedUp = 0;
+  Audio.start();
+  Audio.startBGM();
+}
+
+function startGame() {
+  state = 'playing';
+  gameStartTime = Date.now();
+  lastSnakeSpawn = 0;
+  lastSpeedUp = 0;
+  lastSnakeMove = 0;
+  moveTimer = 0;
+  // Spawn first snake immediately at an edge
+  spawnSnake();
+}
+
+function placeTrap() {
+  if (trapCount <= 0 || state !== 'playing') return;
+  // Check if cell already has a trap
+  if (traps.some(t => t.col === player.x && t.row === player.y)) return;
+  traps.push({
+    col: player.x,
+    row: player.y,
+    placed: Date.now(),
+    duration: TRAP_DURATION
+  });
+  trapCount--;
+  Audio.trapPlace();
+}
+
+function endGame() {
+  state = 'gameover';
+  score = Math.floor(elapsed);
+  Audio.gameOver();
+  spawnDeathExplosion();
+  shakeTimer = 20;
+  shakeIntensity = 10;
+  if (score > highScore) {
+    highScore = score;
+    localStorage.setItem('reverse_snake_high', highScore);
+  }
+}
+
+/* ── Update ── */
+function update(dt) {
+  // Update particles always
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.dx;
+    p.y += p.dy;
+    p.dx *= 0.97;
+    p.dy *= 0.97;
+    p.life -= p.decay;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  if (shakeTimer > 0) shakeTimer--;
+
+  if (state === 'countdown') {
+    countdownTimer += dt;
+    if (countdownTimer >= 1000) {
+      countdownTimer -= 1000;
+      countdownValue--;
+      if (countdownValue <= 0) {
+        startGame();
+      }
+    }
+    return;
+  }
+
+  if (state !== 'playing') return;
+
+  // Update elapsed time
+  const now = Date.now();
+  elapsed = (now - gameStartTime) / 1000;
+
+  // Player movement (smooth, continuous)
+  const playerMoveInterval = 100; // ms per grid cell
+  moveTimer += dt;
+  if (moveTimer >= playerMoveInterval && (nextDirX !== 0 || nextDirY !== 0)) {
+    dirX = nextDirX;
+    dirY = nextDirY;
+    const nx = player.x + dirX;
+    const ny = player.y + dirY;
+    if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS) {
+      player.x = nx;
+      player.y = ny;
+    }
+    moveTimer = 0;
+  }
+
+  // Also allow continuous smooth movement via key holding
+  // (already handled by the interval-based movement above)
+
+  // Trap regeneration
+  trapRegenTimer += dt;
+  if (trapRegenTimer >= TRAP_REGEN_INTERVAL && trapCount < MAX_TRAPS) {
+    trapCount++;
+    trapRegenTimer = 0;
+  }
+
+  // Remove expired traps
+  for (let i = traps.length - 1; i >= 0; i--) {
+    if (now - traps[i].placed > traps[i].duration) {
+      traps.splice(i, 1);
+    }
+  }
+
+  // Spawn new snakes every SNAKE_SPAWN_INTERVAL
+  if (now - gameStartTime - lastSnakeSpawn >= SNAKE_SPAWN_INTERVAL) {
+    spawnSnake();
+    lastSnakeSpawn = now - gameStartTime;
+  }
+
+  // Speed up every SPEED_UP_INTERVAL
+  if (now - gameStartTime - lastSpeedUp >= SPEED_UP_INTERVAL) {
+    snakeSpeed = Math.max(MIN_SNAKE_SPEED, snakeSpeed - SPEED_DECREASE);
+    speedLevel++;
+    lastSpeedUp = now - gameStartTime;
+    Audio.speedUp();
+  }
+
+  // Milestone sounds
+  const prevMilestone = Math.floor((elapsed - dt / 1000) / 30);
+  const currMilestone = Math.floor(elapsed / 30);
+  if (currMilestone > prevMilestone) {
+    Audio.milestone();
+  }
+
+  // Update snake AI movement
+  lastSnakeMove += dt;
+  if (lastSnakeMove >= snakeSpeed) {
+    lastSnakeMove = 0;
+
+    for (const snake of snakes) {
+      const head = snake.segments[0];
+      const targetX = player.x;
+      const targetY = player.y;
+
+      // Check if any trap slows this snake
+      let slowed = false;
+      for (const t of traps) {
+        if (Math.abs(head.x - t.col) <= 1 && Math.abs(head.y - t.row) <= 1) {
+          slowed = true;
+          break;
+        }
+      }
+
+      // If slowed by trap, skip movement this turn (effectively halving speed)
+      if (slowed) {
+        Audio.snakeHitTrap();
+        continue;
+      }
+
+      // BFS toward player
+      const move = bfs(head.x, head.y, targetX, targetY);
+
+      // Check if new position is on a trap (removes trap and slows snake)
+      const newHeadX = head.x + move.x;
+      const newHeadY = head.y + move.y;
+      for (let i = traps.length - 1; i >= 0; i--) {
+        if (traps[i].col === newHeadX && traps[i].row === newHeadY) {
+          traps.splice(i, 1);
+          Audio.snakeHitTrap();
+          // Don't move this turn (slowed)
+          break;
+        }
+      }
+
+      // Validate move
+      if (newHeadX >= 0 && newHeadX < COLS && newHeadY >= 0 && newHeadY < ROWS) {
+        const newHead = { x: newHeadX, y: newHeadY };
+        snake.segments.unshift(newHead);
+        snake.segments.pop();
+        snake.dir = { ...move };
+      }
+    }
+  }
+
+  // Check collision: snake head hits player
+  for (const snake of snakes) {
+    const head = snake.segments[0];
+    if (head.x === player.x && head.y === player.y) {
+      endGame();
+      return;
+    }
+  }
+}
+
+/* ── Draw ── */
+function draw() {
+  ctx.save();
+
+  // Screen shake
+  if (shakeTimer > 0 && shakeIntensity > 0) {
+    const sx = (Math.random() - 0.5) * shakeIntensity;
+    const sy = (Math.random() - 0.5) * shakeIntensity;
+    ctx.translate(sx, sy);
+  }
+
+  // Background gradient
+  const bgGrad = ctx.createLinearGradient(0, 0, W, H);
+  bgGrad.addColorStop(0, '#0f0c29');
+  bgGrad.addColorStop(0.5, '#1a1a3e');
+  bgGrad.addColorStop(1, '#24243e');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(-10, -10, W + 20, H + 20);
+
+  // Grid lines (subtle)
+  ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x <= COLS; x++) {
+    ctx.beginPath();
+    ctx.moveTo(x * GRID, 0);
+    ctx.lineTo(x * GRID, H);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= ROWS; y++) {
+    ctx.beginPath();
+    ctx.moveTo(0, y * GRID);
+    ctx.lineTo(W, y * GRID);
+    ctx.stroke();
+  }
+
+  // Background stars
+  const time = Date.now() * 0.001;
+  for (const s of bgStars) {
+    const alpha = s.alpha * (0.6 + 0.4 * Math.sin(time * 1.5 + s.pulse));
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Draw traps
+  for (const t of traps) {
+    const age = Date.now() - t.placed;
+    const remaining = 1 - age / t.duration;
+    const pulse = 0.6 + 0.4 * Math.sin(time * 4 + t.col);
+    const cx = t.col * GRID + GRID / 2;
+    const cy = t.row * GRID + GRID / 2;
+    const radius = (GRID / 2 - 2) * (0.7 + 0.3 * pulse);
+
+    // Glow
+    ctx.shadowColor = '#ff3333';
+    ctx.shadowBlur = 12 * remaining;
+    ctx.fillStyle = `rgba(255, 50, 50, ${0.3 * remaining * pulse})`;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Inner ring
+    ctx.strokeStyle = `rgba(255, 80, 80, ${0.7 * remaining})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 0.6, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // X mark
+    ctx.strokeStyle = `rgba(255, 120, 120, ${0.8 * remaining})`;
+    ctx.lineWidth = 1.5;
+    const xs = 3;
+    ctx.beginPath();
+    ctx.moveTo(cx - xs, cy - xs); ctx.lineTo(cx + xs, cy + xs);
+    ctx.moveTo(cx + xs, cy - xs); ctx.lineTo(cx - xs, cy + xs);
+    ctx.stroke();
+  }
+
+  // Draw snakes
+  for (const snake of snakes) {
+    const segs = snake.segments;
+    for (let i = segs.length - 1; i >= 0; i--) {
+      const seg = segs[i];
+      const sx = seg.x * GRID;
+      const sy = seg.y * GRID;
+
+      if (i === 0) {
+        // Head
+        ctx.shadowColor = snake.headColor;
+        ctx.shadowBlur = 15;
+        ctx.fillStyle = snake.headColor;
+        ctx.beginPath();
+        ctx.roundRect(sx + 1, sy + 1, GRID - 2, GRID - 2, 5);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Eyes
+        ctx.fillStyle = '#111';
+        const eyeR = 2.5;
+        let e1x, e1y, e2x, e2y;
+        if (snake.dir.x === 1) {
+          e1x = sx + 14; e1y = sy + 5;
+          e2x = sx + 14; e2y = sy + 13;
+        } else if (snake.dir.x === -1) {
+          e1x = sx + 5; e1y = sy + 5;
+          e2x = sx + 5; e2y = sy + 13;
+        } else if (snake.dir.y === -1) {
+          e1x = sx + 5; e1y = sy + 5;
+          e2x = sx + 13; e2y = sy + 5;
+        } else {
+          e1x = sx + 5; e1y = sy + 14;
+          e2x = sx + 13; e2y = sy + 14;
+        }
+        ctx.beginPath();
+        ctx.arc(e1x, e1y, eyeR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(e2x, e2y, eyeR, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // Body
+        const ratio = 1 - (i / segs.length);
+        const alpha = 0.4 + 0.5 * ratio;
+        ctx.fillStyle = `rgba(26, 80, 50, ${alpha})`;
+        ctx.beginPath();
+        ctx.roundRect(sx + 1.5, sy + 1.5, GRID - 3, GRID - 3, 4);
+        ctx.fill();
+        // Subtle border
+        ctx.strokeStyle = `rgba(0, 255, 200, ${0.15 * ratio})`;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.roundRect(sx + 1.5, sy + 1.5, GRID - 3, GRID - 3, 4);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Draw player (food orb)
+  if (state !== 'gameover') {
+    const px = player.x * GRID + GRID / 2;
+    const py = player.y * GRID + GRID / 2;
+    const pulse = 0.8 + 0.2 * Math.sin(time * 5);
+    const baseRadius = (GRID / 2 - 1) * pulse;
+
+    // Outer glow
+    ctx.shadowColor = '#ffd700';
+    ctx.shadowBlur = 25 * pulse;
+
+    // Main orb gradient
+    const orbGrad = ctx.createRadialGradient(px - 2, py - 2, 1, px, py, baseRadius);
+    orbGrad.addColorStop(0, '#ffff88');
+    orbGrad.addColorStop(0.4, '#ffd700');
+    orbGrad.addColorStop(0.8, '#ff8c00');
+    orbGrad.addColorStop(1, 'rgba(255, 100, 0, 0.3)');
+    ctx.fillStyle = orbGrad;
+    ctx.beginPath();
+    ctx.arc(px, py, baseRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Inner highlight
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.beginPath();
+    ctx.arc(px - 2, py - 3, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Orbiting ring
+    ctx.strokeStyle = `rgba(255, 215, 0, ${0.2 + 0.15 * Math.sin(time * 3)})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(px, py, baseRadius + 4, time * 2, time * 2 + Math.PI * 1.2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(px, py, baseRadius + 4, time * 2 + Math.PI, time * 2 + Math.PI * 1.5);
+    ctx.stroke();
+  }
+
+  // Particles
+  for (const p of particles) {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // ── HUD ──
+  if (state === 'playing' || state === 'countdown') {
+    drawHUD();
+  }
+
+  // ── Overlays ──
+  if (state === 'menu') {
+    drawMenuOverlay();
+  } else if (state === 'countdown') {
+    drawCountdownOverlay();
+  } else if (state === 'gameover') {
+    drawGameOverOverlay();
+  }
+
+  ctx.restore();
+}
+
+function drawHUD() {
+  // Top bar background
+  const hudGrad = ctx.createLinearGradient(0, 0, 0, 36);
+  hudGrad.addColorStop(0, 'rgba(0,0,0,0.5)');
+  hudGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = hudGrad;
+  ctx.fillRect(0, 0, W, 36);
+
+  ctx.font = 'bold 13px "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = 'left';
+
+  // Score (survival time)
+  const timeStr = Math.floor(elapsed) + 's';
+  ctx.fillStyle = '#ffd700';
+  ctx.fillText(`生存: ${timeStr}`, 10, 16);
+
+  // Snake count
+  ctx.fillStyle = '#39ff14';
+  ctx.textAlign = 'center';
+  ctx.fillText(`蛇: ${snakes.length}`, W / 2, 16);
+
+  // Trap count
+  ctx.textAlign = 'right';
+  ctx.fillStyle = trapCount > 0 ? '#ff6b6b' : '#666';
+  let trapStr = '陷阱: ';
+  for (let i = 0; i < MAX_TRAPS; i++) {
+    trapStr += i < trapCount ? '● ' : '○ ';
+  }
+  ctx.fillText(trapStr, W - 10, 16);
+
+  // Speed level indicator
+  if (speedLevel > 0) {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ff4500';
+    ctx.font = 'bold 11px "Segoe UI", system-ui, sans-serif';
+    ctx.fillText(`⚡ 加速 Lv.${speedLevel}`, W / 2, 30);
+  }
+
+  // High score
+  if (highScore > 0) {
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.font = '11px "Segoe UI", system-ui, sans-serif';
+    ctx.fillText(`最高: ${highScore}s`, 10, 30);
+  }
+}
+
+function drawMenuOverlay() {
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Title
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#ffd700';
+  ctx.shadowBlur = 30;
+  ctx.fillStyle = '#ffd700';
+  ctx.font = 'bold 38px "Segoe UI", system-ui, sans-serif';
+  ctx.fillText('反向贪吃蛇', W / 2, H / 2 - 100);
+  ctx.shadowBlur = 0;
+
+  // Subtitle
+  ctx.fillStyle = '#b0b0cc';
+  ctx.font = '16px "Segoe UI", system-ui, sans-serif';
+  ctx.fillText('你是食物，躲避AI蛇的追击！', W / 2, H / 2 - 65);
+
+  // Instructions
+  const instructions = [
+    '操作方式',
+    '',
+    '方向键 / WASD  —  移动',
+    '空格键  —  放置陷阱',
+    '',
+    '游戏规则',
+    '',
+    '存活时间 = 得分',
+    '每 15 秒新增一条蛇',
+    '每 30 秒所有蛇加速',
+    '陷阱可以阻挡蛇的移动',
+    '陷阱有限，会缓慢恢复',
+  ];
+
+  ctx.font = 'bold 14px "Segoe UI", system-ui, sans-serif';
+  let y = H / 2 - 30;
+  for (const line of instructions) {
+    if (line === '操作方式' || line === '游戏规则') {
+      ctx.fillStyle = '#ffd700';
+      ctx.font = 'bold 15px "Segoe UI", system-ui, sans-serif';
+    } else if (line === '') {
+      y += 6;
+      continue;
+    } else {
+      ctx.fillStyle = '#ccc';
+      ctx.font = '13px "Segoe UI", system-ui, sans-serif';
+    }
+    ctx.fillText(line, W / 2, y);
+    y += 20;
+  }
+
+  // Start hint
+  const alpha = 0.5 + 0.5 * Math.sin(Date.now() * 0.004);
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = '#ffd700';
+  ctx.font = 'bold 16px "Segoe UI", system-ui, sans-serif';
+  ctx.fillText('按空格键或点击开始', W / 2, H / 2 + 120);
+  ctx.globalAlpha = 1;
+
+  // Back link (clickable button area)
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.font = '13px "Segoe UI", system-ui, sans-serif';
+  ctx.fillText('返回主页', W / 2, H - 20);
+  window._homeBtnRect = { x: W / 2 - 40, y: H - 30, w: 80, h: 24 };
+}
+
+function drawCountdownOverlay() {
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center';
+  const scale = 1 + (1 - countdownTimer / 1000) * 0.3;
+  const alpha = 1 - countdownTimer / 1000;
+
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+  ctx.scale(scale, scale);
+  ctx.globalAlpha = alpha;
+  ctx.shadowColor = '#ffd700';
+  ctx.shadowBlur = 40;
+  ctx.fillStyle = '#ffd700';
+  ctx.font = 'bold 80px "Segoe UI", system-ui, sans-serif';
+  ctx.fillText(countdownValue > 0 ? countdownValue : 'GO!', 0, 20);
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawGameOverOverlay() {
+  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center';
+
+  // Game over title
+  ctx.shadowColor = '#e74c3c';
+  ctx.shadowBlur = 25;
+  ctx.fillStyle = '#e74c3c';
+  ctx.font = 'bold 42px "Segoe UI", system-ui, sans-serif';
+  ctx.fillText('游戏结束', W / 2, H / 2 - 90);
+  ctx.shadowBlur = 0;
+
+  // Score
+  ctx.fillStyle = '#ffd700';
+  ctx.font = 'bold 28px "Segoe UI", system-ui, sans-serif';
+  ctx.fillText(`存活: ${score} 秒`, W / 2, H / 2 - 45);
+
+  // High score
+  const isNewHigh = score >= highScore && score > 0;
+  if (isNewHigh) {
+    ctx.fillStyle = '#39ff14';
+    ctx.font = 'bold 18px "Segoe UI", system-ui, sans-serif';
+    ctx.fillText('新纪录！', W / 2, H / 2 - 15);
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '16px "Segoe UI", system-ui, sans-serif';
+    ctx.fillText(`最高分: ${highScore} 秒`, W / 2, H / 2 - 15);
+  }
+
+  // Snake count
+  ctx.fillStyle = '#b0b0cc';
+  ctx.font = '14px "Segoe UI", system-ui, sans-serif';
+  ctx.fillText(`蛇的数量: ${snakes.length}  |  加速等级: ${speedLevel}`, W / 2, H / 2 + 15);
+
+  // Restart button
+  const btnW = 180, btnH = 44;
+  const btnX = W / 2 - btnW / 2, btnY = H / 2 + 40;
+  const pulse = 0.95 + 0.05 * Math.sin(Date.now() * 0.005);
+
+  ctx.save();
+  ctx.translate(W / 2, btnY + btnH / 2);
+  ctx.scale(pulse, pulse);
+  ctx.translate(-W / 2, -(btnY + btnH / 2));
+
+  const btnGrad = ctx.createLinearGradient(btnX, btnY, btnX + btnW, btnY + btnH);
+  btnGrad.addColorStop(0, '#ffd700');
+  btnGrad.addColorStop(1, '#ff8c00');
+  ctx.fillStyle = btnGrad;
+  ctx.beginPath();
+  ctx.roundRect(btnX, btnY, btnW, btnH, 10);
+  ctx.fill();
+
+  ctx.fillStyle = '#1a1a2e';
+  ctx.font = 'bold 17px "Segoe UI", system-ui, sans-serif';
+  ctx.fillText('再来一局', W / 2, btnY + 29);
+  ctx.restore();
+
+  // Home button
+  const hBtnW = 120, hBtnH = 32;
+  const hBtnX = W / 2 - hBtnW / 2, hBtnY = H - 50;
+  const hHovered = mouseX >= hBtnX && mouseX <= hBtnX + hBtnW && mouseY >= hBtnY && mouseY <= hBtnY + hBtnH;
+  const hGrad = ctx.createLinearGradient(hBtnX, hBtnY, hBtnX + hBtnW, hBtnY + hBtnH);
+  hGrad.addColorStop(0, hHovered ? 'rgba(100,180,255,0.35)' : 'rgba(100,180,255,0.12)');
+  hGrad.addColorStop(1, hHovered ? 'rgba(100,180,255,0.35)' : 'rgba(100,180,255,0.12)');
+  ctx.fillStyle = hGrad;
+  ctx.beginPath();
+  ctx.roundRect(hBtnX, hBtnY, hBtnW, hBtnH, 8);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(hBtnX, hBtnY, hBtnW, hBtnH, 8);
+  ctx.stroke();
+  ctx.fillStyle = '#aaa';
+  ctx.font = '13px "Segoe UI", system-ui, sans-serif';
+  ctx.fillText('返回主页', W / 2, hBtnY + 21);
+  window._homeBtnRect = { x: hBtnX, y: hBtnY, w: hBtnW, h: hBtnH };
+}
+
+/* ── Polyfill roundRect ── */
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+    if (typeof r === 'number') r = [r];
+    const rad = r[0] || 0;
+    this.moveTo(x + rad, y);
+    this.lineTo(x + w - rad, y);
+    this.quadraticCurveTo(x + w, y, x + w, y + rad);
+    this.lineTo(x + w, y + h - rad);
+    this.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
+    this.lineTo(x + rad, y + h);
+    this.quadraticCurveTo(x, y + h, x, y + h - rad);
+    this.lineTo(x, y + rad);
+    this.quadraticCurveTo(x, y, x + rad, y);
+    this.closePath();
+  };
+}
+
+/* ── Game loop ── */
+function loop(timestamp) {
+  if (!lastTimestamp) lastTimestamp = timestamp;
+  const dt = Math.min(timestamp - lastTimestamp, 50);
+  // Skip if dt is suspiciously large (tab was inactive) — don't advance game
+  if (dt > 400 && state === 'playing') {
+    lastTimestamp = timestamp;
+    draw();
+    requestAnimationFrame(loop);
+    return;
+  }
+  lastTimestamp = timestamp;
+
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// Initial draw
+draw();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

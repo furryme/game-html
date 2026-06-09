@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>色环 - Color Ring</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: #f5f5f3;
+  font-family: -apple-system, "Helvetica Neue", sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+canvas {
+  display: block;
+  width: 100%; height: 100%;
+  cursor: pointer;
+}
+#mute-btn {
+  position: fixed;
+  bottom: 20px; right: 20px;
+  width: 38px; height: 38px;
+  border: none; background: rgba(0,0,0,0.05);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 16px;
+  color: rgba(0,0,0,0.3);
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s, transform 0.15s;
+  z-index: 10;
+}
+#mute-btn:hover { background: rgba(0,0,0,0.1); }
+#mute-btn:active { transform: scale(0.92); }
+#score {
+  position: fixed;
+  top: 16px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  color: rgba(0,0,0,0.22);
+  z-index: 10;
+  transition: opacity 0.4s;
+  font-weight: 400;
+}
+#filled-bar {
+  position: fixed;
+  bottom: 18px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; gap: 8px;
+  z-index: 10;
+}
+.filled-dot {
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(0,0,0,0.1);
+  transition: background 0.6s ease, transform 0.35s ease, box-shadow 0.4s ease, border-color 0.4s;
+}
+.filled-dot.captured {
+  border-color: transparent;
+  transform: scale(1.2);
+  box-shadow: 0 0 8px rgba(0,0,0,0.08);
+}
+#restart-hint {
+  position: fixed;
+  bottom: 52px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: rgba(0,0,0,0.15);
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.8s;
+  cursor: pointer;
+}
+#restart-hint.visible { opacity: 1; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="score"></div>
+<div id="filled-bar"></div>
+<div id="restart-hint">click anywhere to play again</div>
+<button id="mute-btn">&#9835;</button>
+<script>
+(function() {
+  "use strict";
+
+  // --- Config ---
+  const NUM_COLORS = 7;
+  const GOLDEN_ANGLE = 137.508;
+  const TOLERANCE_DEG_DESKTOP = 15;
+  const TOLERANCE_DEG_MOBILE = 22;
+  const BASE_SPEED = 0.003;       // ~10.4 deg/s, full rev ~34s, segment passes ~2-3s
+  const SPEED_INCREMENT = 0.0004;
+  const MAX_SPEED = 0.007;
+  const REVERSE_INTERVAL = 3;     // captures between reversals
+  const SEGMENT_ARC_DEG = 25;     // degrees per segment
+  const FUSION_THRESHOLD = 60;    // hue degrees on color wheel
+  const RIPPLE_DURATION = 700;    // ms
+  const PARTICLE_COUNT = 22;
+  const SEGMENTS_PER_COLOR = 2;
+
+  function isMobile() {
+    return window.innerWidth < 768 || ("ontouchstart" in window);
+  }
+
+  // --- Color generation (golden angle on HSL wheel) ---
+  function generateColors() {
+    const colors = [];
+    for (let i = 0; i < NUM_COLORS; i++) {
+      const hue = (i * GOLDEN_ANGLE) % 360;
+      colors.push({ hue, sat: 65, light: 58 });
+    }
+    return colors;
+  }
+
+  function hslStr(c, alpha, satShift, lightShift) {
+    alpha = alpha !== undefined ? alpha : 1;
+    satShift = satShift || 0;
+    lightShift = lightShift || 0;
+    return `hsla(${c.hue}, ${Math.min(100, Math.max(0, c.sat + satShift))}%, ${Math.min(95, Math.max(10, c.light + lightShift))}%, ${alpha})`;
+  }
+
+  // --- Audio (Web Audio API - kalimba/xylophone) ---
+  let audioCtx = null;
+  let muted = false;
+
+  const NOTE_FREQS = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88];
+
+  function ensureAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === "suspended") audioCtx.resume();
+  }
+
+  function playNote(colorIndex, volume) {
+    if (muted || !audioCtx) return;
+    volume = volume || 0.22;
+    const t = audioCtx.currentTime;
+
+    // Warm kalimba tone: triangle primary + sine detune + gentle lowpass
+    const osc1 = audioCtx.createOscillator();
+    const osc2 = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    const filter = audioCtx.createBiquadFilter();
+
+    osc1.type = "triangle";
+    osc1.frequency.value = NOTE_FREQS[colorIndex];
+    osc2.type = "sine";
+    osc2.frequency.value = NOTE_FREQS[colorIndex] * 1.003;
+
+    filter.type = "lowpass";
+    filter.frequency.value = 2400;
+    filter.Q.value = 0.6;
+
+    // Envelope: quick attack, medium decay, long tail
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(volume, t + 0.008);
+    gain.gain.exponentialRampToValueAtTime(volume * 0.4, t + 0.15);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
+
+    osc1.connect(filter);
+    osc2.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc1.start(t);
+    osc2.start(t);
+    osc1.stop(t + 1.6);
+    osc2.stop(t + 1.6);
+  }
+
+  function playFusionNote(ciA, ciB) {
+    if (muted || !audioCtx) return;
+    const t = audioCtx.currentTime;
+    const notes = [ciA, ciB, Math.min(NUM_COLORS - 1, (ciA + ciB) % NUM_COLORS + 1)];
+    const vol = 0.14;
+
+    notes.forEach((ci, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const filter = audioCtx.createBiquadFilter();
+      osc.type = i === 0 ? "triangle" : "sine";
+      osc.frequency.value = NOTE_FREQS[ci] * (i === 0 ? 1 : 1.5);
+      filter.type = "lowpass";
+      filter.frequency.value = 3000;
+      const startT = t + i * 0.06;
+      gain.gain.setValueAtTime(0, startT);
+      gain.gain.linearRampToValueAtTime(vol, startT + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.001, startT + 1.8);
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(startT);
+      osc.stop(startT + 1.9);
+    });
+  }
+
+  function playReverseSound() {
+    if (muted || !audioCtx) return;
+    const t = audioCtx.currentTime;
+    const bufferSize = audioCtx.sampleRate * 0.5;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      const env = Math.sin(i / bufferSize * Math.PI);
+      data[i] = (Math.random() * 2 - 1) * env * 0.5;
+    }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = 500;
+    filter.Q.value = 1.2;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.06, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioCtx.destination);
+    src.start(t);
+  }
+
+  // --- Canvas ---
+  const canvas = document.getElementById("c");
+  const ctx = canvas.getContext("2d");
+  let W, H, cx, cy, ringRadius, indicatorPos;
+  let toleranceDeg = TOLERANCE_DEG_DESKTOP;
+
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cx = W / 2;
+    cy = H / 2;
+    ringRadius = Math.min(W, H) * 0.27;
+    indicatorPos = { x: cx, y: cy - ringRadius };
+    toleranceDeg = isMobile() ? TOLERANCE_DEG_MOBILE : TOLERANCE_DEG_DESKTOP;
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // --- State ---
+  const colors = generateColors();
+  let segments = [];
+  let ringAngle = 0;
+  let speed = BASE_SPEED;
+  let direction = 1;
+  let targetColor = 0;
+  let score = 0;
+  let captureCount = 0;
+  let roundCount = 0;
+  let prevCapturedIndex = -1;
+  let reversalHint = 0;
+  let reversalScheduled = false;
+  let reversalHintTimer = null;
+  let reversalFadeTimer = null;
+  let fusionFlash = null;
+  let ripples = [];
+  let particles = [];
+  let totalCapturable = 0;
+  let completed = false;
+  let comboText = null;
+  let hoverGlow = null;     // {alpha, colorIndex} subtle glow near indicator
+  let proximityGlow = 0;    // 0-1, how close the target segment is
+
+  // --- Indicator angle (top of ring) ---
+  const IND_ANGLE = -Math.PI / 2;
+
+  // --- Segment init ---
+  function initSegments() {
+    segments = [];
+    const totalSegs = NUM_COLORS * SEGMENTS_PER_COLOR;
+    const slotAngle = (Math.PI * 2) / totalSegs;
+
+    // Shuffle color assignments for variety
+    const colorOrder = [];
+    for (let i = 0; i < NUM_COLORS; i++) colorOrder.push(i);
+    for (let i = colorOrder.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [colorOrder[i], colorOrder[j]] = [colorOrder[j], colorOrder[i]];
+    }
+
+    for (let i = 0; i < totalSegs; i++) {
+      const ci = colorOrder[i % NUM_COLORS];
+      const baseAngle = i * slotAngle;
+      // Randomize within slot to avoid perfect grid
+      const jitter = (Math.random() - 0.5) * slotAngle * 0.35;
+      segments.push({
+        colorIndex: ci,
+        startAngle: baseAngle + jitter,
+        arc: SEGMENT_ARC_DEG * Math.PI / 180,
+        captured: false,
+        opacity: 1,
+        shrinkAnim: 1,
+        wobble: Math.random() * Math.PI * 2
+      });
+    }
+
+    totalCapturable = segments.length;
+    pickNewTarget();
+    initParticles();
+    buildFilledBar();
+    score = 0;
+    captureCount = 0;
+    roundCount = 0;
+    prevCapturedIndex = -1;
+    speed = BASE_SPEED;
+    direction = 1;
+    ringAngle = 0;
+    reversalHint = 0;
+    reversalScheduled = false;
+    completed = false;
+    fusionFlash = null;
+    ripples = [];
+    comboText = null;
+    if (reversalHintTimer) clearInterval(reversalHintTimer);
+    if (reversalFadeTimer) clearInterval(reversalFadeTimer);
+
+    updateScore();
+    document.getElementById("restart-hint").classList.remove("visible");
+  }
+
+  function pickNewTarget() {
+    const available = [];
+    for (let ci = 0; ci < NUM_COLORS; ci++) {
+      if (segments.some(s => s.colorIndex === ci && !s.captured)) {
+        available.push(ci);
+      }
+    }
+    if (available.length === 0) {
+      completed = true;
+      document.getElementById("restart-hint").classList.add("visible");
+      // Celebration arpeggio
+      setTimeout(() => {
+        for (let i = 0; i < NUM_COLORS; i++) {
+          setTimeout(() => playNote(i, 0.12), i * 140);
+        }
+      }, 400);
+      return;
+    }
+    // Bias toward adjacent colors for fusion opportunity
+    if (prevCapturedIndex >= 0 && Math.random() < 0.45) {
+      const adj = available.filter(ci => {
+        const hd = Math.abs(colors[ci].hue - colors[prevCapturedIndex].hue);
+        return Math.min(hd, 360 - hd) <= FUSION_THRESHOLD;
+      });
+      if (adj.length > 0) {
+        targetColor = adj[Math.floor(Math.random() * adj.length)];
+        return;
+      }
+    }
+    targetColor = available[Math.floor(Math.random() * available.length)];
+  }
+
+  // --- UI helpers ---
+  function buildFilledBar() {
+    const bar = document.getElementById("filled-bar");
+    bar.innerHTML = "";
+    for (let i = 0; i < NUM_COLORS; i++) {
+      const dot = document.createElement("div");
+      dot.className = "filled-dot";
+      dot.dataset.ci = i;
+      dot.style.background = hslStr(colors[i], 0.12);
+      bar.appendChild(dot);
+    }
+  }
+
+  function updateFilledBar() {
+    document.querySelectorAll(".filled-dot").forEach(dot => {
+      const ci = parseInt(dot.dataset.ci);
+      const allCaptured = segments.filter(s => s.colorIndex === ci).every(s => s.captured);
+      if (allCaptured) {
+        dot.classList.add("captured");
+        dot.style.background = hslStr(colors[ci]);
+      }
+    });
+  }
+
+  function updateScore() {
+    const captured = segments.filter(s => s.captured).length;
+    document.getElementById("score").textContent = `${captured} / ${totalCapturable}`;
+  }
+
+  // --- Particles ---
+  function initParticles() {
+    particles = [];
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      particles.push({
+        angle: Math.random() * Math.PI * 2,
+        dist: ringRadius * (0.55 + Math.random() * 1.1),
+        size: 0.8 + Math.random() * 2.2,
+        baseAlpha: 0.03 + Math.random() * 0.08,
+        speed: (0.00015 + Math.random() * 0.0003) * (Math.random() > 0.5 ? 1 : -1),
+        colorIndex: Math.floor(Math.random() * NUM_COLORS),
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+  }
+
+  // --- Drawing ---
+  function drawBackground() {
+    ctx.fillStyle = "#f5f5f3";
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawParticles(time) {
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      p.angle += p.speed * direction;
+      const px = cx + Math.cos(p.angle) * p.dist;
+      const py = cy + Math.sin(p.angle) * p.dist + Math.sin(time * 0.0008 + p.phase) * 4;
+      const breathe = 0.4 + 0.6 * Math.sin(time * 0.0006 + p.angle * 2);
+      const a = p.baseAlpha * breathe;
+      ctx.beginPath();
+      ctx.arc(px, py, p.size, 0, Math.PI * 2);
+      ctx.fillStyle = hslStr(colors[p.colorIndex], a);
+      ctx.fill();
+    }
+  }
+
+  function drawRing(time) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(ringAngle);
+
+    // Track groove
+    ctx.beginPath();
+    ctx.arc(0, 0, ringRadius, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(0,0,0,0.045)";
+    ctx.lineWidth = ringRadius * 0.19;
+    ctx.stroke();
+
+    // Subtle inner/outer edge lines
+    for (const r of [0.90, 1.10]) {
+      ctx.beginPath();
+      ctx.arc(0, 0, ringRadius * r, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(0,0,0,0.02)";
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
+
+    // Reversal hint - warm glow on edge pointing opposite to current rotation
+    if (reversalHint > 0.01) {
+      const hintAngle = -direction * 0.8;
+      const grad = ctx.createConicGradient(hintAngle, 0, 0);
+      const ha = reversalHint * 0.3;
+      grad.addColorStop(0, `rgba(200,100,80,${ha})`);
+      grad.addColorStop(0.15, `rgba(200,100,80,${ha * 0.5})`);
+      grad.addColorStop(0.5, "rgba(200,100,80,0)");
+      grad.addColorStop(1, `rgba(200,100,80,${ha * 0.2})`);
+      ctx.beginPath();
+      ctx.arc(0, 0, ringRadius * 1.12, 0, Math.PI * 2);
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 5;
+      ctx.stroke();
+    }
+
+    // Draw segments
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i];
+      if (seg.captured && seg.opacity < 0.01) continue;
+
+      const c = colors[seg.colorIndex];
+      const midAngle = seg.startAngle + seg.arc / 2;
+      const wobble = Math.sin(time * 0.0015 + seg.wobble * 8) * 0.008;
+      const effectiveArc = seg.arc * seg.shrinkAnim;
+
+      ctx.save();
+      ctx.globalAlpha = seg.opacity;
+
+      // Watercolor bleed layers (outermost to inner)
+      for (let layer = 4; layer >= 1; layer--) {
+        const bleed = layer * 3;
+        const layerAlpha = (0.04 - layer * 0.007) * seg.opacity;
+        if (layerAlpha <= 0) continue;
+        ctx.beginPath();
+        ctx.arc(0, 0, ringRadius, seg.startAngle + wobble, seg.startAngle + effectiveArc + wobble);
+        ctx.strokeStyle = hslStr(c, layerAlpha, -8, layer * 4);
+        ctx.lineWidth = ringRadius * 0.18 + bleed;
+        ctx.lineCap = "round";
+        ctx.stroke();
+      }
+
+      // Main segment with radial gradient
+      const gx1 = Math.cos(midAngle) * ringRadius * 0.84;
+      const gy1 = Math.sin(midAngle) * ringRadius * 0.84;
+      const gx2 = Math.cos(midAngle) * ringRadius * 1.16;
+      const gy2 = Math.sin(midAngle) * ringRadius * 1.16;
+      const mainGrad = ctx.createLinearGradient(gx1, gy1, gx2, gy2);
+      mainGrad.addColorStop(0, hslStr(c, 0.92, 0, 6));
+      mainGrad.addColorStop(0.5, hslStr(c, 0.96));
+      mainGrad.addColorStop(1, hslStr(c, 0.9, 0, -6));
+
+      ctx.beginPath();
+      ctx.arc(0, 0, ringRadius, seg.startAngle + wobble, seg.startAngle + effectiveArc + wobble);
+      ctx.strokeStyle = mainGrad;
+      ctx.lineWidth = ringRadius * 0.18;
+      ctx.lineCap = "round";
+      ctx.stroke();
+
+      // Soft outer glow
+      ctx.beginPath();
+      ctx.arc(0, 0, ringRadius, seg.startAngle + wobble - 0.015, seg.startAngle + effectiveArc + wobble + 0.015);
+      ctx.strokeStyle = hslStr(c, 0.08, -12, 12);
+      ctx.lineWidth = ringRadius * 0.24;
+      ctx.lineCap = "round";
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+
+  function drawIndicator(time) {
+    const ix = indicatorPos.x;
+    const iy = indicatorPos.y;
+    const c = colors[targetColor];
+    const now = time || performance.now();
+    const pulse = 13 + Math.sin(now * 0.004) * 2;
+
+    ctx.save();
+
+    // Proximity glow - intensifies when target segment is near
+    if (proximityGlow > 0.01) {
+      const pGrad = ctx.createRadialGradient(ix, iy, 0, ix, iy, 40 + proximityGlow * 30);
+      pGrad.addColorStop(0, hslStr(c, 0.15 * proximityGlow));
+      pGrad.addColorStop(1, hslStr(c, 0));
+      ctx.beginPath();
+      ctx.arc(ix, iy, 40 + proximityGlow * 30, 0, Math.PI * 2);
+      ctx.fillStyle = pGrad;
+      ctx.fill();
+    }
+
+    // Outer glow
+    const glow = ctx.createRadialGradient(ix, iy, 0, ix, iy, pulse * 2.2);
+    glow.addColorStop(0, hslStr(c, 0.2));
+    glow.addColorStop(1, hslStr(c, 0));
+    ctx.beginPath();
+    ctx.arc(ix, iy, pulse * 2.2, 0, Math.PI * 2);
+    ctx.fillStyle = glow;
+    ctx.fill();
+
+    // Target dot
+    ctx.beginPath();
+    ctx.arc(ix, iy, pulse, 0, Math.PI * 2);
+    ctx.fillStyle = hslStr(c, 0.82);
+    ctx.fill();
+    ctx.strokeStyle = hslStr(c, 1, -12);
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+
+    // Glass highlight
+    ctx.beginPath();
+    ctx.arc(ix - 2, iy - 2, pulse * 0.38, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.3)";
+    ctx.fill();
+
+    // Guide arc on ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, ringRadius, IND_ANGLE - 0.1, IND_ANGLE + 0.1);
+    ctx.strokeStyle = hslStr(c, 0.2);
+    ctx.lineWidth = ringRadius * 0.2;
+    ctx.lineCap = "round";
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawRipples(time) {
+    for (let i = 0; i < ripples.length; i++) {
+      const r = ripples[i];
+      const elapsed = time - r.startTime;
+      const progress = elapsed / RIPPLE_DURATION;
+      if (progress > 1) continue;
+
+      const c = colors[r.colorIndex];
+      const radius = 8 + progress * 55;
+      const alpha = (1 - progress) * 0.35;
+
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = hslStr(c, alpha);
+      ctx.lineWidth = 2.5 * (1 - progress);
+      ctx.stroke();
+
+      if (progress > 0.12) {
+        const p2 = (progress - 0.12) / 0.88;
+        const r2 = 4 + p2 * 40;
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r2, 0, Math.PI * 2);
+        ctx.strokeStyle = hslStr(c, (1 - p2) * 0.2);
+        ctx.lineWidth = 1.5 * (1 - p2);
+        ctx.stroke();
+      }
+
+      // Center splash
+      if (progress < 0.2) {
+        const sp = progress / 0.2;
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, 3 + sp * 6, 0, Math.PI * 2);
+        ctx.fillStyle = hslStr(c, (1 - sp) * 0.3);
+        ctx.fill();
+      }
+    }
+    ripples = ripples.filter(r => (time - r.startTime) < RIPPLE_DURATION);
+  }
+
+  function drawFusionFlash(time) {
+    if (!fusionFlash) return;
+    const elapsed = time - fusionFlash.startTime;
+    const progress = elapsed / 1400;
+    if (progress > 1) { fusionFlash = null; return; }
+
+    const alpha = (1 - progress) * 0.12;
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, ringRadius * 2.2);
+    grad.addColorStop(0, `hsla(${fusionFlash.hue}, 55%, 68%, ${alpha})`);
+    grad.addColorStop(1, `hsla(${fusionFlash.hue}, 55%, 68%, 0)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawComboText(time) {
+    if (!comboText) return;
+    const elapsed = time - comboText.startTime;
+    const progress = elapsed / 1600;
+    if (progress > 1) { comboText = null; return; }
+
+    const alpha = 1 - progress;
+    const yOffset = -progress * 35;
+    const scale = 0.8 + 0.2 * (1 - progress);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(comboText.x, comboText.y + yOffset);
+    ctx.scale(scale, scale);
+    ctx.font = "500 15px -apple-system, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = `rgba(0,0,0,${alpha * 0.45})`;
+    ctx.fillText(comboText.text, 0, 0);
+    ctx.restore();
+  }
+
+  function drawCompleted(time) {
+    if (!completed) return;
+    const elapsed = time - completedTime;
+    const pulse = 0.025 + Math.sin(elapsed * 0.002) * 0.015;
+
+    // Expanding ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, ringRadius * 1.25, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(0,0,0,${pulse})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Gentle color pulse
+    const hueShift = elapsed * 0.01 % 360;
+    const cGrad = ctx.createRadialGradient(cx, cy, ringRadius * 0.5, cx, cy, ringRadius * 1.5);
+    cGrad.addColorStop(0, `hsla(${hueShift}, 40%, 80%, ${pulse * 0.5})`);
+    cGrad.addColorStop(1, `hsla(${hueShift}, 40%, 80%, 0)`);
+    ctx.fillStyle = cGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, ringRadius * 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // --- Game logic ---
+  let completedTime = 0;
+
+  function getSegmentScreenAngle(seg) {
+    const a = seg.startAngle + seg.arc / 2 + ringAngle;
+    return ((a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  }
+
+  // Normalize IND_ANGLE to 0..2PI for comparison
+  const IND_ANGLE_NORM = ((IND_ANGLE % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2); // 3PI/2 = 4.712
+
+  function angleDiff(a, b) {
+    let d = ((a - b) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+    return Math.abs(d);
+  }
+
+  function findNearestTargetSegment() {
+    let best = null;
+    let bestDist = Infinity;
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i];
+      if (seg.captured || seg.colorIndex !== targetColor) continue;
+      const sa = getSegmentScreenAngle(seg);
+      const d = angleDiff(sa, IND_ANGLE_NORM);
+      if (d < bestDist) {
+        bestDist = d;
+        best = seg;
+      }
+    }
+    return { segment: best, distance: bestDist };
+  }
+
+  function captureSegment(seg) {
+    seg.captured = true;
+    score++;
+    captureCount++;
+    roundCount++;
+
+    // Ripple at indicator position
+    ripples.push({
+      x: indicatorPos.x,
+      y: indicatorPos.y,
+      colorIndex: seg.colorIndex,
+      startTime: performance.now()
+    });
+
+    playNote(seg.colorIndex);
+    speed = Math.min(MAX_SPEED, speed + SPEED_INCREMENT);
+    checkFusion(seg.colorIndex);
+
+    if (roundCount % REVERSE_INTERVAL === 0 && !reversalScheduled) {
+      scheduleReversal();
+    }
+
+    animateShrink(seg);
+    updateFilledBar();
+    updateScore();
+
+    if (segments.filter(s => !s.captured).length === 0) {
+      completed = true;
+      completedTime = performance.now();
+    }
+
+    setTimeout(() => pickNewTarget(), 350);
+  }
+
+  function checkFusion(ci) {
+    if (prevCapturedIndex < 0 || prevCapturedIndex === ci) {
+      prevCapturedIndex = ci;
+      return;
+    }
+    const hueDiff = Math.abs(colors[ci].hue - colors[prevCapturedIndex].hue);
+    const minDiff = Math.min(hueDiff, 360 - hueDiff);
+    if (minDiff <= FUSION_THRESHOLD) {
+      const fusedHue = (colors[ci].hue + colors[prevCapturedIndex].hue) / 2;
+      fusionFlash = { hue: fusedHue, startTime: performance.now() };
+      playFusionNote(ci, prevCapturedIndex);
+      comboText = {
+        text: "融合", // fusion
+        x: cx,
+        y: cy - ringRadius - 45,
+        startTime: performance.now()
+      };
+      score += 2;
+      updateScore();
+    }
+    prevCapturedIndex = ci;
+  }
+
+  function scheduleReversal() {
+    reversalScheduled = true;
+    // Ramp hint over ~4 seconds, then reverse
+    reversalHintTimer = setInterval(() => {
+      reversalHint = Math.min(1, reversalHint + 0.05);
+      if (reversalHint >= 1) {
+        clearInterval(reversalHintTimer);
+        reversalHintTimer = null;
+        direction *= -1;
+        playReverseSound();
+        roundCount = 0;
+        reversalScheduled = false;
+        // Fade hint out over ~2 seconds
+        reversalFadeTimer = setInterval(() => {
+          reversalHint -= 0.03;
+          if (reversalHint <= 0) {
+            reversalHint = 0;
+            clearInterval(reversalFadeTimer);
+            reversalFadeTimer = null;
+          }
+        }, 80);
+      }
+    }, 100);
+  }
+
+  function animateShrink(seg) {
+    const start = performance.now();
+    const dur = 400;
+    function tick(now) {
+      const p = Math.min(1, (now - start) / dur);
+      const eased = 1 - Math.pow(1 - p, 3);
+      seg.shrinkAnim = 1 - eased * 0.45;
+      seg.opacity = 1 - eased * 0.85;
+      if (p < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // --- Input ---
+  function handleInteraction(e) {
+    e.preventDefault();
+    ensureAudio();
+
+    if (completed) {
+      initSegments();
+      return;
+    }
+
+    const { segment, distance } = findNearestTargetSegment();
+    if (segment && distance < toleranceDeg * Math.PI / 180) {
+      captureSegment(segment);
+    }
+  }
+
+  canvas.addEventListener("click", handleInteraction);
+  canvas.addEventListener("touchend", (e) => {
+    e.preventDefault();
+    handleInteraction(e);
+  });
+
+  // Mute button
+  const muteBtn = document.getElementById("mute-btn");
+  muteBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    muted = !muted;
+    muteBtn.innerHTML = muted ? "&#9836;" : "&#9835;";
+    if (!muted) ensureAudio();
+  });
+
+  // --- Main loop ---
+  function update(time) {
+    ringAngle += speed * direction;
+
+    // Update proximity glow
+    const { distance: minDist } = findNearestTargetSegment();
+    const targetGlow = minDist !== Infinity ? Math.max(0, 1 - minDist / (toleranceDeg * Math.PI / 180 * 2)) : 0;
+    proximityGlow += (targetGlow - proximityGlow) * 0.1;
+
+    drawBackground();
+    drawParticles(time);
+    drawFusionFlash(time);
+    drawRing(time);
+    drawIndicator(time);
+    drawRipples(time);
+    drawComboText(time);
+    drawCompleted(time);
+
+    requestAnimationFrame(update);
+  }
+
+  // --- Init ---
+  initSegments();
+  requestAnimationFrame(update);
+
+})();
+</script>
+</body>
+</html>

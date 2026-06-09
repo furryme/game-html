@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bug猎人 - Bug Hunter</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Sans+SC:wght@400;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-start: #0f0c29;
+    --bg-mid: #302b63;
+    --bg-end: #24243e;
+    --accent: #00d4ff;
+    --accent2: #ff6b6b;
+    --text: #e0e0e0;
+    --terminal-bg: rgba(0,0,0,0.85);
+    --bug-glow: #ff00ff;
+  }
+
+  body {
+    font-family: 'Noto Sans SC', 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, var(--bg-start), var(--bg-mid), var(--bg-end));
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Glitch keyframes */
+  @keyframes glitchIn {
+    0% { clip-path: inset(50% 0 30% 0); transform: translate(-8px, 4px) skewX(2deg); opacity: 0; }
+    20% { clip-path: inset(10% 0 60% 0); transform: translate(6px, -3px) skewX(-1deg); opacity: 0.7; }
+    40% { clip-path: inset(70% 0 5% 0); transform: translate(-4px, 6px) skewX(3deg); opacity: 0.9; }
+    60% { clip-path: inset(20% 0 40% 0); transform: translate(5px, -5px) skewX(-2deg); opacity: 1; }
+    80% { clip-path: inset(40% 0 20% 0); transform: translate(-2px, 2px); opacity: 1; }
+    100% { clip-path: inset(0 0 0 0); transform: translate(0); opacity: 1; }
+  }
+
+  @keyframes glitchText {
+    0%, 100% { text-shadow: 2px 0 #ff00ff, -2px 0 #00ffff; }
+    25% { text-shadow: -2px 2px #ff00ff, 2px -2px #00ffff; transform: skewX(5deg); }
+    50% { text-shadow: 2px -2px #ff00ff, -2px 2px #00ffff; transform: skewX(-3deg); }
+    75% { text-shadow: -1px 0 #ff00ff, 1px 0 #00ffff; transform: skewX(2deg); }
+  }
+
+  @keyframes floatBug {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    25% { transform: translateY(-8px) rotate(2deg); }
+    50% { transform: translateY(-4px) rotate(-1deg); }
+    75% { transform: translateY(-12px) rotate(1deg); }
+  }
+
+  @keyframes rotateUncontrol {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  @keyframes fallGravity {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(350px); }
+  }
+
+  @keyframes pulseBug {
+    0%, 100% { box-shadow: 0 0 5px var(--bug-glow), 0 0 10px var(--bug-glow); }
+    50% { box-shadow: 0 0 15px var(--bug-glow), 0 0 30px var(--bug-glow), 0 0 45px var(--bug-glow); }
+  }
+
+  @keyframes scanline {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(100vh); }
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+
+  @keyframes screenShake {
+    0%, 100% { transform: translate(0); }
+    10% { transform: translate(-5px, -3px); }
+    20% { transform: translate(5px, 3px); }
+    30% { transform: translate(-3px, 5px); }
+    40% { transform: translate(3px, -5px); }
+    50% { transform: translate(-5px, 2px); }
+    60% { transform: translate(5px, -2px); }
+    70% { transform: translate(-2px, -5px); }
+    80% { transform: translate(2px, 5px); }
+    90% { transform: translate(-3px, -3px); }
+  }
+
+  @keyframes blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+  }
+
+  @keyframes checkPulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+
+  /* === LAYOUT === */
+  #app {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    position: relative;
+    min-height: 100vh;
+  }
+
+  /* Header bar */
+  #header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 25px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    margin-bottom: 20px;
+    backdrop-filter: blur(10px);
+  }
+
+  #header h1 {
+    font-size: 1.8em;
+    font-weight: 700;
+    background: linear-gradient(90deg, var(--accent), #ff6b6b, var(--accent));
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer 3s linear infinite;
+  }
+
+  #header .bug-icon {
+    font-size: 1.4em;
+    animation: floatBug 2s ease-in-out infinite;
+    display: inline-block;
+  }
+
+  #stats {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9em;
+  }
+
+  #helpBtn {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(0, 212, 255, 0.15); border: 1px solid rgba(0, 212, 255, 0.3);
+    color: var(--accent); font-size: 16px; font-weight: bold; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s;
+  }
+  #helpBtn:hover { background: rgba(0, 212, 255, 0.3); }
+
+  #helpOverlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.88); z-index: 10001;
+    display: none; justify-content: center; align-items: center;
+  }
+  #helpOverlay.show { display: flex; }
+  #helpOverlay .help-box {
+    background: linear-gradient(135deg, #1a1a3e, #0d0d1f);
+    border: 1px solid rgba(0, 212, 255, 0.3); border-radius: 16px;
+    padding: 32px 40px; max-width: 480px; max-height: 80vh; overflow-y: auto;
+    text-align: center; box-shadow: 0 0 40px rgba(0, 212, 255, 0.1);
+  }
+  #helpOverlay h2 {
+    color: var(--accent); font-size: 22px; margin-bottom: 16px;
+  }
+  #helpOverlay .help-list {
+    text-align: left; font-size: 13px; color: #ccc; line-height: 1.8;
+  }
+  #helpOverlay .help-list .bug-item {
+    padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  #helpOverlay .help-list .bug-num {
+    color: var(--accent2); font-weight: bold; margin-right: 6px;
+  }
+  #helpOverlay .close-hint {
+    color: #666; font-size: 12px; margin-top: 16px;
+  }
+
+  #stats .stat {
+    background: rgba(0,0,0,0.3);
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 212, 255, 0.2);
+  }
+
+  #stats .stat .label { color: #888; font-size: 0.8em; }
+  #stats .stat .value { color: var(--accent); font-weight: 700; }
+
+  /* Main content area */
+  #main {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 30px;
+    min-height: 350px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* App mockup inside main */
+  .app-mockup {
+    max-width: 700px;
+    margin: 0 auto;
+  }
+
+  .app-mockup .card {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 15px;
+    transition: all 0.3s;
+  }
+
+  .app-mockup .card h3 {
+    color: var(--accent);
+    margin-bottom: 8px;
+    font-size: 1em;
+  }
+
+  .app-mockup .card p {
+    color: #aaa;
+    line-height: 1.6;
+    font-size: 0.9em;
+  }
+
+  .app-mockup .btn {
+    background: linear-gradient(135deg, var(--accent), #0099cc);
+    color: #000;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 0.95em;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+
+  .app-mockup .btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4);
+  }
+
+  /* Terminal log */
+  #terminal {
+    margin-top: 20px;
+    background: var(--terminal-bg);
+    border: 1px solid rgba(0, 212, 255, 0.15);
+    border-radius: 10px;
+    overflow: hidden;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  #terminal-title {
+    background: rgba(0, 212, 255, 0.1);
+    padding: 8px 15px;
+    font-size: 0.8em;
+    color: var(--accent);
+    border-bottom: 1px solid rgba(0, 212, 255, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  #terminal-title .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  #terminal-title .dot.r { background: #ff5f57; }
+  #terminal-title .dot.y { background: #ffbd2e; }
+  #terminal-title .dot.g { background: #28c840; }
+
+  #terminal-log {
+    padding: 15px;
+    max-height: 220px;
+    overflow-y: auto;
+    font-size: 0.85em;
+    line-height: 1.7;
+  }
+
+  #terminal-log::-webkit-scrollbar { width: 4px; }
+  #terminal-log::-webkit-scrollbar-track { background: transparent; }
+  #terminal-log::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.3); border-radius: 2px; }
+
+  .log-line {
+    opacity: 0;
+    animation: fadeInLine 0.3s forwards;
+  }
+
+  @keyframes fadeInLine {
+    to { opacity: 1; }
+  }
+
+  .log-line .prefix { color: var(--accent); }
+  .log-line .system { color: #ff6b6b; }
+  .log-line .success { color: #28c840; }
+  .log-line .warn { color: #ffbd2e; }
+  .log-line .dim { color: #666; }
+
+  /* Bug elements */
+  .bug-element {
+    position: absolute;
+    cursor: pointer;
+    z-index: 100;
+    animation: glitchIn 0.5s forwards, pulseBug 1.5s ease-in-out infinite 0.5s;
+    transition: transform 0.15s;
+  }
+
+  .bug-element:hover {
+    filter: brightness(1.3);
+  }
+
+  .bug-element:active {
+    transform: scale(0.95);
+  }
+
+  .bug-element .fix-hint {
+    font-size: 0.65em;
+    color: rgba(255,255,255,0.5);
+    text-align: center;
+    margin-top: 4px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Bug type 1: Drifting button */
+  .bug-drift {
+    background: linear-gradient(135deg, #ff006e, #ff4d94);
+    color: white;
+    border: none;
+    padding: 12px 28px;
+    border-radius: 8px;
+    font-size: 1em;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    box-shadow: 0 0 15px rgba(255, 0, 110, 0.6);
+    transition: left 0.3s ease-out, top 0.3s ease-out;
+  }
+
+  /* Bug type 2: Scrambled text */
+  .bug-scramble {
+    background: rgba(255, 0, 255, 0.15);
+    border: 2px dashed #ff00ff;
+    padding: 15px 20px;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1em;
+    color: #ff00ff;
+    max-width: 350px;
+    word-break: break-all;
+    line-height: 1.8;
+  }
+
+  /* Bug type 3: Inverted colors */
+  .bug-invert {
+    background: #fff;
+    color: #000;
+    padding: 20px;
+    border-radius: 8px;
+    font-size: 1em;
+    border: 3px solid #ff0000;
+    text-align: center;
+    filter: invert(1) hue-rotate(180deg);
+  }
+
+  /* Bug type 4: Spinning element */
+  .bug-spin {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, #ffd700, #ff8c00);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2em;
+    animation: rotateUncontrol 2.5s linear infinite, pulseBug 1.5s ease-in-out infinite;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+  }
+
+  /* Bug type 5: Missing texture */
+  .bug-texture {
+    width: 150px;
+    height: 100px;
+    background-image:
+      linear-gradient(45deg, #808080 25%, transparent 25%),
+      linear-gradient(-45deg, #808080 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #808080 75%),
+      linear-gradient(-45deg, transparent 75%, #808080 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+    border: 2px solid #ff0000;
+    animation: checkPulse 1s infinite, pulseBug 1.5s ease-in-out infinite;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .bug-texture::after {
+    content: 'MISSING';
+    position: absolute;
+    background: rgba(255,0,0,0.8);
+    color: white;
+    font-size: 0.7em;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 2px 8px;
+    border-radius: 3px;
+  }
+
+  /* Bug type 6: Gravity broken indicator */
+  .bug-gravity-item {
+    display: inline-block;
+    padding: 8px 16px;
+    background: rgba(255, 0, 0, 0.2);
+    border: 2px solid #ff4444;
+    border-radius: 6px;
+    color: #ff4444;
+    font-weight: 700;
+    margin: 4px;
+    animation: fallGravity 3s ease-in forwards;
+  }
+
+  .bug-gravity-zone {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 99;
+  }
+
+  .bug-gravity-zone > * {
+    pointer-events: auto;
+  }
+
+  /* Bug type 7: Uncloseable modal */
+  .bug-modal-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .bug-modal {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border: 2px solid var(--bug-glow);
+    border-radius: 12px;
+    padding: 30px;
+    min-width: 380px;
+    text-align: center;
+    box-shadow: 0 0 40px rgba(255, 0, 255, 0.3);
+  }
+
+  .bug-modal h3 {
+    color: var(--bug-glow);
+    margin-bottom: 12px;
+    font-size: 1.2em;
+  }
+
+  .bug-modal p {
+    color: #aaa;
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+
+  .bug-modal .fake-close {
+    background: #333;
+    color: #888;
+    border: 1px solid #444;
+    padding: 8px 20px;
+    border-radius: 6px;
+    cursor: not-allowed;
+    font-size: 0.9em;
+    font-family: inherit;
+    transition: all 0.2s;
+  }
+
+  .bug-modal .fake-close:hover {
+    background: #2a2a2a;
+  }
+
+  .bug-modal .real-close {
+    position: absolute;
+    background: transparent;
+    border: none;
+    color: #333;
+    font-size: 0.7em;
+    cursor: pointer;
+    padding: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    transition: color 0.2s;
+  }
+
+  .bug-modal .real-close:hover {
+    color: var(--accent);
+  }
+
+  /* Bug type 8: Wrong place text */
+  .bug-wrongtext {
+    position: absolute;
+    font-size: 2em;
+    font-weight: 700;
+    color: #00ff88;
+    text-shadow: 0 0 10px #00ff88;
+    pointer-events: auto;
+    cursor: pointer;
+    z-index: 150;
+  }
+
+  /* Bug type 9: BSOD */
+  .bug-bsod {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #0078d7;
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', 'Segoe UI', sans-serif;
+    color: white;
+    animation: glitchIn 0.3s forwards;
+  }
+
+  .bug-bsod .sad { font-size: 6em; margin-bottom: 20px; }
+  .bug-bsod h2 { font-size: 1.5em; margin-bottom: 10px; font-weight: 400; }
+  .bug-bsod p { font-size: 0.9em; opacity: 0.8; line-height: 1.6; }
+  .bug-bsod .percent { font-size: 1.2em; margin-top: 20px; }
+  .bug-bsod .hint {
+    position: absolute;
+    bottom: 30px;
+    font-size: 0.6em;
+    opacity: 0.2;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Bug type 10: 404 boss */
+  .bug-404 {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(135deg, #0a0a0a, #1a0000);
+    z-index: 999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    animation: glitchIn 0.6s forwards;
+  }
+
+  .bug-404 .big-404 {
+    font-size: 12em;
+    font-weight: 900;
+    background: linear-gradient(180deg, #ff0000, #ff6600);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: glitchText 0.3s infinite;
+    line-height: 1;
+  }
+
+  .bug-404 h2 {
+    font-size: 2em;
+    color: #ff3333;
+    margin: 10px 0;
+    animation: glitchText 0.5s infinite;
+  }
+
+  .bug-404 p {
+    color: #666;
+    font-size: 1em;
+    margin: 5px 0;
+  }
+
+  .bug-404 .health-bar {
+    width: 300px;
+    height: 20px;
+    background: #333;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 25px;
+    border: 1px solid #555;
+  }
+
+  .bug-404 .health-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff0000, #ff6600);
+    transition: width 0.3s;
+    border-radius: 10px;
+  }
+
+  .bug-404 .boss-name {
+    font-size: 0.8em;
+    color: #ff6600;
+    margin-top: 10px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Scanline overlay */
+  #scanline {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(0, 212, 255, 0.08);
+    z-index: 10000;
+    pointer-events: none;
+    animation: scanline 4s linear infinite;
+  }
+
+  /* Screen shake */
+  .screen-shake {
+    animation: screenShake 0.5s;
+  }
+
+  /* Start screen */
+  #start-screen {
+    text-align: center;
+    padding: 60px 20px;
+  }
+
+  #start-screen h2 {
+    font-size: 2.5em;
+    margin-bottom: 15px;
+    background: linear-gradient(90deg, var(--accent), #ff6b6b);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  #start-screen .subtitle {
+    color: #888;
+    font-size: 1.1em;
+    margin-bottom: 40px;
+    line-height: 1.6;
+  }
+
+  #start-screen .start-btn {
+    background: linear-gradient(135deg, var(--accent), #0099cc);
+    color: #000;
+    border: none;
+    padding: 16px 48px;
+    border-radius: 10px;
+    font-size: 1.2em;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.3s;
+    box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3);
+  }
+
+  #start-screen .start-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0, 212, 255, 0.5);
+  }
+
+  #start-screen .high-score {
+    margin-top: 25px;
+    color: #666;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85em;
+  }
+
+  /* Victory screen */
+  #victory-screen {
+    text-align: center;
+    padding: 50px 20px;
+    animation: glitchIn 0.8s forwards;
+  }
+
+  #victory-screen .trophy { font-size: 5em; margin-bottom: 20px; }
+
+  #victory-screen h2 {
+    font-size: 2.2em;
+    margin-bottom: 15px;
+    color: var(--accent);
+  }
+
+  #victory-screen .final-time {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.5em;
+    color: var(--accent2);
+    margin: 15px 0;
+  }
+
+  #victory-screen .final-score {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1em;
+    color: #ffbd2e;
+    margin: 10px 0;
+  }
+
+  #victory-screen .game-msg {
+    color: #888;
+    font-style: italic;
+    margin: 20px 0;
+    line-height: 1.6;
+  }
+
+  #victory-screen .actions {
+    margin-top: 30px;
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  #victory-screen .actions button, #victory-screen .actions a {
+    background: linear-gradient(135deg, var(--accent), #0099cc);
+    color: #000;
+    border: none;
+    padding: 12px 32px;
+    border-radius: 8px;
+    font-size: 1em;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+
+  #victory-screen .actions button:hover, #victory-screen .actions a:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4);
+  }
+
+  #victory-screen .actions a.home-link {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #aaa;
+  }
+
+  #victory-screen .actions a.home-link:hover {
+    color: white;
+    border-color: rgba(255,255,255,0.5);
+  }
+
+  /* Progress bar */
+  #progress-bar {
+    width: 100%;
+    height: 4px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    margin-bottom: 15px;
+    overflow: hidden;
+  }
+
+  #progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width 0.5s ease;
+    border-radius: 2px;
+    width: 0%;
+  }
+
+  .hidden { display: none !important; }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    #header { flex-direction: column; gap: 10px; text-align: center; }
+    #stats { flex-wrap: wrap; justify-content: center; }
+    #start-screen h2 { font-size: 1.8em; }
+    .bug-modal { min-width: 280px; padding: 20px; }
+    .bug-404 .big-404 { font-size: 7em; }
+    .bug-bsod .sad { font-size: 4em; }
+  }
+</style>
+</head>
+<body>
+<div id="scanline"></div>
+<div id="helpOverlay">
+  <div class="help-box">
+    <h2>🐛 Bug猎人 — 玩法说明</h2>
+    <div class="help-list">
+      <p style="margin-bottom:12px;">本程序"经过严格测试"，但Bug会陆续出现。你需要发现并点击修复每个Bug。</p>
+      <div class="bug-item"><span class="bug-num">#1</span> 漂移按钮 — 鼠标靠近就跑开，追5次后放弃</div>
+      <div class="bug-item"><span class="bug-num">#2</span> 乱码文本 — 文字被随机字符取代，直接点击修复</div>
+      <div class="bug-item"><span class="bug-num">#3</span> 颜色反转 — 元素颜色完全颠倒</div>
+      <div class="bug-item"><span class="bug-num">#4</span> 旋转失控 — 元素不停旋转</div>
+      <div class="bug-item"><span class="bug-num">#5</span> 纹理丢失 — 显示为棋盘格占位符</div>
+      <div class="bug-item"><span class="bug-num">#6</span> 重力崩坏 — 元素往下掉，找到青色修复按钮</div>
+      <div class="bug-item"><span class="bug-num">#7</span> 无法关闭 — 弹窗关不掉，找到隐藏的 ✓ 按钮</div>
+      <div class="bug-item"><span class="bug-num">#8</span> 错位文字 — 不相关的文字随机出现</div>
+      <div class="bug-item"><span class="bug-num">#9</span> 蓝屏死机 — 假的Windows蓝屏，直接点击</div>
+      <div class="bug-item"><span class="bug-num">#10</span> 404 Boss — 最终Boss，点击20次击败</div>
+    </div>
+    <div class="close-hint">按 Esc 或点击背景关闭</div>
+  </div>
+</div>
+<div id="app">
+  <div id="header">
+    <h1><span class="bug-icon">🐛</span> Bug猎人</h1>
+    <button id="helpBtn">?</button>
+    <div id="stats">
+      <div class="stat hidden" id="stat-bugs">
+        <div class="label">已修复</div>
+        <div class="value" id="bug-count">0/10</div>
+      </div>
+      <div class="stat hidden" id="stat-time">
+        <div class="label">用时</div>
+        <div class="value" id="timer">00:00</div>
+      </div>
+      <div class="stat hidden" id="stat-score">
+        <div class="label">分数</div>
+        <div class="value" id="score">0</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="progress-bar" class="hidden"><div id="progress-fill"></div></div>
+
+  <div id="main">
+    <!-- Start screen -->
+    <div id="start-screen">
+      <h2>🐛 Bug 猎人</h2>
+      <p class="subtitle">
+        本程序经过严格测试，绝无Bug。<br>
+        <span style="color: #555; font-size: 0.9em;">（如果你发现了Bug，那一定是你的幻觉。）</span>
+      </p>
+      <button class="start-btn" onclick="startGame()">开始检测</button>
+      <div class="high-score" id="high-score-display"></div>
+    </div>
+
+    <!-- Game content -->
+    <div id="game-content" class="hidden">
+      <div class="app-mockup" id="app-mockup">
+        <div class="card">
+          <h3>系统状态面板</h3>
+          <p>当前系统运行正常。所有服务均处于健康状态。CPU使用率 12%，内存占用 34%，磁盘空间充足。</p>
+        </div>
+        <div class="card">
+          <h3>最近活动</h3>
+          <p>用户已登录。数据同步完成。系统检查通过。一切正常，完全正常，绝对没有Bug。</p>
+        </div>
+        <div class="card">
+          <h3>操作栏</h3>
+          <button class="btn" id="dummy-btn">确认系统正常</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Victory screen -->
+    <div id="victory-screen" class="hidden"></div>
+  </div>
+
+  <div id="terminal" class="hidden">
+    <div id="terminal-title">
+      <span class="dot r"></span>
+      <span class="dot y"></span>
+      <span class="dot g"></span>
+      <span>系统日志 - System Log</span>
+    </div>
+    <div id="terminal-log"></div>
+  </div>
+</div>
+
+<script>
+// ===================== GAME STATE =====================
+const state = {
+  bugsFixed: 0,
+  totalBugs: 10,
+  score: 0,
+  timerStart: 0,
+  timerInterval: null,
+  activeBugs: [],
+  currentLevel: 0,
+  gameActive: false,
+  gravityElements: [],
+  scrambleInterval: null,
+};
+
+// ===================== NARRATIVE =====================
+const gameMessages = {
+  start: [
+    '> 系统初始化完成。',
+    '> 本程序经过严格测试，绝无Bug。',
+    '> 如果你发现任何异常，请立即点击它以修复。',
+    '> 当然，你不会发现任何异常。',
+  ],
+  bugAppear: [
+    '> 等等... 那个... 请忽略那个。',
+    '> 那不是Bug，那是一个... 特性。',
+    '> 好的，它确实是个Bug。但请不要在意。',
+    '> 为什么它又出现了？这不科学。',
+    '> 我发誓我没有故意制造这个Bug。',
+    '> 这个Bug是... 意外出现的。真的。',
+    '> 你怎么找到了？我明明藏得很好。',
+    '> 好吧，你眼力真好。但下一个一定找不到。',
+    '> 系统警告：检测到异常。正在尝试修复... 失败。',
+    '> 最后一个了... 真的最后一个了...',
+  ],
+  bugFixed: [
+    '> 你又修好了一个。但我马上给你造个新的。',
+    '> 不错嘛。但下一个可没那么简单。',
+    '> 等等，你修好它干嘛？它在那里好好的。',
+    '> 很好。我已经开始觉得你有点烦了。',
+    '> 你又来了？我只是想安静地跑着。',
+    '> 修得真快... 但我还有更多惊喜。',
+    '> 你是在故意折磨我吗？',
+    '> 我... 我需要一个休息。不，算了，继续吧。',
+    '> 等等，你再修下去我要崩溃了...',
+    '> 好吧... 这是最后一个了。求你了。',
+  ],
+  bossWarn: [
+    '> 警告：检测到终极Bug！',
+    '> 这个Bug比其他的都要强大。',
+    '> 需要多次点击才能击败它。祝你好运。',
+  ],
+  victory: [
+    '> 好吧... 你赢了。',
+    '> 但更新一定会带来更多Bug。',
+    '> 毕竟，没有Bug的程序是不存在的。',
+    '> 感谢你的修复。现在我要去写Patch了...',
+  ],
+};
+
+// ===================== BUG TYPES =====================
+const bugTypes = [
+  { type: 'drift', label: '漂移按钮' },
+  { type: 'scramble', label: '乱码文本' },
+  { type: 'invert', label: '颜色反转' },
+  { type: 'spin', label: '旋转失控' },
+  { type: 'texture', label: '纹理丢失' },
+  { type: 'gravity', label: '重力崩坏' },
+  { type: 'modal', label: '无法关闭' },
+  { type: 'wrongtext', label: '错位文字' },
+  { type: 'bsod', label: '蓝屏死机' },
+  { type: '404', label: '404 Boss' },
+];
+
+// ===================== UTILITY =====================
+function $(id) { return document.getElementById(id); }
+
+function randomBetween(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randomItem(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function getMainRect() {
+  const main = $('main');
+  return main.getBoundingClientRect();
+}
+
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+  const s = (seconds % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function shakeScreen() {
+  const app = $('app');
+  app.classList.add('screen-shake');
+  setTimeout(() => app.classList.remove('screen-shake'), 500);
+}
+
+function addLog(html) {
+  const log = $('terminal-log');
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = html;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+}
+
+function updateStats() {
+  $('bug-count').textContent = `${state.bugsFixed}/${state.totalBugs}`;
+  $('score').textContent = state.score;
+  $('progress-fill').style.width = `${(state.bugsFixed / state.totalBugs) * 100}%`;
+}
+
+function updateTimer() {
+  if (!state.gameActive) return;
+  const elapsed = Math.floor((Date.now() - state.timerStart) / 1000);
+  $('timer').textContent = formatTime(elapsed);
+}
+
+// ===================== GAME FLOW =====================
+function startGame() {
+  // Reset state
+  state.bugsFixed = 0;
+  state.score = 0;
+  state.currentLevel = 0;
+  state.activeBugs = [];
+  state.gameActive = true;
+  state.gravityElements = [];
+  if (state.scrambleInterval) clearInterval(state.scrambleInterval);
+
+  // Show game UI
+  $('start-screen').classList.add('hidden');
+  $('victory-screen').classList.add('hidden');
+  $('game-content').classList.remove('hidden');
+  $('terminal').classList.remove('hidden');
+  $('stat-bugs').classList.remove('hidden');
+  $('stat-time').classList.remove('hidden');
+  $('stat-score').classList.remove('hidden');
+  $('progress-bar').classList.remove('hidden');
+
+  // Clear any old bug elements
+  document.querySelectorAll('.bug-element, .bug-gravity-zone, .bug-modal-overlay, .bug-bsod, .bug-404, .bug-wrongtext').forEach(el => el.remove());
+
+  // Reset mockup
+  const mockup = $('app-mockup');
+  mockup.style.filter = '';
+  mockup.style.transform = '';
+  mockup.querySelectorAll('.card').forEach(card => {
+    card.style.filter = '';
+    card.style.transform = '';
+    card.style.animation = '';
+  });
+
+  // Clear log
+  $('terminal-log').innerHTML = '';
+
+  // Timer
+  state.timerStart = Date.now();
+  state.timerInterval = setInterval(updateTimer, 1000);
+
+  updateStats();
+
+  // Start messages
+  gameMessages.start.forEach((msg, i) => {
+    setTimeout(() => addLog(msg), i * 400);
+  });
+
+  // Spawn first bug after messages
+  setTimeout(() => spawnBug(0), 1800);
+}
+
+function spawnBug(index) {
+  if (index >= state.totalBugs) return;
+
+  state.currentLevel = index;
+  const bugInfo = bugTypes[index];
+  const bugNum = index + 1;
+
+  // Message
+  const msgIndex = Math.min(index, gameMessages.bugAppear.length - 1);
+  const msg = gameMessages.bugAppear[msgIndex];
+  addLog(`<span class="system">${msg}</span>`);
+  shakeScreen();
+
+  // Create bug based on type
+  switch (bugInfo.type) {
+    case 'drift': spawnDriftBug(bugNum); break;
+    case 'scramble': spawnScrambleBug(bugNum); break;
+    case 'invert': spawnInvertBug(bugNum); break;
+    case 'spin': spawnSpinBug(bugNum); break;
+    case 'texture': spawnTextureBug(bugNum); break;
+    case 'gravity': spawnGravityBug(bugNum); break;
+    case 'modal': spawnModalBug(bugNum); break;
+    case 'wrongtext': spawnWrongTextBug(bugNum); break;
+    case 'bsod': spawnBSODBug(bugNum); break;
+    case '404': spawn404Bug(bugNum); break;
+  }
+}
+
+// ===================== BUG SPAWNER: Type 1 - Drifting Button =====================
+function spawnDriftBug(num) {
+  const main = $('main');
+  const rect = getMainRect();
+  const btn = document.createElement('button');
+  btn.className = 'bug-element bug-drift';
+  btn.textContent = `确认系统正常 [BUG #${num}]`;
+  btn.style.left = randomBetween(50, rect.width - 250) + 'px';
+  btn.style.top = randomBetween(50, rect.height - 80) + 'px';
+  main.style.position = 'relative';
+  main.appendChild(btn);
+
+  // Drift away from cursor
+  let driftCount = 0;
+  const maxDrifts = 5;
+
+  btn.addEventListener('mouseenter', function() {
+    if (driftCount < maxDrifts) {
+      driftCount++;
+      const r = getMainRect();
+      const newLeft = randomBetween(10, r.width - 220);
+      const newTop = randomBetween(10, r.height - 60);
+      btn.style.left = newLeft + 'px';
+      btn.style.top = newTop + 'px';
+
+      const taunts = [
+        '抓不到我！',
+        '太慢了！',
+        '再试试？',
+        '哈哈！',
+        '就差一点...',
+      ];
+      addLog(`<span class="dim">${randomItem(taunts)} (漂移次数: ${driftCount}/${maxDrifts})</span>`);
+    }
+  });
+
+  btn.addEventListener('click', function() {
+    if (driftCount >= maxDrifts || btn.dataset.found === 'true') {
+      fixBug(num, btn);
+    }
+  });
+
+  // After max drifts, let it be catchable
+  setTimeout(() => {
+    if (btn.parentNode) {
+      btn.dataset.found = 'true';
+      btn.style.cursor = 'pointer';
+      btn.title = '点击修复';
+    }
+  }, 4000);
+
+  state.activeBugs.push(btn);
+}
+
+// ===================== BUG SPAWNER: Type 2 - Scrambled Text =====================
+function spawnScrambleBug(num) {
+  const main = $('main');
+  main.style.position = 'relative';
+
+  const el = document.createElement('div');
+  el.className = 'bug-element bug-scramble';
+  el.style.left = randomBetween(30, 300) + 'px';
+  el.style.top = randomBetween(40, 200) + 'px';
+
+  const goodText = '这段文本完全正常没有任何问题';
+  let scrambled = '';
+
+  function scrambleText() {
+    const chars = 'ぁぃぅぇぉ█▓▒░⌠⌡⎺⎻⟨⟩{}/\\|[]!@#$%^&*';
+    scrambled = '';
+    for (let i = 0; i < goodText.length; i++) {
+      if (Math.random() > 0.3) {
+        scrambled += chars[randomBetween(0, chars.length - 1)];
+      } else {
+        scrambled += goodText[i];
+      }
+    }
+    el.textContent = `[BUG #${num}] ${scrambled}`;
+  }
+
+  scrambleText();
+  state.scrambleInterval = setInterval(scrambleText, 200);
+  main.appendChild(el);
+
+  el.addEventListener('click', function() {
+    fixBug(num, el);
+  });
+
+  state.activeBugs.push(el);
+}
+
+// ===================== BUG SPAWNER: Type 3 - Inverted Colors =====================
+function spawnInvertBug(num) {
+  const main = $('main');
+  main.style.position = 'relative';
+
+  const el = document.createElement('div');
+  el.className = 'bug-element bug-invert';
+  el.style.left = randomBetween(50, 400) + 'px';
+  el.style.top = randomBetween(50, 200) + 'px';
+  el.innerHTML = `<div style="font-size:1.2em; font-weight:700;">[BUG #${num}] 颜色完全正常</div>
+    <div style="font-size:0.8em; margin-top:8px;">（点击修复）</div>`;
+  main.appendChild(el);
+
+  el.addEventListener('click', function() {
+    fixBug(num, el);
+  });
+
+  state.activeBugs.push(el);
+}
+
+// ===================== BUG SPAWNER: Type 4 - Spinning =====================
+function spawnSpinBug(num) {
+  const main = $('main');
+  main.style.position = 'relative';
+
+  const el = document.createElement('div');
+  el.className = 'bug-element bug-spin';
+  el.style.left = randomBetween(100, 500) + 'px';
+  el.style.top = randomBetween(60, 250) + 'px';
+  el.textContent = `🐛`;
+  el.title = `[BUG #${num}] 旋转失控 - 点击修复`;
+  main.appendChild(el);
+
+  el.addEventListener('click', function() {
+    fixBug(num, el);
+  });
+
+  state.activeBugs.push(el);
+}
+
+// ===================== BUG SPAWNER: Type 5 - Missing Texture =====================
+function spawnTextureBug(num) {
+  const main = $('main');
+  main.style.position = 'relative';
+
+  const el = document.createElement('div');
+  el.className = 'bug-element bug-texture';
+  el.style.left = randomBetween(50, 400) + 'px';
+  el.style.top = randomBetween(60, 250) + 'px';
+  el.title = `[BUG #${num}] 纹理丢失 - 点击重新加载`;
+  main.appendChild(el);
+
+  el.addEventListener('click', function() {
+    fixBug(num, el);
+  });
+
+  state.activeBugs.push(el);
+}
+
+// ===================== BUG SPAWNER: Type 6 - Gravity Broken =====================
+function spawnGravityBug(num) {
+  const main = $('main');
+  main.style.position = 'relative';
+
+  // Create falling elements
+  const zone = document.createElement('div');
+  zone.className = 'bug-gravity-zone';
+
+  const labels = ['系统状态', 'CPU数据', '内存信息', 'Bug #' + num, '日志文件', '配置文件'];
+  labels.forEach((label, i) => {
+    const item = document.createElement('div');
+    item.className = 'bug-gravity-item';
+    item.textContent = label;
+    item.style.animationDelay = (i * 0.4) + 's';
+    item.style.position = 'absolute';
+    item.style.left = randomBetween(20, 300) + 'px';
+    item.style.top = '20px';
+    zone.appendChild(item);
+  });
+
+  // The actual fix button appears after a delay among the fallen elements
+  const fixBtn = document.createElement('div');
+  fixBtn.className = 'bug-gravity-item';
+  fixBtn.textContent = '[点击修复]';
+  fixBtn.style.animationDelay = '2s';
+  fixBtn.style.position = 'absolute';
+  fixBtn.style.left = randomBetween(50, 250) + 'px';
+  fixBtn.style.top = '20px';
+  fixBtn.style.background = 'rgba(0, 212, 255, 0.3)';
+  fixBtn.style.borderColor = '#00d4ff';
+  fixBtn.style.color = '#00d4ff';
+  zone.appendChild(fixBtn);
+
+  fixBtn.addEventListener('click', function() {
+    fixBug(num, zone);
+    state.activeBugs = state.activeBugs.filter(b => b !== zone);
+  });
+
+  main.appendChild(zone);
+  state.activeBugs.push(zone);
+}
+
+// ===================== BUG SPAWNER: Type 7 - Uncloseable Modal =====================
+function spawnModalBug(num) {
+  const main = $('main');
+  main.style.position = 'relative';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'bug-modal-overlay';
+
+  // Hide the real close button somewhere random
+  const realCloseX = randomBetween(5, 90);
+  const realCloseY = randomBetween(5, 90);
+
+  overlay.innerHTML = `
+    <div class="bug-modal">
+      <h3>⚠️ [BUG #${num}] 系统警告</h3>
+      <p>检测到严重错误。请立即关闭此对话框。
+      <br><br>
+      <span style="color: #666; font-size: 0.85em;">提示：关闭按钮可能去了一个你不期望的地方。</span>
+      </p>
+      <button class="fake-close">关闭</button>
+      <button class="fake-close" style="margin-left: 10px;">确定</button>
+      <button class="fake-close" style="margin-left: 10px;">取消</button>
+    </div>
+    <button class="real-close" style="left: ${realCloseX}%; top: ${realCloseY}%;">&#9746;</button>
+  `;
+
+  main.appendChild(overlay);
+
+  // Fake close buttons
+  overlay.querySelectorAll('.fake-close').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const responses = [
+        '那不是真的关闭按钮。',
+        '哈哈，被骗了吧。',
+        '认真找，关闭按钮在某个地方。',
+        '那个不是。再找找。',
+        '你确定那是关闭按钮？',
+      ];
+      addLog(`<span class="warn">${randomItem(responses)}</span>`);
+      this.textContent = randomItem(['没用', '还是关不了', '假的', '再想想', '不对']);
+    });
+  });
+
+  // Real close button
+  const realBtn = overlay.querySelector('.real-close');
+  realBtn.addEventListener('click', function() {
+    fixBug(num, overlay);
+  });
+
+  state.activeBugs.push(overlay);
+}
+
+// ===================== BUG SPAWNER: Type 8 - Wrong Place Text =====================
+function spawnWrongTextBug(num) {
+  const main = $('main');
+  main.style.position = 'relative';
+
+  const wrongTexts = [
+    '午餐菜单：红烧肉、宫保鸡丁',
+    '你的猫正在远程控制这个程序',
+    '这段文字不属于这里。它来自另一个程序。',
+    '警告：检测到过多的咖啡因',
+    '为什么我的代码在唱歌？',
+    'Error 418: I am a teapot',
+    '这段文字走丢了，请帮它回家',
+  ];
+
+  const text = randomItem(wrongTexts);
+  const el = document.createElement('div');
+  el.className = 'bug-element bug-wrongtext';
+  el.style.left = randomBetween(20, Math.max(200, getMainRect().width - 400)) + 'px';
+  el.style.top = randomBetween(30, Math.max(100, getMainRect().height - 100)) + 'px';
+  el.style.maxWidth = '350px';
+  el.style.animation = 'glitchIn 0.5s forwards, glitchText 0.5s infinite 0.5s';
+  el.textContent = `[BUG #${num}] ${text}`;
+  el.title = '这段文字不属于这里 - 点击移除';
+  main.appendChild(el);
+
+  el.addEventListener('click', function() {
+    fixBug(num, el);
+  });
+
+  state.activeBugs.push(el);
+}
+
+// ===================== BUG SPAWNER: Type 9 - BSOD =====================
+function spawnBSODBug(num) {
+  const app = $('app');
+
+  const bsod = document.createElement('div');
+  bsod.className = 'bug-bsod';
+
+  const percent = randomBetween(17, 99);
+  bsod.innerHTML = `
+    <div class="sad">:(</div>
+    <h2>你的电脑遇到了一个问题，需要重新启动。</h2>
+    <p>我们正在收集一些错误信息，然后我们将为你重启。</p>
+    <div class="percent">${percent}% 完成</div>
+    <p style="margin-top: 15px; font-size: 0.75em; opacity: 0.5;">
+      终止代码: BUG_HUNTER_${num}<br>
+      [BUG #${num}] 点击任意处修复此虚假蓝屏
+    </p>
+    <div class="hint">这不是真的蓝屏... 或者这是？(点击试试)</div>
+  `;
+
+  bsod.addEventListener('click', function() {
+    addLog(`<span class="success">蓝屏已清除。你的电脑很安全。大概。</span>`);
+    bsod.style.transition = 'opacity 0.5s';
+    bsod.style.opacity = '0';
+    setTimeout(() => bsod.remove(), 500);
+    state.bugsFixed++;
+    state.score += Math.max(10, 100 - elapsedSeconds() * 2);
+    updateStats();
+
+    if (state.bugsFixed >= state.totalBugs) {
+      setTimeout(showVictory, 800);
+    } else {
+      setTimeout(() => spawnBug(state.bugsFixed), 1500);
+    }
+  });
+
+  app.appendChild(bsod);
+  shakeScreen();
+  state.activeBugs.push(bsod);
+}
+
+// ===================== BUG SPAWNER: Type 10 - 404 Boss =====================
+function spawn404Bug(num) {
+  const app = $('app');
+
+  // Boss warning
+  gameMessages.bossWarn.forEach((msg, i) => {
+    setTimeout(() => addLog(`<span class="system">${msg}</span>`), i * 600);
+  });
+
+  setTimeout(() => {
+    const boss = document.createElement('div');
+    boss.className = 'bug-404';
+
+    const maxHP = 20;
+    let hp = maxHP;
+
+    boss.innerHTML = `
+      <div class="boss-name"><< 最终Boss - 404 >></div>
+      <div class="big-404">404</div>
+      <h2>Page Not Found</h2>
+      <p>该页面已被Bug吞噬</p>
+      <p style="color: #444; font-size: 0.85em;">点击屏幕 ${maxHP} 次以击败Boss</p>
+      <div class="health-bar">
+        <div class="health-fill" id="boss-hp" style="width: 100%;"></div>
+      </div>
+      <div class="boss-name" id="boss-hp-text">HP: ${hp}/${maxHP}</div>
+    `;
+
+    const bossResponses = [
+      '你伤害到我了...',
+      '这点攻击不算什么！',
+      '我的代码是无敌的！',
+      '等等，我的HP在下降？',
+      '不... 不可能... 一个Bug怎么能被打败...',
+      '我... 我要404了...',
+      '救命... 我需要... 重启...',
+    ];
+
+    boss.addEventListener('click', function() {
+      hp--;
+      const pct = (hp / maxHP) * 100;
+      const hpFill = boss.querySelector('.health-fill');
+      const hpText = boss.querySelector('#boss-hp-text');
+
+      if (hpFill) hpFill.style.width = pct + '%';
+      if (hpText) hpText.textContent = `HP: ${hp}/${maxHP}`;
+
+      shakeScreen();
+
+      if (hp > 0 && hp % 3 === 0) {
+        const idx = Math.min(Math.floor((maxHP - hp) / 3), bossResponses.length - 1);
+        addLog(`<span class="system">${bossResponses[idx]}</span>`);
+      }
+
+      if (hp <= 0) {
+        addLog(`<span class="success">>>> 404 Boss 已被击败！ <<<</span>`);
+        boss.style.transition = 'opacity 0.8s, transform 0.8s';
+        boss.style.opacity = '0';
+        boss.style.transform = 'scale(0.8)';
+        setTimeout(() => {
+          boss.remove();
+          fixBug(num, boss, true);
+        }, 800);
+      }
+    });
+
+    app.appendChild(boss);
+    state.activeBugs.push(boss);
+  }, 2000);
+}
+
+// ===================== FIX BUG =====================
+function fixBug(num, element, isBoss) {
+  if (!state.gameActive) return;
+
+  state.bugsFixed++;
+  const elapsed = elapsedSeconds();
+  const timeBonus = Math.max(10, 100 - elapsed * 2);
+  const typeBonus = num * 15;
+  state.score += timeBonus + typeBonus;
+
+  const msgIndex = Math.min(state.bugsFixed - 1, gameMessages.bugFixed.length - 1);
+  addLog(`<span class="success">>>> Bug #${num} 已修复！ (+${timeBonus + typeBonus}分)</span>`);
+  addLog(`<span class="success">${gameMessages.bugFixed[msgIndex]}</span>`);
+
+  updateStats();
+
+  // Remove element with animation
+  if (element && element.parentNode && !isBoss) {
+    element.style.transition = 'all 0.4s ease';
+    element.style.opacity = '0';
+    element.style.transform = 'scale(0.5)';
+    element.style.pointerEvents = 'none';
+    setTimeout(() => {
+      if (element.parentNode) element.remove();
+    }, 400);
+  }
+
+  // Clear intervals
+  if (state.scrambleInterval) {
+    clearInterval(state.scrambleInterval);
+    state.scrambleInterval = null;
+  }
+
+  // Check win or next bug
+  if (state.bugsFixed >= state.totalBugs) {
+    setTimeout(showVictory, 1200);
+  } else {
+    setTimeout(() => spawnBug(state.bugsFixed), 2000);
+  }
+}
+
+function elapsedSeconds() {
+  return Math.floor((Date.now() - state.timerStart) / 1000);
+}
+
+// ===================== VICTORY =====================
+function showVictory() {
+  state.gameActive = false;
+  clearInterval(state.timerInterval);
+  if (state.scrambleInterval) clearInterval(state.scrambleInterval);
+
+  // Clean up all remaining bug elements
+  document.querySelectorAll('.bug-element, .bug-gravity-zone, .bug-modal-overlay, .bug-bsod, .bug-404, .bug-wrongtext').forEach(el => el.remove());
+
+  // Reset mockup
+  const mockup = $('app-mockup');
+  mockup.style.filter = '';
+  mockup.style.transform = '';
+  mockup.querySelectorAll('.card').forEach(card => {
+    card.style.filter = '';
+    card.style.transform = '';
+    card.style.animation = '';
+  });
+
+  // Save high score
+  const finalTime = elapsedSeconds();
+  const highScoreKey = 'bug_hunter_high_score';
+  const prev = localStorage.getItem(highScoreKey);
+  let isNewRecord = false;
+  if (!prev || state.score > parseInt(prev)) {
+    localStorage.setItem(highScoreKey, state.score);
+    isNewRecord = true;
+  }
+
+  // Show victory messages
+  gameMessages.victory.forEach((msg, i) => {
+    setTimeout(() => addLog(msg), i * 500);
+  });
+
+  // Show victory screen
+  $('game-content').classList.add('hidden');
+  const victory = $('victory-screen');
+  victory.classList.remove('hidden');
+
+  victory.innerHTML = `
+    <div class="trophy">🏆</div>
+    <h2>所有Bug已清除！</h2>
+    <div class="final-time">用时: ${formatTime(finalTime)}</div>
+    <div class="final-score">最终得分: ${state.score} ${isNewRecord ? '🎉 新纪录！' : ''}</div>
+    <div class="game-msg">
+      "好吧... 你赢了。但更新一定会带来更多Bug。"<br>
+      "毕竟，没有Bug的程序是不存在的。"
+    </div>
+    <div class="actions">
+      <button onclick="startGame()">再来一局</button>
+      <a href="../index.html" class="home-link">返回主页</a>
+    </div>
+  `;
+}
+
+// ===================== INIT =====================
+function init() {
+  const highScoreKey = 'bug_hunter_high_score';
+  const hs = localStorage.getItem(highScoreKey);
+  const display = $('high-score-display');
+  if (hs) {
+    display.textContent = `历史最高分: ${hs}`;
+  } else {
+    display.textContent = '暂无历史记录';
+  }
+
+  // Help overlay
+  const helpOverlay = $('helpOverlay');
+  $('helpBtn').addEventListener('click', () => helpOverlay.classList.add('show'));
+  helpOverlay.addEventListener('click', (e) => {
+    if (e.target === helpOverlay) helpOverlay.classList.remove('show');
+  });
+  document.addEventListener('keydown', (e) => {
+    if (helpOverlay.classList.contains('show') && e.code === 'Escape') helpOverlay.classList.remove('show');
+  });
+}
+
+init();
+</script>
+</body>
+</html>
