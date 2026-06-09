@@ -182,6 +182,18 @@
   .card-zen          { background: linear-gradient(145deg, #2a2a1a, #17170d); }
   .card-zen .card-tag { background: #ffd70033; color: #ffe066; }
 
+  .card-chord        { background: linear-gradient(145deg, #1a2a3a, #0d1720); }
+  .card-chord .card-tag { background: #74b9ff33; color: #a0d2ff; }
+
+  .card-color        { background: linear-gradient(145deg, #3a2a3a, #1f1720); }
+  .card-color .card-tag { background: #fd79a833; color: #fdabb5; }
+
+  .card-garden       { background: linear-gradient(145deg, #1a3a1a, #0d1f0d); }
+  .card-garden .card-tag { background: #55efc433; color: #8fffd5; }
+
+  .card-eco          { background: linear-gradient(145deg, #2a3a2a, #171f17); }
+  .card-eco .card-tag { background: #81ecec33; color: #a8ffff; }
+
   footer {
     margin-top: 60px;
     color: #555;
@@ -277,11 +289,15 @@ const games = [
   { name: '轮回密码',   icon: '🔄', desc: '被困在无限重置的 24 小时，每次死亡只能记住一条信息。',              tag: '叙事',  css: 'loop',     file: 'loop_cipher',    mobile: true },
   { name: '时间导演',   icon: '⏱️', desc: '录制自己的操作，和过去的自己协作通关。站在自己肩上，跳得更高！',     tag: '平台',  css: 'time',     file: 'time_director',  mobile: true },
   { name: 'Bug猎人',    icon: '🐛', desc: '游戏故意出 Bug，你来修复——它知道自己是个游戏，并且会吐槽你。',      tag: 'Meta',  css: 'bug',      file: 'bug_hunter',     mobile: true },
+  { name: '弦月',       icon: '🌙', desc: '充能轨道轻滑发射，让弹道穿过移动障碍——每一道轨迹都在夜空中累积成画。', tag: '物理',  css: 'chord',    file: 'group-f/f4-chord-moon',     mobile: false },
+  { name: '色环',       icon: '🎨', desc: '旋转色环上等待目标颜色转过指示器，轻点捕获。等待本身就是一种玩法。',   tag: '休闲',  css: 'color',    file: 'group-f/f5-color-ring',     mobile: false },
 ];
 
 const wipGames = [
   { name: '地牢勇者 RPG', icon: '⚔️', desc: '探索地牢，击败怪物，收集装备，成为最强勇者。', tag: 'RPG',  css: 'dungeon',  file: 'rpg' },
   { name: '元素方块',     icon: '🟦', desc: '经典方块消除，旋转下落填满整行，考验你的反应和策略。', tag: '益智', css: 'element', file: 'tetris' },
+  { name: '指尖花园',     icon: '🌸', desc: '轻点画布放置吸引子，引导粒子沿流场绘制出独一无二的抽象画。',         tag: '艺术', css: 'garden',  file: 'group-f/f2-zen-garden' },
+  { name: '微瓶生态',     icon: '🌿', desc: '在微型瓶子里放置生物，看着它们繁衍、竞争、共生——每次干预都是蝴蝶效应。', tag: '模拟', css: 'eco',    file: 'group-f/f3-micro-ecosystem' },
 ];
 
 const doneGrid = document.getElementById('done-grid');
