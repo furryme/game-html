@@ -280,24 +280,24 @@
 const isMobile = ('ontouchstart' in window) && (window.innerWidth < 800 || matchMedia('(pointer: coarse)').matches);
 
 const games = [
-  { name: '贪吃蛇',     icon: '🐍', desc: '经典贪吃蛇，操控方向吃掉食物，越吃越长，别撞到自己和墙壁。',       tag: '经典',  css: 'slime',    file: 'snake',        mobile: true },
-  { name: '创意贪吃蛇', icon: '🐉', desc: '道具版贪吃蛇，地图上散落各种增益道具，让游戏更加刺激有趣。',         tag: '道具',  css: 'candy',    file: 'snake_creative', mobile: true },
-  { name: '反向贪吃蛇', icon: '🍎', desc: '你操控"食物"，躲避 AI 蛇的追击。放陷阱、求生存，看你能活多久！',   tag: '生存',  css: 'reverse',  file: 'reverse_snake',  mobile: true },
-  { name: '禅意叠叠乐', icon: '🧘', desc: '精准放置方块，追求完美堆叠。在宁静氛围中挑战耐心与手眼协调。',       tag: '休闲',  css: 'zen',      file: 'zen-stack',    mobile: true },
-  { name: '打砖块',     icon: '🧱', desc: '反弹小球击碎所有砖块，别让球掉落，挑战更高分数。',                   tag: '街机',  css: 'brick',    file: 'breakout',       mobile: true },
-  { name: '拆弹专家',   icon: '💣', desc: '扫雷逻辑的炸弹包装，倒计时让每步都是生死抉择。剪对线，拆掉炸弹！',  tag: '解谜',  css: 'bomb',     file: 'demolition_expert', mobile: true },
-  { name: '轮回密码',   icon: '🔄', desc: '被困在无限重置的 24 小时，每次死亡只能记住一条信息。',              tag: '叙事',  css: 'loop',     file: 'loop_cipher',    mobile: true },
-  { name: '时间导演',   icon: '⏱️', desc: '录制自己的操作，和过去的自己协作通关。站在自己肩上，跳得更高！',     tag: '平台',  css: 'time',     file: 'time_director',  mobile: true },
-  { name: 'Bug猎人',    icon: '🐛', desc: '游戏故意出 Bug，你来修复——它知道自己是个游戏，并且会吐槽你。',      tag: 'Meta',  css: 'bug',      file: 'bug_hunter',     mobile: true },
-  { name: '弦月',       icon: '🌙', desc: '充能轨道轻滑发射，让弹道穿过移动障碍——每一道轨迹都在夜空中累积成画。', tag: '物理',  css: 'chord',    file: 'group-f/f4-chord-moon',     mobile: false },
-  { name: '色环',       icon: '🎨', desc: '旋转色环上等待目标颜色转过指示器，轻点捕获。等待本身就是一种玩法。',   tag: '休闲',  css: 'color',    file: 'group-f/f5-color-ring',     mobile: false },
+  { name: '贪吃蛇',     icon: '🐍', desc: '经典贪吃蛇，操控方向吃掉食物，越吃越长，别撞到自己和墙壁。',       tag: '经典', css: 'slime',   file: '01-snake',             mobile: true },
+  { name: '创意贪吃蛇', icon: '🐉', desc: '道具版贪吃蛇，地图上散落各种增益道具，让游戏更加刺激有趣。',         tag: '道具', css: 'candy',   file: '02-snake-creative',    mobile: true },
+  { name: '反向贪吃蛇', icon: '🍎', desc: '你操控"食物"，躲避 AI 蛇的追击。放陷阱、求生存，看你能活多久！',   tag: '生存', css: 'reverse', file: '03-reverse-snake',     mobile: true },
+  { name: '禅意叠叠乐', icon: '🧘', desc: '精准放置方块，追求完美堆叠。在宁静氛围中挑战耐心与手眼协调。',       tag: '休闲', css: 'zen',     file: '04-zen-stack',         mobile: true },
+  { name: '打砖块',     icon: '🧱', desc: '反弹小球击碎所有砖块，别让球掉落，挑战更高分数。',                   tag: '街机', css: 'brick',   file: '05-breakout',          mobile: true },
+  { name: '拆弹专家',   icon: '💣', desc: '扫雷逻辑的炸弹包装，倒计时让每步都是生死抉择。剪对线，拆掉炸弹！',  tag: '解谜', css: 'bomb',    file: '06-demolition-expert', mobile: true },
+  { name: '轮回密码',   icon: '🔄', desc: '被困在无限重置的 24 小时，每次死亡只能记住一条信息。',              tag: '叙事', css: 'loop',    file: '07-loop-cipher',       mobile: true },
+  { name: '时间导演',   icon: '⏱️', desc: '录制自己的操作，和过去的自己协作通关。站在自己肩上，跳得更高！',     tag: '平台', css: 'time',    file: '08-time-director',     mobile: true },
+  { name: 'Bug猎人',    icon: '🐛', desc: '游戏故意出 Bug，你来修复——它知道自己是个游戏，并且会吐槽你。',      tag: 'Meta', css: 'bug',     file: '09-bug-hunter',        mobile: true },
+  { name: '弦月',       icon: '🌙', desc: '充能轨道轻滑发射，让弹道穿过移动障碍——每一道轨迹都在夜空中累积成画。', tag: '物理', css: 'chord',   file: '10-chord-moon',        mobile: false },
+  { name: '色环',       icon: '🎨', desc: '旋转色环上等待目标颜色转过指示器，轻点捕获。等待本身就是一种玩法。',   tag: '休闲', css: 'color',   file: '11-color-ring',        mobile: false },
 ];
 
 const wipGames = [
-  { name: '地牢勇者 RPG', icon: '⚔️', desc: '探索地牢，击败怪物，收集装备，成为最强勇者。', tag: 'RPG',  css: 'dungeon',  file: 'rpg' },
-  { name: '元素方块',     icon: '🟦', desc: '经典方块消除，旋转下落填满整行，考验你的反应和策略。', tag: '益智', css: 'element', file: 'tetris' },
-  { name: '指尖花园',     icon: '🌸', desc: '轻点画布放置吸引子，引导粒子沿流场绘制出独一无二的抽象画。',         tag: '艺术', css: 'garden',  file: 'group-f/f2-zen-garden' },
-  { name: '微瓶生态',     icon: '🌿', desc: '在微型瓶子里放置生物，看着它们繁衍、竞争、共生——每次干预都是蝴蝶效应。', tag: '模拟', css: 'eco',    file: 'group-f/f3-micro-ecosystem' },
+  { name: '地牢勇者 RPG', icon: '⚔️', desc: '探索地牢，击败怪物，收集装备，成为最强勇者。',                       tag: 'RPG',  css: 'dungeon',  file: 'dev-1-rpg' },
+  { name: '元素方块',     icon: '🟦', desc: '经典方块消除，旋转下落填满整行，考验你的反应和策略。',               tag: '益智', css: 'element',  file: 'dev-2-tetris' },
+  { name: '指尖花园',     icon: '🌸', desc: '轻点画布放置吸引子，引导粒子沿流场绘制出独一无二的抽象画。',         tag: '艺术', css: 'garden',   file: 'dev-3-zen-garden' },
+  { name: '微瓶生态',     icon: '🌿', desc: '在微型瓶子里放置生物，看着它们繁衍、竞争、共生——每次干预都是蝴蝶效应。', tag: '模拟', css: 'eco',      file: 'dev-4-micro-ecosystem' },
 ];
 
 const doneGrid = document.getElementById('done-grid');
