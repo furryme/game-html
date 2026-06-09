@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>小游戏合集</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -17,6 +17,7 @@
     flex-direction: column;
     align-items: center;
     padding: 60px 20px;
+    -webkit-tap-highlight-color: transparent;
   }
 
   h1 {
@@ -163,17 +164,74 @@
   .card-element      { background: linear-gradient(145deg, #1a2a3a, #0d1717); }
   .card-element .card-tag { background: #00b89433; color: #55efc4; }
 
+  .card-reverse      { background: linear-gradient(145deg, #2a1a1a, #170d0d); }
+  .card-reverse .card-tag { background: #ff6b6b33; color: #ff8787; }
+
+  .card-bomb         { background: linear-gradient(145deg, #3a3a1a, #1f1f0d); }
+  .card-bomb .card-tag { background: #ffa50233; color: #ffc048; }
+
+  .card-bug          { background: linear-gradient(145deg, #1a3a1a, #0d1f0d); }
+  .card-bug .card-tag { background: #26de8133; color: #78e08f; }
+
+  .card-loop         { background: linear-gradient(145deg, #2a1a3a, #170d1f); }
+  .card-loop .card-tag { background: #a55eea33; color: #c593f9; }
+
+  .card-time         { background: linear-gradient(145deg, #1a2a3a, #0d1720); }
+  .card-time .card-tag { background: #4b7bec33; color: #7aa2f7; }
+
+  .card-zen          { background: linear-gradient(145deg, #2a2a1a, #17170d); }
+  .card-zen .card-tag { background: #ffd70033; color: #ffe066; }
+
   footer {
     margin-top: 60px;
     color: #555;
     font-size: 0.85rem;
+  }
+
+  /* ── Mobile layout ── */
+  @media (max-width: 600px), (hover: none) and (pointer: coarse) {
+    body { padding: 24px 12px 40px; }
+    h1 { font-size: 2rem; margin-bottom: 8px; }
+    .subtitle { font-size: 0.9rem; margin-bottom: 28px; }
+    .section { margin-bottom: 24px; }
+    .section-header { margin-bottom: 12px; gap: 8px; }
+    .section-title { font-size: 1rem; }
+    .section-dot { width: 8px; height: 8px; }
+    .section-subtitle { font-size: 0.78rem; margin-top: -8px; margin-bottom: 12px; }
+
+    .grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .card {
+      flex-direction: row;
+      padding: 18px 16px;
+      border-radius: 14px;
+      gap: 14px;
+    }
+    .card:hover { transform: none; box-shadow: none; }
+    .card:active { transform: scale(0.98); }
+    .card-icon { font-size: 2rem; }
+    .card-content { flex: 1; min-width: 0; }
+    .card-title { font-size: 1.05rem; margin-bottom: 2px; }
+    .card-desc {
+      font-size: 0.78rem;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .card-tag { margin-top: 4px; font-size: 0.68rem; padding: 2px 8px; }
+
+    footer { margin-top: 32px; font-size: 0.78rem; }
   }
 </style>
 </head>
 <body>
 
 <h1>GAME HUB</h1>
-<p class="subtitle">选一个游戏，立即开始</p>
+<p class="subtitle" id="subtitle">选一个游戏，立即开始</p>
 
 <!-- Completed Games -->
 <div class="section">
@@ -182,36 +240,15 @@
     <span class="section-title">已完成</span>
     <span class="section-line"></span>
   </div>
-  <p class="section-subtitle">可以正常游玩，功能完整</p>
+  <p class="section-subtitle" id="done-subtitle">可以正常游玩，功能完整</p>
 
-  <div class="grid">
-
-    <a class="card card-slime" href="games/snake.html">
-      <span class="card-icon">🐍</span>
-      <span class="card-title">贪吃蛇</span>
-      <span class="card-desc">经典贪吃蛇，操控方向吃掉食物，越吃越长，别撞到自己和墙壁。</span>
-      <span class="card-tag">经典</span>
-    </a>
-
-    <a class="card card-candy" href="games/snake_creative.html">
-      <span class="card-icon">🐉</span>
-      <span class="card-title">创意贪吃蛇</span>
-      <span class="card-desc">道具版贪吃蛇，地图上散落各种增益道具，让游戏更加刺激有趣。</span>
-      <span class="card-tag">道具</span>
-    </a>
-
-    <a class="card card-brick" href="games/breakout.html">
-      <span class="card-icon">🧱</span>
-      <span class="card-title">打砖块</span>
-      <span class="card-desc">反弹小球击碎所有砖块，别让球掉落，挑战更高分数。</span>
-      <span class="card-tag">街机</span>
-    </a>
-
+  <div class="grid" id="done-grid">
+    <!-- Cards injected by JS -->
   </div>
 </div>
 
-<!-- Work in Progress -->
-<div class="section">
+<!-- Work in Progress (desktop only) -->
+<div class="section" id="wip-section">
   <div class="section-header">
     <span class="section-dot dot-wip"></span>
     <span class="section-title">开发中</span>
@@ -219,26 +256,80 @@
   </div>
   <p class="section-subtitle">还在完善中，体验可能不够完善</p>
 
-  <div class="grid">
-
-    <a class="card card-dungeon" href="games/rpg.html">
-      <span class="card-icon">⚔️</span>
-      <span class="card-title">地牢勇者 RPG</span>
-      <span class="card-desc">探索地牢，击败怪物，收集装备，成为最强勇者。</span>
-      <span class="card-tag">RPG</span>
-    </a>
-
-    <a class="card card-element" href="games/tetris.html">
-      <span class="card-icon">🟦</span>
-      <span class="card-title">元素方块</span>
-      <span class="card-desc">经典方块消除，旋转下落填满整行，考验你的反应和策略。</span>
-      <span class="card-tag">益智</span>
-    </a>
-
+  <div class="grid" id="wip-grid">
+    <!-- Cards injected by JS -->
   </div>
 </div>
 
-<footer>共 5 款小游戏 &mdash; 全部免费，即点即玩</footer>
+<footer id="footer">加载中...</footer>
+
+<script>
+// Detect mobile: touch + small screen / coarse pointer
+const isMobile = ('ontouchstart' in window) && (window.innerWidth < 800 || matchMedia('(pointer: coarse)').matches);
+
+const games = [
+  { name: '贪吃蛇',     icon: '🐍', desc: '经典贪吃蛇，操控方向吃掉食物，越吃越长，别撞到自己和墙壁。',       tag: '经典',  css: 'slime',    file: 'snake',        mobile: true },
+  { name: '创意贪吃蛇', icon: '🐉', desc: '道具版贪吃蛇，地图上散落各种增益道具，让游戏更加刺激有趣。',         tag: '道具',  css: 'candy',    file: 'snake_creative', mobile: true },
+  { name: '反向贪吃蛇', icon: '🍎', desc: '你操控"食物"，躲避 AI 蛇的追击。放陷阱、求生存，看你能活多久！',   tag: '生存',  css: 'reverse',  file: 'reverse_snake',  mobile: true },
+  { name: '禅意叠叠乐', icon: '🧘', desc: '精准放置方块，追求完美堆叠。在宁静氛围中挑战耐心与手眼协调。',       tag: '休闲',  css: 'zen',      file: 'zen-stack',    mobile: true },
+  { name: '打砖块',     icon: '🧱', desc: '反弹小球击碎所有砖块，别让球掉落，挑战更高分数。',                   tag: '街机',  css: 'brick',    file: 'breakout',       mobile: true },
+  { name: '拆弹专家',   icon: '💣', desc: '扫雷逻辑的炸弹包装，倒计时让每步都是生死抉择。剪对线，拆掉炸弹！',  tag: '解谜',  css: 'bomb',     file: 'demolition_expert', mobile: true },
+  { name: '轮回密码',   icon: '🔄', desc: '被困在无限重置的 24 小时，每次死亡只能记住一条信息。',              tag: '叙事',  css: 'loop',     file: 'loop_cipher',    mobile: true },
+  { name: '时间导演',   icon: '⏱️', desc: '录制自己的操作，和过去的自己协作通关。站在自己肩上，跳得更高！',     tag: '平台',  css: 'time',     file: 'time_director',  mobile: true },
+  { name: 'Bug猎人',    icon: '🐛', desc: '游戏故意出 Bug，你来修复——它知道自己是个游戏，并且会吐槽你。',      tag: 'Meta',  css: 'bug',      file: 'bug_hunter',     mobile: true },
+];
+
+const wipGames = [
+  { name: '地牢勇者 RPG', icon: '⚔️', desc: '探索地牢，击败怪物，收集装备，成为最强勇者。', tag: 'RPG',  css: 'dungeon',  file: 'rpg' },
+  { name: '元素方块',     icon: '🟦', desc: '经典方块消除，旋转下落填满整行，考验你的反应和策略。', tag: '益智', css: 'element', file: 'tetris' },
+];
+
+const doneGrid = document.getElementById('done-grid');
+const wipGrid  = document.getElementById('wip-grid');
+const wipSection = document.getElementById('wip-section');
+
+function createCard(game, path) {
+  const a = document.createElement('a');
+  a.className = `card card-${game.css}`;
+  a.href = path + '/games/' + game.file + '.html';
+  if (isMobile) {
+    a.innerHTML = `
+      <span class="card-icon">${game.icon}</span>
+      <div class="card-content">
+        <div class="card-title">${game.name}</div>
+        <div class="card-desc">${game.desc}</div>
+        <span class="card-tag">${game.tag}</span>
+      </div>`;
+  } else {
+    a.innerHTML = `
+      <span class="card-icon">${game.icon}</span>
+      <span class="card-title">${game.name}</span>
+      <span class="card-desc">${game.desc}</span>
+      <span class="card-tag">${game.tag}</span>`;
+  }
+  return a;
+}
+
+const prefix = isMobile ? 'mobile' : '.';
+
+if (isMobile) {
+  document.getElementById('subtitle').textContent = '选一个游戏，立即开始（移动端）';
+  document.getElementById('done-subtitle').textContent = '已适配移动端';
+  wipSection.style.display = 'none';
+
+  const mobileGames = games.filter(g => g.mobile);
+  mobileGames.forEach(g => doneGrid.appendChild(createCard(g, prefix)));
+
+  document.getElementById('footer').textContent =
+    `共 ${mobileGames.length} 款小游戏（移动端） &mdash; 全部免费，即点即玩`;
+} else {
+  games.forEach(g => doneGrid.appendChild(createCard(g, prefix)));
+  wipGames.forEach(g => wipGrid.appendChild(createCard(g, prefix)));
+
+  document.getElementById('footer').textContent =
+    `共 ${games.length + wipGames.length} 款小游戏 &mdash; 全部免费，即点即玩`;
+}
+</script>
 
 </body>
 </html>
