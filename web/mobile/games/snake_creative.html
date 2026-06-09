@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>创意贪吃蛇 - 道具版</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+}
+body {
+  background: #0a0a1a;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  color: #eee;
+  flex-direction: column;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+
+/* ── Top Bar (compact, two-row on narrow screens) ── */
+#top-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  padding: 6px 8px;
+  width: 100%;
+  max-width: 480px;
+}
+#top-bar .stat { display: flex; align-items: center; gap: 4px; }
+#top-bar .stat .val { font-weight: bold; font-size: 15px; }
+#powerup-bar {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.active-effect {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: bold;
+  animation: pulse 0.6s infinite alternate;
+}
+@keyframes pulse { from { opacity: 0.7; } to { opacity: 1; } }
+
+/* ── Pause button ── */
+#pauseBtn {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid #555;
+  border-radius: 6px;
+  color: #eee;
+  font-size: 18px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+#pauseBtn:active { background: rgba(255,255,255,0.2); }
+
+/* ── Volume button ── */
+#volBtn {
+  background: none;
+  border: 1px solid #555;
+  border-radius: 6px;
+  color: #eee;
+  font-size: 14px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+  min-width: 44px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#volBtn:active { background: #ffffff15; }
+#volBtn.muted { color: #666; border-color: #444; }
+
+/* ── Game Area ── */
+#game-area {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#game-wrap {
+  position: relative;
+  border: 2px solid #333;
+  border-radius: 6px;
+  overflow: hidden;
+}
+canvas { display: block; background: #0f0f23; }
+
+/* ── Legend toggle (top-right of canvas) ── */
+#legend-toggle {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(0,0,0,0.5);
+  border: 1px solid #444;
+  color: #ccc;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  z-index: 5;
+  -webkit-tap-highlight-color: transparent;
+  min-width: 44px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Legend (mobile: centered modal) ── */
+#legend {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(10,10,26,0.96);
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 14px 18px;
+  font-size: 12px;
+  line-height: 2;
+  z-index: 100;
+  display: none;
+  width: 85vw;
+  max-width: 260px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+#legend.show { display: block; }
+#legend .item { display: flex; align-items: center; gap: 8px; }
+#legend .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+#legend-close {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 20px;
+  cursor: pointer;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Overlay ── */
+#overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(10,10,26,0.88);
+  z-index: 10;
+  padding: 16px;
+}
+#overlay.hidden { display: none; }
+#overlay h2 { font-size: 24px; text-align: center; }
+#overlay p { font-size: 13px; color: #aaa; text-align: center; }
+button.btn {
+  padding: 12px 36px;
+  font-size: 16px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  min-width: 120px;
+  min-height: 48px;
+}
+button.btn:active { transform: scale(0.97); }
+
+/* ── Combo display ── */
+#combo-display {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 18px;
+  font-weight: bold;
+  color: #ffaa00;
+  text-shadow: 0 0 10px rgba(255,170,0,0.6);
+  z-index: 4;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+  white-space: nowrap;
+}
+#combo-display.show { opacity: 1; }
+
+/* ── D-pad ── */
+#dpad {
+  display: grid;
+  grid-template-columns: 60px 60px 60px;
+  grid-template-rows: 60px 60px;
+  gap: 4px;
+  margin-top: 8px;
+  -webkit-tap-highlight-color: transparent;
+}
+#dpad button {
+  width: 60px;
+  height: 60px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.06);
+  color: #ccc;
+  font-size: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  touch-action: manipulation;
+}
+#dpad button:active {
+  background: rgba(255,255,255,0.18);
+}
+#dpad .up    { grid-column: 2; grid-row: 1; }
+#dpad .left  { grid-column: 1; grid-row: 2; }
+#dpad .down  { grid-column: 2; grid-row: 2; }
+#dpad .right { grid-column: 3; grid-row: 2; }
+
+/* ── Bottom hint ── */
+#bottom {
+  font-size: 11px;
+  color: #555;
+  text-align: center;
+  padding: 2px 8px;
+}
+</style>
+</head>
+<body>
+
+<!-- Top bar: stats, pause, volume -->
+<div id="top-bar">
+  <div class="stat">分数: <span class="val" id="score">0</span></div>
+  <div class="stat">最高: <span class="val" id="best">0</span></div>
+  <div class="stat">长度: <span class="val" id="length">3</span></div>
+  <div id="powerup-bar"></div>
+  <button id="pauseBtn" aria-label="暂停">⏸</button>
+  <button id="volBtn">🔊</button>
+</div>
+
+<!-- Game area: canvas + overlays -->
+<div id="game-area">
+  <div id="game-wrap">
+    <canvas id="game"></canvas>
+    <button id="legend-toggle">道具</button>
+    <div id="legend">
+      <button id="legend-close">&times;</button>
+    </div>
+    <div id="combo-display"></div>
+    <div id="overlay">
+      <h2>🐍 创意贪吃蛇</h2>
+      <p>滑动屏幕或方向键控制</p>
+      <p style="color:#777; font-size:12px;">收集道具触发各种神奇效果！</p>
+      <button class="btn" id="startBtn">开始游戏</button>
+    </div>
+  </div>
+</div>
+
+<!-- D-pad controls -->
+<div id="dpad">
+  <button class="up" aria-label="上">▲</button>
+  <button class="left" aria-label="左">◀</button>
+  <button class="down" aria-label="下">▼</button>
+  <button class="right" aria-label="右">▶</button>
+</div>
+
+<div id="bottom">Combo: 连续吃食物不失误 &middot; 道具随机出现 &middot; 小心障碍物！</div>
+
+<script>
+/* ================================================================
+   Audio Engine  (unchanged from original)
+   ================================================================ */
+const Audio = (() => {
+  let ac, muted = localStorage.getItem('snake_creative_muted') === '1';
+  let bgmGain, bgmTimer, bgmPlaying = false;
+  const init = () => { if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)(); };
+
+  const note = (freq, dur, type = 'square', vol = 0.15, delay = 0) => {
+    if (muted) return;
+    init();
+    const t = ac.currentTime + delay;
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(ac.destination);
+    o.start(t);
+    o.stop(t + dur);
+  };
+
+  // Background music
+  const BEAT = 0.18;
+  const melody = [659,523,392,523,440,659,784,659,523,659,784,880,784,659,523,440];
+  const bass   = [131,98,110,82,87,131,87,98];
+  const loopDur = melody.length * BEAT;
+
+  const playLoop = () => {
+    if (muted || !ac) return;
+    const t = ac.currentTime + 0.05;
+    for (let i = 0; i < melody.length; i++) {
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      o.type = 'square';
+      o.frequency.setValueAtTime(melody[i], t + i * BEAT);
+      g.gain.setValueAtTime(0.035, t + i * BEAT);
+      g.gain.exponentialRampToValueAtTime(0.001, t + i * BEAT + BEAT * 0.85);
+      o.connect(g).connect(bgmGain);
+      o.start(t + i * BEAT);
+      o.stop(t + i * BEAT + BEAT * 0.9);
+    }
+    for (let i = 0; i < bass.length; i++) {
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(bass[i], t + i * BEAT * 2);
+      g.gain.setValueAtTime(0.05, t + i * BEAT * 2);
+      g.gain.exponentialRampToValueAtTime(0.001, t + i * BEAT * 2 + BEAT * 1.85);
+      o.connect(g).connect(bgmGain);
+      o.start(t + i * BEAT * 2);
+      o.stop(t + i * BEAT * 2 + BEAT * 1.9);
+    }
+  };
+
+  const startBGM = () => {
+    if (bgmPlaying || muted) return;
+    init();
+    if (!bgmGain) { bgmGain = ac.createGain(); bgmGain.connect(ac.destination); }
+    bgmGain.gain.setValueAtTime(1, ac.currentTime);
+    bgmPlaying = true;
+    playLoop();
+    bgmTimer = setInterval(playLoop, loopDur * 1000);
+  };
+
+  const stopBGM = () => {
+    if (!bgmPlaying) return;
+    clearInterval(bgmTimer);
+    bgmTimer = null;
+    bgmPlaying = false;
+  };
+
+  const setMuted = (v) => {
+    muted = v;
+    localStorage.setItem('snake_creative_muted', muted ? '1' : '0');
+    if (bgmGain && ac) {
+      bgmGain.gain.linearRampToValueAtTime(muted ? 0 : 1, ac.currentTime + 0.05);
+    }
+  };
+
+  return {
+    start() {
+      note(523, 0.10, 'square', 0.15, 0);
+      note(659, 0.10, 'square', 0.15, 0.08);
+      note(784, 0.15, 'square', 0.15, 0.16);
+    },
+    eat() {
+      note(520, 0.08, 'square', 0.12, 0);
+      note(780, 0.10, 'square', 0.12, 0.06);
+    },
+    eatSpecial() {
+      note(523, 0.08, 'square', 0.13, 0);
+      note(659, 0.08, 'square', 0.13, 0.06);
+      note(784, 0.12, 'square', 0.13, 0.12);
+    },
+    move() {
+      note(220, 0.04, 'triangle', 0.06);
+    },
+    gameOver() {
+      stopBGM();
+      note(440, 0.15, 'square', 0.15, 0);
+      note(349, 0.18, 'square', 0.15, 0.18);
+      note(262, 0.30, 'square', 0.15, 0.40);
+    },
+    milestone() {
+      note(523, 0.08, 'square', 0.13, 0);
+      note(659, 0.08, 'square', 0.13, 0.07);
+      note(784, 0.08, 'square', 0.13, 0.14);
+      note(1047, 0.15, 'square', 0.15, 0.21);
+    },
+    bomb() {
+      note(150, 0.20, 'sawtooth', 0.18, 0);
+      note(80, 0.30, 'sawtooth', 0.15, 0.10);
+    },
+    shieldBreak() {
+      note(400, 0.08, 'sine', 0.12, 0);
+      note(300, 0.12, 'sine', 0.12, 0.08);
+    },
+    pause() {
+      note(440, 0.08, 'triangle', 0.10, 0);
+      note(350, 0.10, 'triangle', 0.10, 0.08);
+    },
+    resume() {
+      note(350, 0.06, 'triangle', 0.10, 0);
+      note(440, 0.10, 'triangle', 0.10, 0.06);
+    },
+    setMuted, startBGM, stopBGM
+  };
+})();
+
+/* ================================================================
+   CONFIG  (unchanged from original)
+   ================================================================ */
+const GRID = 20;
+const COLS = 24, ROWS = 24;
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+const SPEED_INIT = 120;
+const SPEED_MIN = 50;
+
+/* ================================================================
+   POWER-UP DEFINITIONS  (unchanged from original)
+   ================================================================ */
+const POWERUPS = {
+  food:       { color: '#ff6b6b', emoji: '🔴', label: '普通食物',  pts: 10,  grow: 1 },
+  gold:       { color: '#ffd700', emoji: '⭐', label: '超级金币',  pts: 30,  grow: 2, lifetime: 5000 },
+  speed:      { color: '#00bfff', emoji: '⚡', label: '加速',     duration: 6000, speedMod: -40 },
+  slow:       { color: '#4fc3f7', emoji: '🧊', label: '减速',     duration: 6000, speedMod: 40 },
+  shield:     { color: '#ba68c8', emoji: '🛡️', label: '护盾',     duration: 8000 },
+  ghost:      { color: '#e0e0e0', emoji: '👻', label: '幽灵',     duration: 7000 },
+  double:     { color: '#ff9800', emoji: '✨', label: '双倍',     duration: 10000 },
+  shrink:     { color: '#66bb6a', emoji: '✂️', label: '剪短',     shrinkAmt: 4 },
+  bomb:       { color: '#f44336', emoji: '💣', label: '炸弹',     radius: 3 },
+  magnet:     { color: '#e91e63', emoji: '🧲', label: '磁力',     duration: 8000 },
+  rainbow:    { color: 'rainbow', emoji: '🌈', label: '彩虹',     duration: 5000 },
+  freeze:     { color: '#00e5ff', emoji: '❄️', label: '冻结',     duration: 3000 },
+};
+
+// Spawn weights
+const SPAWN_TABLE = [
+  { type: 'food',   weight: 50 },
+  { type: 'gold',   weight: 8 },
+  { type: 'speed',  weight: 6 },
+  { type: 'slow',   weight: 8 },
+  { type: 'shield', weight: 5 },
+  { type: 'ghost',  weight: 5 },
+  { type: 'double', weight: 4 },
+  { type: 'shrink', weight: 5 },
+  { type: 'bomb',   weight: 3 },
+  { type: 'magnet', weight: 4 },
+  { type: 'rainbow',weight: 2 },
+  { type: 'freeze', weight: 3 },
+];
+
+/* ================================================================
+   STATE  (unchanged from original)
+   ================================================================ */
+let snake, direction, nextDirection, items, obstacles;
+let score, best, combo, comboTimer;
+let loop, baseSpeed, paused, running;
+let activeEffects = {};   // type -> { endTime }
+let particles = [];
+let floatingTexts = [];
+let screenShake = { x: 0, y: 0, intensity: 0 };
+let rainbowHue = 0;
+let milestoneNext = 100;
+let itemSpawnTimer = 0;
+let obstacleSpawnCounter = 0;
+
+best = parseInt(localStorage.getItem('snake_best_creative') || '0');
+
+/* ================================================================
+   RESPONSIVE CANVAS SIZING
+   ================================================================ */
+let gridSize = GRID; // effective pixel size per grid cell
+
+function resizeCanvas() {
+  // Available width: min(viewport width - 16px padding, 90vw, 480px max)
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  // Reserve space for top-bar (~56px), dpad (~130px), gaps
+  const maxCanvasW = Math.min(vw - 16, vw * 0.92, 480);
+  const maxCanvasH = vh - 220; // room for top-bar, dpad, bottom hint
+  const size = Math.floor(Math.min(maxCanvasW, maxCanvasH));
+  const canvasSize = Math.max(size, 200); // minimum 200px canvas
+
+  canvas.width = canvasSize;
+  canvas.height = canvasSize;
+  gridSize = canvasSize / COLS;
+}
+
+resizeCanvas();
+window.addEventListener('resize', () => {
+  resizeCanvas();
+  if (running && !paused) draw();
+  else if (!running) drawInitial();
+});
+
+/* ================================================================
+   DOM REFS
+   ================================================================ */
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('startBtn');
+const scoreEl = document.getElementById('score');
+const bestEl = document.getElementById('best');
+const lengthEl = document.getElementById('length');
+const powerupBar = document.getElementById('powerup-bar');
+const comboDisplay = document.getElementById('combo-display');
+const legendEl = document.getElementById('legend');
+const pauseBtn = document.getElementById('pauseBtn');
+
+scoreEl.textContent = 0;
+bestEl.textContent = best;
+lengthEl.textContent = 3;
+
+// Volume button
+const volBtn = document.getElementById('volBtn');
+let volMuted = localStorage.getItem('snake_creative_muted') === '1';
+if (volMuted) { volBtn.textContent = '🔇'; volBtn.classList.add('muted'); }
+volBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  volMuted = !volMuted;
+  Audio.setMuted(volMuted);
+  volBtn.textContent = volMuted ? '🔇' : '🔊';
+  volBtn.classList.toggle('muted', volMuted);
+});
+
+// Pause button
+pauseBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  if (!running) return;
+  togglePause();
+});
+pauseBtn.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  if (!running) return;
+  togglePause();
+});
+
+function togglePause() {
+  paused = !paused;
+  if (paused) {
+    Audio.pause();
+    pauseBtn.textContent = '▶';
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 28px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText('暂停', canvas.width / 2, canvas.height / 2);
+    ctx.font = '14px Segoe UI';
+    ctx.fillStyle = '#aaa';
+    ctx.fillText('点击继续', canvas.width / 2, canvas.height / 2 + 32);
+  } else {
+    Audio.resume();
+    pauseBtn.textContent = '⏸';
+  }
+}
+
+// Legend
+document.getElementById('legend-toggle').addEventListener('click', (e) => {
+  e.preventDefault();
+  legendEl.classList.toggle('show');
+});
+document.getElementById('legend-close').addEventListener('click', (e) => {
+  e.preventDefault();
+  legendEl.classList.remove('show');
+});
+let legendHTML = '';
+for (const [key, p] of Object.entries(POWERUPS)) {
+  const c = p.color === 'rainbow' ? 'linear-gradient(90deg,red,orange,yellow,lime,blue,violet)' : p.color;
+  legendHTML += '<div class="item"><span class="dot" style="background:' + c + '"></span>' + p.emoji + ' ' + p.label;
+  if (p.pts) legendHTML += ' (+' + p.pts + ')';
+  if (p.duration) legendHTML += ' ' + p.duration / 1000 + 's';
+  legendHTML += '</div>';
+}
+legendEl.querySelector('button#legend-close').insertAdjacentHTML('afterend', legendHTML);
+
+/* ================================================================
+   HELPERS  (unchanged from original)
+   ================================================================ */
+function randomFreeCell() {
+  let pos, tries = 0;
+  do {
+    pos = { x: Math.floor(Math.random() * COLS), y: Math.floor(Math.random() * ROWS) };
+    tries++;
+  } while (tries < 500 && (
+    snake.some(s => s.x === pos.x && s.y === pos.y) ||
+    items.some(it => it.x === pos.x && it.y === pos.y) ||
+    obstacles.some(o => o.x === pos.x && o.y === pos.y)
+  ));
+  return pos;
+}
+
+function weightedRandom() {
+  const total = SPAWN_TABLE.reduce((s, t) => s + t.weight, 0);
+  let r = Math.random() * total;
+  for (const entry of SPAWN_TABLE) {
+    r -= entry.weight;
+    if (r <= 0) return entry.type;
+  }
+  return 'food';
+}
+
+function hasEffect(type) { return activeEffects[type] && activeEffects[type].endTime > Date.now(); }
+
+function addEffect(type, opts = {}) {
+  const def = POWERUPS[type];
+  const duration = def.duration || (opts.duration || 5000);
+  activeEffects[type] = { endTime: Date.now() + duration };
+}
+
+function removeExpiredEffects() {
+  const now = Date.now();
+  for (const type of Object.keys(activeEffects)) {
+    if (activeEffects[type].endTime <= now) delete activeEffects[type];
+  }
+}
+
+/* ================================================================
+   PARTICLES  (unchanged from original)
+   ================================================================ */
+function spawnParticles(x, y, color, count = 8) {
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.PI * 2 / count) * i + Math.random() * 0.5;
+    const speed = 1 + Math.random() * 3;
+    particles.push({
+      x: x * gridSize + gridSize / 2,
+      y: y * gridSize + gridSize / 2,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 1,
+      decay: 0.02 + Math.random() * 0.03,
+      size: 2 + Math.random() * 3,
+      color,
+    });
+  }
+}
+
+function spawnFloatingText(x, y, text, color = '#fff') {
+  floatingTexts.push({
+    x: x * gridSize + gridSize / 2,
+    y: y * gridSize + gridSize / 2,
+    text, color, life: 1, vy: -1.5,
+  });
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy;
+    p.life -= p.decay;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+  for (let i = floatingTexts.length - 1; i >= 0; i--) {
+    const ft = floatingTexts[i];
+    ft.y += ft.vy;
+    ft.life -= 0.015;
+    if (ft.life <= 0) floatingTexts.splice(i, 1);
+  }
+  if (screenShake.intensity > 0) {
+    screenShake.x = (Math.random() - 0.5) * screenShake.intensity;
+    screenShake.y = (Math.random() - 0.5) * screenShake.intensity;
+    screenShake.intensity *= 0.85;
+    if (screenShake.intensity < 0.5) screenShake.intensity = 0;
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  for (const ft of floatingTexts) {
+    ctx.globalAlpha = ft.life;
+    ctx.fillStyle = ft.color;
+    ctx.font = 'bold 14px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText(ft.text, ft.x, ft.y);
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ================================================================
+   GAME LOGIC  (unchanged from original)
+   ================================================================ */
+function init() {
+  const midX = Math.floor(COLS / 2);
+  const midY = Math.floor(ROWS / 2);
+  snake = [
+    { x: midX, y: midY },
+    { x: midX - 1, y: midY },
+    { x: midX - 2, y: midY },
+  ];
+  direction = { x: 1, y: 0 };
+  nextDirection = { ...direction };
+  score = 0; combo = 0; comboTimer = 0;
+  items = []; obstacles = [];
+  activeEffects = {};
+  particles = []; floatingTexts = [];
+  screenShake = { x: 0, y: 0, intensity: 0 };
+  baseSpeed = SPEED_INIT;
+  paused = false; running = true;
+  milestoneNext = 100;
+  obstacleSpawnCounter = 0;
+  itemSpawnTimer = 0;
+  scoreEl.textContent = 0;
+  lengthEl.textContent = snake.length;
+  pauseBtn.textContent = '⏸';
+  // place initial food
+  spawnItem('food');
+  overlay.classList.add('hidden');
+}
+
+function spawnItem(type) {
+  const pos = randomFreeCell();
+  const def = POWERUPS[type];
+  const item = { x: pos.x, y: pos.y, type, ...def };
+  if (def.lifetime) item.spawnTime = Date.now();
+  items.push(item);
+}
+
+function maybeSpawnItems() {
+  const foods = items.filter(i => i.type === 'food').length;
+  const specials = items.filter(i => i.type !== 'food').length;
+  if (foods < 1 && Math.random() < 0.6) spawnItem('food');
+  if (specials < 2 && Math.random() < 0.04) {
+    const type = weightedRandom();
+    if (type !== 'food') spawnItem(type);
+  }
+}
+
+function maybeSpawnObstacle() {
+  if (score < 50) return;
+  obstacleSpawnCounter++;
+  if (obstacleSpawnCounter > 60 && obstacles.length < Math.min(15, Math.floor(score / 80))) {
+    obstacleSpawnCounter = 0;
+    const pos = randomFreeCell();
+    const head = snake[0];
+    if (Math.abs(pos.x - head.x) + Math.abs(pos.y - head.y) > 4) {
+      obstacles.push({ x: pos.x, y: pos.y });
+    }
+  }
+}
+
+function eatItem(item) {
+  const def = POWERUPS[item.type];
+  let pts = def.pts || 0;
+  let grow = def.grow || 0;
+
+  if (item.type === 'food') Audio.eat();
+  else if (item.type === 'bomb') Audio.bomb();
+  else Audio.eatSpecial();
+
+  // Combo
+  combo++;
+  comboTimer = 30;
+  if (combo >= 3) {
+    pts = Math.floor(pts * (1 + combo * 0.2));
+    comboDisplay.textContent = '🔥 Combo x' + combo + '!';
+    comboDisplay.classList.add('show');
+  }
+
+  // Double effect
+  if (hasEffect('double')) pts *= 2;
+
+  score += pts;
+  scoreEl.textContent = score;
+  if (score > best) {
+    best = score;
+    bestEl.textContent = best;
+    localStorage.setItem('snake_best_creative', best);
+  }
+
+  // Grow / shrink
+  if (item.type === 'shrink') {
+    const cut = Math.min(def.shrinkAmt, snake.length - 2);
+    snake.splice(snake.length - cut, cut);
+    spawnParticles(item.x, item.y, def.color, 12);
+    spawnFloatingText(item.x, item.y, '-' + cut, def.color);
+  } else if (grow > 0) {
+    for (let i = 0; i < grow; i++)
+      snake.push({ ...snake[snake.length - 1] });
+  }
+
+  // Duration effects
+  if (def.duration) {
+    addEffect(item.type);
+    spawnFloatingText(item.x, item.y, def.emoji + ' ' + def.label, def.color);
+  }
+
+  // Bomb
+  if (item.type === 'bomb') {
+    const r = def.radius;
+    screenShake.intensity = 10;
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+      const o = obstacles[i];
+      if (Math.abs(o.x - item.x) <= r && Math.abs(o.y - item.y) <= r) {
+        spawnParticles(o.x, o.y, '#888', 6);
+        obstacles.splice(i, 1);
+      }
+    }
+    pts += 20;
+    spawnFloatingText(item.x, item.y, '💥 +'+pts, '#f44336');
+  }
+
+  // Speed mod
+  if (def.speedMod) {
+    baseSpeed = SPEED_INIT + def.speedMod;
+    if (baseSpeed < SPEED_MIN) baseSpeed = SPEED_MIN;
+    clearInterval(loop);
+    loop = setInterval(gameTick, baseSpeed);
+  }
+
+  // Milestone
+  if (score >= milestoneNext) {
+    milestoneNext += 100;
+    spawnFloatingText(snake[0].x, snake[0].y - 1, '🎉 ' + (milestoneNext - 100) + '分!', '#ffd700');
+    Audio.milestone();
+    spawnItem('rainbow');
+  }
+
+  spawnParticles(item.x, item.y, def.color, 10);
+  if (!def.duration && item.type !== 'bomb' && item.type !== 'shrink')
+    spawnFloatingText(item.x, item.y, '+' + pts, def.color);
+
+  lengthEl.textContent = snake.length;
+}
+
+function gameTick() {
+  if (paused || !running) return;
+
+  removeExpiredEffects();
+  updateActiveEffectsVisuals();
+
+  // Restore normal speed if speed/slow expired
+  const hadSpeed = hasEffect('speed');
+  const hadSlow = hasEffect('slow');
+  if (!hadSpeed && !hadSlow && baseSpeed !== SPEED_INIT) {
+    baseSpeed = SPEED_INIT;
+    clearInterval(loop);
+    loop = setInterval(gameTick, baseSpeed);
+  }
+
+  // Frozen: skip movement
+  if (hasEffect('freeze')) {
+    draw();
+    return;
+  }
+
+  // Combo decay
+  if (comboTimer > 0) {
+    comboTimer--;
+  } else {
+    if (combo >= 3) comboDisplay.classList.remove('show');
+    combo = 0;
+  }
+
+  // Magnet: attract nearest food toward snake head
+  if (hasEffect('magnet')) {
+    const head = snake[0];
+    for (const item of items) {
+      const dist = Math.abs(item.x - head.x) + Math.abs(item.y - head.y);
+      if (dist <= 5 && dist > 0) {
+        const dx = Math.sign(head.x - item.x);
+        const dy = Math.sign(head.y - item.y);
+        if (Math.random() < 0.5 && dx !== 0) {
+          item.x += dx;
+        } else if (dy !== 0) {
+          item.y += dy;
+        }
+      }
+    }
+  }
+
+  direction = { ...nextDirection };
+  const head = { x: snake[0].x + direction.x, y: snake[0].y + direction.y };
+
+  // Wall collision
+  if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
+    if (hasEffect('ghost') || hasEffect('shield')) {
+      if (head.x < 0) head.x = COLS - 1;
+      if (head.x >= COLS) head.x = 0;
+      if (head.y < 0) head.y = ROWS - 1;
+      if (head.y >= ROWS) head.y = 0;
+      if (hasEffect('shield')) {
+        delete activeEffects.shield;
+        spawnFloatingText(snake[0].x, snake[0].y, '🛡️ 破碎!', '#ba68c8');
+        Audio.shieldBreak();
+      }
+    } else {
+      gameOver(); return;
+    }
+  }
+
+  // Self collision
+  if (snake.some(s => s.x === head.x && s.y === head.y)) {
+    if (hasEffect('shield') || hasEffect('ghost')) {
+      if (hasEffect('shield')) {
+        delete activeEffects.shield;
+        spawnFloatingText(snake[0].x, snake[0].y, '🛡️ 破碎!', '#ba68c8');
+        Audio.shieldBreak();
+      }
+    } else {
+      gameOver(); return;
+    }
+  }
+
+  // Obstacle collision
+  const hitObs = obstacles.findIndex(o => o.x === head.x && o.y === head.y);
+  if (hitObs >= 0) {
+    if (hasEffect('ghost')) {
+      spawnParticles(head.x, head.y, '#e0e0e0', 4);
+    } else if (hasEffect('shield')) {
+      delete activeEffects.shield;
+      obstacles.splice(hitObs, 1);
+      spawnParticles(head.x, head.y, '#ba68c8', 10);
+      spawnFloatingText(head.x, head.y, '🛡️ 破碎!', '#ba68c8');
+      screenShake.intensity = 5;
+      Audio.shieldBreak();
+    } else {
+      gameOver(); return;
+    }
+  }
+
+  snake.unshift(head);
+
+  // Check item pickup
+  const eatenIdx = items.findIndex(it => it.x === head.x && it.y === head.y);
+  if (eatenIdx >= 0) {
+    const item = items[eatenIdx];
+    items.splice(eatenIdx, 1);
+    eatItem(item);
+  } else {
+    snake.pop();
+  }
+
+  // Spawn logic
+  maybeSpawnItems();
+  maybeSpawnObstacle();
+
+  updateParticles();
+  draw();
+}
+
+function updateActiveEffectsVisuals() {
+  powerupBar.innerHTML = '';
+  for (const [type, eff] of Object.entries(activeEffects)) {
+    const def = POWERUPS[type];
+    const remaining = Math.ceil((eff.endTime - Date.now()) / 1000);
+    if (remaining <= 0) continue;
+    const el = document.createElement('span');
+    el.className = 'active-effect';
+    el.style.background = def.color === 'rainbow'
+      ? 'hsl(' + rainbowHue + ',70%,50%)'
+      : def.color + '33';
+    el.style.color = def.color;
+    el.style.border = '1px solid ' + def.color;
+    el.textContent = def.emoji + ' ' + remaining + 's';
+    powerupBar.appendChild(el);
+  }
+}
+
+/* ================================================================
+   DRAW  (uses gridSize instead of GRID for pixel calculations)
+   ================================================================ */
+function draw() {
+  ctx.save();
+  ctx.translate(screenShake.x, screenShake.y);
+
+  // Background
+  ctx.fillStyle = '#0f0f23';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+  for (let x = 0; x <= COLS; x++) {
+    ctx.beginPath(); ctx.moveTo(x * gridSize, 0); ctx.lineTo(x * gridSize, canvas.height); ctx.stroke();
+  }
+  for (let y = 0; y <= ROWS; y++) {
+    ctx.beginPath(); ctx.moveTo(0, y * gridSize); ctx.lineTo(canvas.width, y * gridSize); ctx.stroke();
+  }
+
+  // Obstacles
+  for (const o of obstacles) {
+    ctx.fillStyle = '#455a64';
+    ctx.fillRect(o.x * gridSize + 1, o.y * gridSize + 1, gridSize - 2, gridSize - 2);
+    ctx.fillStyle = '#546e7a';
+    ctx.fillRect(o.x * gridSize + 3, o.y * gridSize + 3, gridSize - 6, gridSize - 6);
+    // X pattern
+    ctx.strokeStyle = '#37474f';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(o.x * gridSize + 4, o.y * gridSize + 4);
+    ctx.lineTo((o.x + 1) * gridSize - 4, (o.y + 1) * gridSize - 4);
+    ctx.moveTo((o.x + 1) * gridSize - 4, o.y * gridSize + 4);
+    ctx.lineTo(o.x * gridSize + 4, (o.y + 1) * gridSize - 4);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+  }
+
+  // Items
+  const time = Date.now();
+  for (const item of items) {
+    const cx = item.x * gridSize + gridSize / 2;
+    const cy = item.y * gridSize + gridSize / 2;
+    const def = POWERUPS[item.type];
+
+    // Glow
+    ctx.shadowColor = def.color === 'rainbow'
+      ? 'hsl(' + rainbowHue + ',100%,60%)' : def.color;
+    ctx.shadowBlur = 10;
+
+    // Blinking for timed items
+    var alpha = 1;
+    if (item.spawnTime && (time - item.spawnTime) > item.lifetime - 1500) {
+      alpha = 0.4 + 0.6 * Math.abs(Math.sin(time / 150));
+    }
+    ctx.globalAlpha = alpha;
+
+    const radius = gridSize / 2 - 2;
+    if (def.color === 'rainbow') {
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+      grad.addColorStop(0, 'hsl(' + rainbowHue + ',100%,75%)');
+      grad.addColorStop(0.5, 'hsl(' + ((rainbowHue + 120) % 360) + ',100%,65%)');
+      grad.addColorStop(1, 'hsl(' + ((rainbowHue + 240) % 360) + ',100%,55%)');
+      ctx.fillStyle = grad;
+    } else {
+      ctx.fillStyle = def.color;
+    }
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath();
+    ctx.arc(cx - 2, cy - 2, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+  }
+
+  // Snake
+  for (let i = snake.length - 1; i >= 0; i--) {
+    const seg = snake[i];
+    const ratio = 1 - i / snake.length;
+    var color;
+
+    if (hasEffect('rainbow')) {
+      rainbowHue = (rainbowHue + 3) % 360;
+      color = 'hsl(' + ((rainbowHue + i * 15) % 360) + ', 80%, ' + (40 + 30 * ratio) + '%)';
+    } else if (hasEffect('ghost')) {
+      ctx.globalAlpha = 0.5 + 0.2 * Math.sin(time / 200);
+      color = '#e0e0e0';
+    } else {
+      const g = Math.floor(160 + 95 * ratio);
+      color = i === 0 ? '#69f0ae' : 'rgb(20,' + g + ',80)';
+    }
+
+    ctx.fillStyle = color;
+    ctx.fillRect(seg.x * gridSize + 1, seg.y * gridSize + 1, gridSize - 2, gridSize - 2);
+
+    // Inner shine
+    if (i < 3) {
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      ctx.fillRect(seg.x * gridSize + 3, seg.y * gridSize + 3, gridSize - 6, gridSize - 6);
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // Shield aura
+  if (hasEffect('shield')) {
+    const head = snake[0];
+    ctx.strokeStyle = 'rgba(186,104,200,0.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(head.x * gridSize + gridSize / 2, head.y * gridSize + gridSize / 2, gridSize, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+  }
+
+  // Eyes
+  const head = snake[0];
+  ctx.fillStyle = '#0f0f23';
+  const es = Math.max(2, Math.floor(gridSize * 0.15));
+  if (direction.x !== 0) {
+    ctx.fillRect(head.x * gridSize + (direction.x > 0 ? gridSize - 6 : 3), head.y * gridSize + 3, es, es);
+    ctx.fillRect(head.x * gridSize + (direction.x > 0 ? gridSize - 6 : 3), head.y * gridSize + gridSize - 5 - es, es, es);
+  } else {
+    ctx.fillRect(head.x * gridSize + 3, head.y * gridSize + (direction.y > 0 ? gridSize - 6 : 3), es, es);
+    ctx.fillRect(head.x * gridSize + gridSize - 5 - es, head.y * gridSize + (direction.y > 0 ? gridSize - 6 : 3), es, es);
+  }
+
+  // Freeze overlay
+  if (hasEffect('freeze')) {
+    ctx.fillStyle = 'rgba(0,229,255,0.08)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'rgba(0,229,255,0.3)';
+    ctx.font = '14px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText('❄️ 时间冻结中...', canvas.width / 2, 20);
+  }
+
+  // Particles on top
+  drawParticles();
+
+  ctx.restore();
+}
+
+function drawInitial() {
+  ctx.fillStyle = '#0f0f23';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Draw grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+  for (let x = 0; x <= COLS; x++) {
+    ctx.beginPath(); ctx.moveTo(x * gridSize, 0); ctx.lineTo(x * gridSize, canvas.height); ctx.stroke();
+  }
+  for (let y = 0; y <= ROWS; y++) {
+    ctx.beginPath(); ctx.moveTo(0, y * gridSize); ctx.lineTo(canvas.width, y * gridSize); ctx.stroke();
+  }
+}
+
+function gameOver() {
+  running = false;
+  clearInterval(loop);
+  Audio.gameOver();
+  screenShake.intensity = 15;
+  // Death particles
+  for (const seg of snake) {
+    spawnParticles(seg.x, seg.y, '#ff6b6b', 3);
+  }
+  // Animate remaining particles
+  const deathAnim = setInterval(() => {
+    updateParticles();
+    draw();
+    if (particles.length === 0) clearInterval(deathAnim);
+  }, 30);
+
+  setTimeout(() => {
+    overlay.classList.remove('hidden');
+    overlay.querySelector('h2').textContent = '💀 游戏结束';
+    overlay.querySelector('p').textContent = '得分: ' + score + '  长度: ' + snake.length;
+    startBtn.textContent = '再来一局';
+  }, 600);
+}
+
+/* ================================================================
+   INPUT  (keyboard + swipe + D-pad)
+   ================================================================ */
+
+// Direction helper
+function setDirection(dx, dy) {
+  if (dx !== -direction.x || dy !== -direction.y) {
+    nextDirection = { x: dx, y: dy };
+    Audio.move();
+  }
+}
+
+// Keyboard (fallback for desktop testing)
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (!running) return;
+    togglePause();
+    return;
+  }
+
+  const keyMap = {
+    ArrowUp: { x: 0, y: -1 }, KeyW: { x: 0, y: -1 },
+    ArrowDown: { x: 0, y: 1 }, KeyS: { x: 0, y: 1 },
+    ArrowLeft: { x: -1, y: 0 }, KeyA: { x: -1, y: 0 },
+    ArrowRight: { x: 1, y: 0 }, KeyD: { x: 1, y: 0 },
+  };
+  const dir = keyMap[e.code];
+  if (dir) {
+    e.preventDefault();
+    setDirection(dir.x, dir.y);
+  }
+});
+
+// Swipe detection on canvas area
+(function() {
+  let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
+  let isSwiping = false;
+
+  const gameWrap = document.getElementById('game-wrap');
+
+  gameWrap.addEventListener('touchstart', function(e) {
+    // Don't intercept if touching legend-toggle button
+    if (e.target.id === 'legend-toggle') return;
+    if (e.touches.length > 1) return; // ignore multi-touch
+
+    var t = e.touches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+    touchStartTime = Date.now();
+    isSwiping = false;
+    e.preventDefault();
+  }, { passive: false });
+
+  gameWrap.addEventListener('touchmove', function(e) {
+    if (e.touches.length > 1) return;
+    e.preventDefault();
+  }, { passive: false });
+
+  gameWrap.addEventListener('touchend', function(e) {
+    if (e.changedTouches.length === 0) return;
+    var t = e.changedTouches[0];
+    var dx = t.clientX - touchStartX;
+    var dy = t.clientY - touchStartY;
+    var elapsed = Date.now() - touchStartTime;
+
+    // Minimum swipe distance: 0.5 * canvas width / COLS grid cells
+    var minDist = gridSize * 2;
+    var absDx = Math.abs(dx);
+    var absDy = Math.abs(dy);
+
+    if (Math.max(absDx, absDy) < minDist) return; // too short, not a swipe
+    if (elapsed > 1000) return; // too slow
+
+    isSwiping = true;
+    e.preventDefault();
+
+    if (absDx > absDy) {
+      // Horizontal
+      setDirection(dx > 0 ? 1 : -1, 0);
+    } else {
+      // Vertical
+      setDirection(0, dy > 0 ? 1 : -1);
+    }
+  }, { passive: false });
+})();
+
+// D-pad button handlers
+(function() {
+  const dpad = document.getElementById('dpad');
+  const dirMap = {
+    'up': { x: 0, y: -1 },
+    'down': { x: 0, y: 1 },
+    'left': { x: -1, y: 0 },
+    'right': { x: 1, y: 0 },
+  };
+
+  // Use pointer events for consistent behavior across touch/mouse
+  dpad.addEventListener('pointerdown', function(e) {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    e.preventDefault();
+
+    for (const cls of btn.classList) {
+      if (dirMap[cls]) {
+        setDirection(dirMap[cls].x, dirMap[cls].y);
+        break;
+      }
+    }
+  });
+})();
+
+// Tap overlay to resume from pause
+overlay.addEventListener('touchstart', function(e) {
+  if (paused && running) {
+    // Only toggle if not tapping the start button
+    if (e.target !== startBtn) {
+      e.preventDefault();
+      togglePause();
+    }
+  }
+}, { passive: false });
+
+// Start button
+startBtn.addEventListener('click', () => {
+  clearInterval(loop);
+  init();
+  Audio.start();
+  Audio.startBGM();
+  draw();
+  loop = setInterval(gameTick, SPEED_INIT);
+});
+startBtn.addEventListener('touchend', function(e) {
+  e.preventDefault();
+  clearInterval(loop);
+  init();
+  Audio.start();
+  Audio.startBGM();
+  draw();
+  loop = setInterval(gameTick, SPEED_INIT);
+});
+
+// Initial draw
+drawInitial();
+</script>
+</body>
+</html>

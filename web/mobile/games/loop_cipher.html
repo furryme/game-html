@@ -1,0 +1,1475 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>轮回密码 - Loop Cipher</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+@keyframes glitch {
+  0%, 100% { transform: translate(0); filter: none; }
+  20% { transform: translate(-2px, 1px); filter: hue-rotate(90deg); }
+  40% { transform: translate(2px, -1px); filter: hue-rotate(-90deg); }
+  60% { transform: translate(-1px, 2px); filter: brightness(1.5); }
+  80% { transform: translate(1px, -2px); filter: hue-rotate(180deg); }
+}
+
+@keyframes scanline {
+  0% { top: -10%; }
+  100% { top: 110%; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 8px #ffd70066, 0 0 16px #ffd70033; }
+  50% { box-shadow: 0 0 16px #ffd700aa, 0 0 32px #ffd70055; }
+}
+
+@keyframes timerPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes typewriter {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes blink {
+  0%, 100% { border-color: #0f0; }
+  50% { border-color: transparent; }
+}
+
+body {
+  background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  font-family: 'Courier New', 'Consolas', monospace;
+  color: #c8c8d4;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#game-container {
+  position: relative;
+  width: 100%;
+  max-width: min(900px, calc(100vw - 16px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+}
+
+#title-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 8px 0;
+  border-bottom: 1px solid #302b6388;
+}
+
+#title-bar h1 {
+  font-size: 20px;
+  color: #e0d0ff;
+  text-shadow: 0 0 10px #8b5cf666;
+  letter-spacing: 4px;
+}
+
+#helpBtn {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(139, 92, 246, 0.2); border: 1px solid rgba(139, 92, 246, 0.4);
+  color: #8b5cf6; font-size: 16px; font-weight: bold; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background 0.2s; margin-left: 12px;
+}
+#helpBtn:hover { background: rgba(139, 92, 246, 0.4); }
+
+#helpOverlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.88); z-index: 400;
+  display: none; justify-content: center; align-items: center;
+}
+#helpOverlay.show { display: flex; }
+#helpOverlay .help-box {
+  background: linear-gradient(135deg, #1a1a3e, #0a0a1a);
+  border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 12px;
+  padding: 20px 18px; max-width: min(460px, calc(100vw - 32px)); width: 100%; text-align: center;
+  box-shadow: 0 0 40px rgba(139, 92, 246, 0.15);
+}
+#helpOverlay h2 {
+  color: #8b5cf6; font-size: 17px; margin-bottom: 14px;
+  font-family: 'Courier New', monospace; letter-spacing: 2px;
+}
+#helpOverlay .help-grid {
+  text-align: left; font-size: 13px; color: #c8c8d4; line-height: 2;
+  margin-bottom: 12px;
+}
+#helpOverlay .close-hint { color: #666; font-size: 11px; }
+
+#title-bar h1 .icon { margin-right: 8px; }
+
+#loop-counter {
+  font-size: 14px;
+  color: #ffd700;
+  text-shadow: 0 0 8px #ffd70044;
+}
+
+#timer-bar-container {
+  width: 100%;
+  height: 6px;
+  background: #1a1a2e88;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+#timer-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #ff4444, #ff8800, #44ff44);
+  border-radius: 3px;
+  transition: width 0.1s linear;
+  width: 100%;
+}
+
+#timer-bar.critical { animation: timerPulse 0.5s infinite; }
+
+#main-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  align-items: center;
+}
+
+#grid-panel {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+#grid-canvas {
+  border: 1px solid #4a4a8a44;
+  border-radius: 4px;
+  background: #0a0a1a88;
+  cursor: pointer;
+  touch-action: none;
+  width: min(calc(100vw - 32px), 480px);
+  height: min(calc(100vw - 32px), 480px);
+}
+
+#grid-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+#side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+#code-panel {
+  background: #0a0a1acc;
+  border: 1px solid #4a4a8a66;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+#code-panel h3 {
+  font-size: 13px;
+  color: #8b5cf6;
+  margin-bottom: 8px;
+  letter-spacing: 2px;
+}
+
+#code-input {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+#code-input input {
+  width: 52px;
+  height: 48px;
+  min-height: 44px;
+  text-align: center;
+  font-size: 22px;
+  font-family: 'Courier New', monospace;
+  background: #1a1a2e;
+  border: 1px solid #4a4a8a;
+  border-radius: 4px;
+  color: #e0d0ff;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+#code-input input:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 8px #8b5cf644;
+}
+
+#submit-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px 8px;
+  min-height: 44px;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  letter-spacing: 2px;
+  transition: transform 0.1s, box-shadow 0.2s;
+}
+
+#submit-btn:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 12px #8b5cf666;
+}
+
+#submit-btn:active { transform: scale(0.98); }
+
+#info-panel {
+  background: #0a0a1acc;
+  border: 1px solid #4a4a8a66;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+#info-panel .info-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 4px 0;
+  border-bottom: 1px solid #ffffff0a;
+}
+
+#info-panel .info-row:last-child { border-bottom: none; }
+
+#info-panel .label { color: #888; }
+#info-panel .value { color: #ffd700; font-weight: bold; }
+
+#narrative-panel {
+  background: #0a0a1acc;
+  border: 1px solid #4a4a8a66;
+  border-radius: 6px;
+  padding: 12px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+#narrative-panel h3 {
+  font-size: 13px;
+  color: #8b5cf6;
+  margin-bottom: 8px;
+  letter-spacing: 2px;
+}
+
+#narrative-panel::-webkit-scrollbar { width: 4px; }
+#narrative-panel::-webkit-scrollbar-track { background: transparent; }
+#narrative-panel::-webkit-scrollbar-thumb { background: #4a4a8a44; border-radius: 2px; }
+
+.log-entry {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #66ff66;
+  margin-bottom: 6px;
+  opacity: 0;
+  animation: fadeInUp 0.5s forwards;
+}
+
+.log-entry .loop-tag {
+  color: #8b5cf6;
+  font-weight: bold;
+}
+
+#clue-display {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.85);
+  z-index: 100;
+  display: none;
+  justify-content: center;
+  align-items: center;
+  animation: fadeInUp 0.3s;
+}
+
+#clue-display .clue-inner {
+  background: #0a0a1aee;
+  border: 1px solid #8b5cf688;
+  border-radius: 8px;
+  padding: 24px 20px;
+  text-align: center;
+  width: min(400px, calc(100vw - 40px));
+}
+
+#clue-display .clue-text {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #e0d0ff;
+  margin-bottom: 12px;
+}
+
+#clue-display .clue-type {
+  font-size: 12px;
+  color: #8b5cf6;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+#clue-display .mark-btn {
+  margin-top: 10px;
+  padding: 10px 20px;
+  min-height: 44px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  background: transparent;
+  border: 1px solid #ffd700;
+  border-radius: 4px;
+  color: #ffd700;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+#clue-display .mark-btn:hover { background: #ffd70022; }
+
+#death-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  z-index: 200;
+  display: none;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+}
+
+#death-overlay .death-text {
+  font-size: 28px;
+  color: #ff4444;
+  text-shadow: 0 0 20px #ff444488;
+  letter-spacing: 8px;
+  animation: glitch 0.3s infinite;
+}
+
+#death-overlay .death-sub {
+  font-size: 13px;
+  color: #888;
+  margin-top: 16px;
+}
+
+#victory-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #000e;
+  z-index: 200;
+  display: none;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  animation: fadeInUp 1s;
+}
+
+#victory-overlay h2 {
+  font-size: 32px;
+  color: #ffd700;
+  text-shadow: 0 0 30px #ffd70088;
+  letter-spacing: 6px;
+}
+
+#victory-overlay p {
+  font-size: 14px;
+  color: #c8c8d4;
+  margin-top: 12px;
+}
+
+#victory-overlay .victory-stats {
+  margin-top: 20px;
+  font-size: 12px;
+  color: #8b5cf6;
+  padding: 0 16px;
+  text-align: center;
+}
+
+.btn-group {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.btn-group button {
+  padding: 12px 20px;
+  min-height: 44px;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  transition: transform 0.1s, box-shadow 0.2s;
+}
+
+.btn-restart {
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  border: none;
+  color: #fff;
+}
+
+.btn-home {
+  background: transparent;
+  border: 1px solid #4a4a8a;
+  color: #c8c8d4;
+}
+
+.btn-group button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 12px #8b5cf644;
+}
+
+#start-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+  z-index: 300;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  padding: 20px;
+}
+
+#start-overlay h1 {
+  font-size: 36px;
+  color: #e0d0ff;
+  text-shadow: 0 0 20px #8b5cf666;
+  letter-spacing: 6px;
+  margin-bottom: 12px;
+}
+
+#start-overlay .subtitle {
+  font-size: 13px;
+  color: #888;
+  margin-bottom: 32px;
+  letter-spacing: 4px;
+}
+
+#start-overlay .lore {
+  max-width: min(500px, calc(100vw - 40px));
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #666;
+  margin-bottom: 28px;
+}
+
+#start-overlay button {
+  padding: 14px 32px;
+  min-height: 48px;
+  font-family: 'Courier New', monospace;
+  font-size: 16px;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  letter-spacing: 4px;
+  transition: transform 0.1s, box-shadow 0.3s;
+}
+
+#start-overlay button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 24px #8b5cf688;
+}
+
+#scanline {
+  position: fixed;
+  top: -10%;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: #8b5cf622;
+  z-index: 150;
+  pointer-events: none;
+  animation: scanline 4s linear infinite;
+}
+
+#env-details {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.env-crack {
+  position: absolute;
+  background: #ffffff11;
+  transform-origin: center;
+}
+
+</style>
+</head>
+<body>
+<div id="scanline"></div>
+
+<div id="helpOverlay">
+  <div class="help-box">
+    <h2>🔄 轮回密码 — 玩法说明</h2>
+    <div class="help-grid">
+      <div>🖱️ <strong>点击格子</strong> — 揭示隐藏信息（线索/死亡/空白）</div>
+      <div>⭐ <strong>标记记忆</strong> — 发现线索后点击"标记此记忆"保留到下一轮</div>
+      <div>🔢 <strong>输入密码</strong> — 根据线索推断4位数密码并提交</div>
+    </div>
+    <div style="text-align:left;font-size:12px;color:#aaa;line-height:1.8;margin-bottom:12px;">
+      • 每次轮回有 30 秒时间，时间耗尽会重置<br>
+      • 踩到"死亡"格子也会立即重置<br>
+      • 标记的格子会在轮回中保留（最多 6 个）<br>
+      • 输入错误密码也会触发轮回<br>
+      • 每 3 次轮回，环境会有微妙变化，提供额外线索<br>
+      • 线索类型逐步解锁：直接 → 关联 → 排除 → 特征 → 位置
+    </div>
+    <div class="close-hint">按 Esc 或点击背景关闭</div>
+  </div>
+</div>
+
+<div id="start-overlay">
+  <h1>轮回密码</h1>
+  <div class="subtitle">LOOP CIPHER</div>
+  <div class="lore">
+    你被困在一个无限循环的时间牢笼中。<br>
+    每次死亡，时间会重置。<br>
+    你只能记住一件事。<br>
+    找出四位数密码，打破这个轮回。<br><br>
+    <span style="color:#4a4a8a;">Find the 4-digit code. Break the loop.</span>
+  </div>
+  <button onclick="Game.start()">进入轮回</button>
+</div>
+
+<div id="game-container" style="display:none;">
+  <div id="title-bar">
+    <div style="display:flex;align-items:center;">
+      <h1 style="margin:0;"><span class="icon">&#x1F504;</span>轮回密码</h1>
+      <button id="helpBtn">?</button>
+    </div>
+    <div id="loop-counter">第 1 次轮回</div>
+  </div>
+
+  <div id="timer-bar-container">
+    <div id="timer-bar"></div>
+  </div>
+
+  <div id="main-area">
+    <div id="grid-panel">
+      <canvas id="grid-canvas" width="480" height="480"></canvas>
+    </div>
+
+    <div id="side-panel">
+      <div id="code-panel">
+        <h3>&#x1F511; 解 密</h3>
+        <div style="font-size:10px;color:#666;text-align:center;margin-bottom:6px;">从线索中推断4位密码</div>
+        <div id="code-input">
+          <input type="text" maxlength="1" data-pos="0" inputmode="numeric">
+          <input type="text" maxlength="1" data-pos="1" inputmode="numeric">
+          <input type="text" maxlength="1" data-pos="2" inputmode="numeric">
+          <input type="text" maxlength="1" data-pos="3" inputmode="numeric">
+        </div>
+        <div style="font-size:9px;color:#555;text-align:center;margin-top:4px;">第1位 第2位 第3位 第4位</div>
+        <button id="submit-btn" onclick="Game.submitCode()">提交密码</button>
+      </div>
+
+      <div id="info-panel">
+        <div class="info-row">
+          <span class="label">标记剩余</span>
+          <span class="value" id="marks-left">1</span>
+        </div>
+        <div class="info-row">
+          <span class="label">已标记</span>
+          <span class="value" id="marks-placed">0</span>
+        </div>
+        <div class="info-row">
+          <span class="label">已揭示</span>
+          <span class="value" id="cells-revealed">0</span>
+        </div>
+        <div class="info-row">
+          <span class="label">死亡次数</span>
+          <span class="value" id="death-count">0</span>
+        </div>
+        <div class="info-row">
+          <span class="label">循环阶段</span>
+          <span class="value" id="env-phase">初始</span>
+        </div>
+      </div>
+
+      <div id="narrative-panel">
+        <h3>&#x1F4D6; 日志</h3>
+        <div id="log-entries"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="clue-display">
+  <div class="clue-inner">
+    <div class="clue-type" id="clue-type"></div>
+    <div class="clue-text" id="clue-text"></div>
+    <button class="mark-btn" id="mark-btn" onclick="Game.markCurrentCell()">标记此记忆</button>
+  </div>
+</div>
+
+<div id="death-overlay">
+  <div class="death-text">轮回重置</div>
+  <div class="death-sub">时间开始倒流...</div>
+</div>
+
+<div id="victory-overlay">
+  <h2>轮回终结</h2>
+  <p>你找到了密码，打破了时间循环。</p>
+  <div class="victory-stats" id="victory-stats"></div>
+  <div class="btn-group">
+    <button class="btn-restart" onclick="Game.restart()">再来一局</button>
+    <button class="btn-home" onclick="window.location.href='../index.html'">返回主页</button>
+  </div>
+</div>
+
+<script>
+const Game = {
+  GRID_SIZE: 8,
+  CELL_SIZE: 58,
+  CELL_GAP: 2,
+  TIMER_DURATION: 30,
+  MAX_MARKS: 6,
+  CODE_DIGITS: 4,
+
+  // Core state
+  loop: 1,
+  secretCode: [],
+  grid: [],
+  revealedCells: new Set(),
+  persistentMarks: [],
+  currentMark: null,
+  deaths: 0,
+  totalReveals: 0,
+  timer: 0,
+  timerActive: false,
+  timerInterval: null,
+  gameActive: false,
+  lastClickedCell: null,
+  directClueDigits: null,
+
+  // Narrative
+  logs: [],
+
+  // Audio context
+  audioCtx: null,
+
+  // Canvas
+  canvas: null,
+  ctx: null,
+
+  // Environment decorations
+  envDetails: [],
+
+  init() {
+    this.canvas = document.getElementById('grid-canvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.setupCodeInput();
+    this.setupGridClick();
+    this.setupAudio();
+    this.loadState();
+  },
+
+  setupAudio() {
+    try {
+      this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) { }
+  },
+
+  playTone(freq, duration, type = 'sine', vol = 0.1) {
+    if (!this.audioCtx) return;
+    const osc = this.audioCtx.createOscillator();
+    const gain = this.audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.value = vol;
+    gain.gain.exponentialRampToValueAtTime(0.001, this.audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(this.audioCtx.destination);
+    osc.start();
+    osc.stop(this.audioCtx.currentTime + duration);
+  },
+
+  playReveal() { this.playTone(440, 0.15, 'sine', 0.08); },
+  playClue() { this.playTone(660, 0.2, 'sine', 0.08); },
+  playDeath() {
+    this.playTone(200, 0.5, 'sawtooth', 0.12);
+    setTimeout(() => this.playTone(150, 0.4, 'sawtooth', 0.1), 100);
+    setTimeout(() => this.playTone(100, 0.6, 'sawtooth', 0.08), 200);
+  },
+  playMark() { this.playTone(880, 0.1, 'triangle', 0.1); },
+  playVictory() {
+    [523, 659, 784, 1047].forEach((f, i) => {
+      setTimeout(() => this.playTone(f, 0.4, 'sine', 0.1), i * 150);
+    });
+  },
+
+  generateCode() {
+    this.secretCode = [];
+    for (let i = 0; i < 4; i++) {
+      this.secretCode.push(Math.floor(Math.random() * 10));
+    }
+  },
+
+  generateGrid() {
+    this.grid = [];
+    const totalCells = this.GRID_SIZE * this.GRID_SIZE;
+    const deathCount = 10 + Math.min(this.loop, 8);
+    const clueCount = 8 + Math.floor(this.loop * 0.5);
+    const emptyCount = totalCells - deathCount - clueCount;
+
+    let types = [];
+    for (let i = 0; i < deathCount; i++) types.push('death');
+    for (let i = 0; i < clueCount; i++) types.push('clue');
+    for (let i = 0; i < emptyCount; i++) types.push('empty');
+
+    // Shuffle
+    for (let i = types.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [types[i], types[j]] = [types[j], types[i]];
+    }
+
+    // Assign cell types and clue data
+    let clueCounter = 0;
+    for (let r = 0; r < this.GRID_SIZE; r++) {
+      for (let c = 0; c < this.GRID_SIZE; c++) {
+        const idx = r * this.GRID_SIZE + c;
+        const cell = {
+          row: r,
+          col: c,
+          type: types[idx],
+          clue: null,
+          revealed: false,
+          deathTriggered: false
+        };
+        if (cell.type === 'clue') {
+          cell.clue = this.generateClue(r, c, clueCounter, this.directClueDigits);
+          clueCounter++;
+        }
+        this.grid.push(cell);
+      }
+    }
+
+    // Preserve persistent marks: overwrite regenerated cells with saved clue data
+    this.persistentMarks.forEach(mark => {
+      const idx = mark.row * this.GRID_SIZE + mark.col;
+      if (this.grid[idx]) {
+        this.grid[idx].type = 'clue';
+        this.grid[idx].clue = mark.clue;
+      }
+    });
+  },
+
+  generateClue(row, col, idx, directClueDigits) {
+    const phase = Math.floor((this.loop - 1) / 3);
+
+    // Prioritize direct clues for uncovered digits to avoid contradictions
+    let digit = idx % 4;
+    let forceDirect = false;
+    const uncovered = [];
+    for (let d = 0; d < 4; d++) {
+      if (!directClueDigits.has(d)) uncovered.push(d);
+    }
+    if (uncovered.length > 0) {
+      digit = uncovered[idx % uncovered.length];
+      forceDirect = true;
+      directClueDigits.add(digit);
+    }
+
+    const val = this.secretCode[digit];
+    const clueTypes = [];
+
+    if (phase >= 0 && !directClueDigits.has(digit)) clueTypes.push('direct');
+    if (phase >= 1) clueTypes.push('sum');
+    if (phase >= 2 && !directClueDigits.has(digit)) clueTypes.push('elimination');
+    if (phase >= 3) clueTypes.push('pattern');
+    if (phase >= 4) clueTypes.push('position');
+
+    let chosenType;
+    if (forceDirect || (directClueDigits.has(digit) && clueTypes.includes('direct'))) {
+      chosenType = 'direct';
+    } else {
+      if (clueTypes.length === 0) clueTypes.push('pattern');
+      chosenType = clueTypes[Math.floor(Math.random() * clueTypes.length)];
+    }
+    directClueDigits.add(digit);
+
+    const posNames = ['第一', '第二', '第三', '第四'];
+
+    switch (chosenType) {
+      case 'direct': {
+        const variants = [
+          `${posNames[digit]}位数字是 ${val}`,
+          `密码的${posNames[digit]}位：${val}`,
+          `记住：${posNames[digit]}位 = ${val}`,
+          `线索：位置${digit + 1} -> 数字${val}`,
+        ];
+        return { type: '直接线索', text: variants[Math.floor(Math.random() * variants.length)] };
+      }
+      case 'sum': {
+        const d2 = (digit + 1) % 4;
+        const sum = val + this.secretCode[d2];
+        return { type: '关联线索', text: `${posNames[digit]}位与${posNames[d2]}位之和为 ${sum}` };
+      }
+      case 'elimination': {
+        const exclude = new Set([val]);
+        while (exclude.size < 3) {
+          exclude.add(Math.floor(Math.random() * 10));
+        }
+        const exclArr = Array.from(exclude).join('、');
+        return { type: '排除线索', text: `${posNames[digit]}位不是 ${exclArr}` };
+      }
+      case 'pattern': {
+        if (val % 2 === 0) {
+          return { type: '特征线索', text: `${posNames[digit]}位是一个偶数` };
+        } else {
+          return { type: '特征线索', text: `${posNames[digit]}位是一个奇数` };
+        }
+      }
+      case 'position': {
+        const diff = Math.abs(val - this.secretCode[(digit + 1) % 4]);
+        return { type: '位置线索', text: `${posNames[digit]}位与${posNames[(digit + 1) % 4]}位相差 ${diff}` };
+      }
+    }
+  },
+
+  generateEnvDetails() {
+    this.envDetails = [];
+    const phase = Math.floor((this.loop - 1) / 3);
+    const count = Math.min(phase + 1, 5);
+    const canvasW = this.canvas.width;
+    const canvasH = this.canvas.height;
+
+    for (let i = 0; i < count; i++) {
+      this.envDetails.push({
+        x: Math.random() * canvasW,
+        y: Math.random() * canvasH,
+        length: 20 + Math.random() * 40,
+        angle: Math.random() * Math.PI,
+        opacity: 0.02 + Math.random() * 0.04,
+        type: Math.random() > 0.5 ? 'crack' : 'scratch'
+      });
+    }
+  },
+
+  getNarrative() {
+    const narratives = {
+      1: "第1次轮回。我被困在一个房间里。地面隐藏着信息——点击格子发现线索，推断出4位密码，输入右侧面板打破循环。小心，有些格子会触发重置。",
+      2: "第2次轮回。我来过这里。我留下的标记还可见...上次的事情我记得一些。",
+      3: "第3次轮回。墙壁在变化。有人来过这里...还是说我自己的痕迹？",
+      4: "第4次轮回。我发现墙壁上的裂缝在移动。这不是普通的循环。",
+      5: "第5次轮回。我越来越接近了。模式正在浮现...密码不是随机的。",
+      6: "第6次轮回。我在墙上看到了数字。那是我自己写的吗？",
+      7: "第7次轮回。时间不多了。每次循环我都失去更多记忆。",
+      8: "第8次轮回。如果我能再多记住一件事...就能拼出完整的密码。",
+      9: "第9次轮回。我开始看到过去的自己留下的痕迹。它们在指引我。",
+      10: "第10次轮回。我已经接近真相。密码的每一位都对应着一段记忆。",
+    };
+
+    if (this.loop in narratives) return narratives[this.loop];
+    if (this.loop <= 3) return narratives[1];
+    if (this.loop <= 5) return narratives[5];
+    if (this.loop <= 8) return narratives[8];
+    return narratives[10];
+  },
+
+  getEnvPhaseName() {
+    const phase = Math.floor((this.loop - 1) / 3);
+    const names = ['初始', '裂痕', '痕迹', '低语', '真相'];
+    return names[Math.min(phase, names.length - 1)];
+  },
+
+  start() {
+    document.getElementById('start-overlay').style.display = 'none';
+    document.getElementById('game-container').style.display = 'flex';
+
+    if (this.logs.length > 0) {
+      // Continue existing game
+      if (!this.directClueDigits) this.directClueDigits = new Set();
+      this.generateGrid();
+      this.generateEnvDetails();
+      this.revealedCells.clear();
+      this.currentMark = null;
+      this.totalReveals = 0;
+      this.addLog(this.getNarrative());
+      this.startLoop();
+    } else {
+      // New game
+      this.loop = 1;
+      this.deaths = 0;
+      this.totalReveals = 0;
+      this.persistentMarks = [];
+      this.logs = [];
+      this.directClueDigits = new Set();
+      this.generateCode();
+      this.generateGrid();
+      this.generateEnvDetails();
+      this.addLog(this.getNarrative());
+      this.saveState();
+      this.startLoop();
+    }
+  },
+
+  startLoop() {
+    this.gameActive = true;
+    this.timer = this.TIMER_DURATION;
+    this.revealedCells.clear();
+    this.currentMark = null;
+    this.lastClickedCell = null;
+    this.updateUI();
+    this.startTimer();
+    this.drawGrid();
+  },
+
+  startTimer() {
+    this.stopTimer();
+    this.timerActive = true;
+    this.timerInterval = setInterval(() => {
+      if (!this.timerActive) return;
+      this.timer -= 0.1;
+      if (this.timer <= 0) {
+        this.timer = 0;
+        this.timerActive = false;
+        this.onTimerExpire();
+      }
+      this.updateTimerBar();
+    }, 100);
+  },
+
+  stopTimer() {
+    this.timerActive = false;
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = null;
+    }
+  },
+
+  updateTimerBar() {
+    const bar = document.getElementById('timer-bar');
+    const pct = (this.timer / this.TIMER_DURATION) * 100;
+    bar.style.width = pct + '%';
+    if (pct < 20) {
+      bar.classList.add('critical');
+    } else {
+      bar.classList.remove('critical');
+    }
+  },
+
+  onTimerExpire() {
+    this.stopTimer();
+    this.gameActive = false;
+    this.playDeath();
+    this.onDeath('时间耗尽，轮回重置...');
+  },
+
+  onDeath(reason) {
+    this.deaths++;
+    this.saveState();
+
+    const overlay = document.getElementById('death-overlay');
+    overlay.style.display = 'flex';
+    overlay.querySelector('.death-sub').textContent = reason || '时间开始倒流...';
+
+    // Glitch effect on canvas
+    this.triggerDeathEffect();
+
+    setTimeout(() => {
+      overlay.style.display = 'none';
+      this.loop++;
+      this.addLog(this.getNarrative());
+      this.generateGrid();
+      this.generateEnvDetails();
+      this.saveState();
+      this.startLoop();
+    }, 2000);
+  },
+
+  triggerDeathEffect() {
+    let frames = 0;
+    const maxFrames = 20;
+    const effect = setInterval(() => {
+      frames++;
+      this.ctx.save();
+      const offset = (Math.random() - 0.5) * 20;
+      this.ctx.translate(offset, 0);
+      this.ctx.globalAlpha = 1 - (frames / maxFrames);
+      this.drawGrid();
+      this.ctx.restore();
+      if (frames >= maxFrames) clearInterval(effect);
+    }, 50);
+  },
+
+  setupGridClick() {
+    this.canvas.addEventListener('click', (e) => {
+      if (!this.gameActive) return;
+      const rect = this.canvas.getBoundingClientRect();
+      const scaleX = this.canvas.width / rect.width;
+      const scaleY = this.canvas.height / rect.height;
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
+      const col = Math.floor(x / (this.CELL_SIZE + this.CELL_GAP));
+      const row = Math.floor(y / (this.CELL_SIZE + this.CELL_GAP));
+
+      if (row < 0 || row >= this.GRID_SIZE || col < 0 || col >= this.GRID_SIZE) return;
+
+      const cell = this.grid[row * this.GRID_SIZE + col];
+      const cellKey = `${row},${col}`;
+
+      if (this.revealedCells.has(cellKey)) return;
+      const mark = this.persistentMarks.find(m => m.key === cellKey);
+      if (mark) {
+        // Re-read the saved clue, don't trigger the cell
+        this.playClue();
+        this.showClue(mark.clue);
+        return;
+      }
+
+      this.revealCell(cell, row, col);
+    });
+  },
+
+  revealCell(cell, row, col) {
+    const cellKey = `${row},${col}`;
+    this.revealedCells.add(cellKey);
+    this.totalReveals++;
+    this.lastClickedCell = { cell, row, col };
+
+    switch (cell.type) {
+      case 'empty':
+        this.playReveal();
+        this.drawGrid();
+        this.updateUI();
+        break;
+      case 'clue':
+        this.playClue();
+        this.drawGrid();
+        this.showClue(cell.clue);
+        this.updateUI();
+        break;
+      case 'death':
+        this.playDeath();
+        this.drawGrid();
+        setTimeout(() => {
+          this.onDeath('你触碰了不该触碰的东西...');
+        }, 500);
+        break;
+    }
+  },
+
+  showClue(clue) {
+    const display = document.getElementById('clue-display');
+    const pos = this.lastClickedCell ? ` [${this.lastClickedCell.row},${this.lastClickedCell.col}]` : '';
+    document.getElementById('clue-type').textContent = clue.type + pos;
+    document.getElementById('clue-text').textContent = clue.text;
+
+    const markBtn = document.getElementById('mark-btn');
+    const canMark = this.persistentMarks.length < this.MAX_MARKS &&
+      this.lastClickedCell &&
+      this.lastClickedCell.cell.type === 'clue' &&
+      !this.persistentMarks.find(m => m.key === `${this.lastClickedCell.row},${this.lastClickedCell.col}`);
+    markBtn.style.display = canMark ? 'inline-block' : 'none';
+    markBtn.textContent = canMark ? `标记此记忆 (${this.MAX_MARKS - this.persistentMarks.length} 剩余)` : '已达标记上限';
+
+    display.style.display = 'flex';
+
+    // Auto close after delay
+    setTimeout(() => {
+      if (display.style.display === 'flex') {
+        display.style.display = 'none';
+      }
+    }, 4000);
+  },
+
+  markCurrentCell() {
+    if (!this.lastClickedCell) return;
+    const { cell, row, col } = this.lastClickedCell;
+
+    if (cell.type !== 'clue') return;
+    if (this.persistentMarks.length >= this.MAX_MARKS) return;
+    if (this.currentMark) return;
+
+    const key = `${row},${col}`;
+    if (this.persistentMarks.find(m => m.key === key)) return;
+
+    this.persistentMarks.push({
+      key,
+      row,
+      col,
+      clue: cell.clue,
+      loop: this.loop
+    });
+    this.currentMark = key;
+    this.playMark();
+
+    document.getElementById('clue-display').style.display = 'none';
+    this.drawGrid();
+    this.updateUI();
+    this.saveState();
+  },
+
+  setupCodeInput() {
+    const inputs = document.querySelectorAll('#code-input input');
+    inputs.forEach((input, idx) => {
+      input.addEventListener('input', (e) => {
+        const val = e.target.value;
+        if (val.length > 0) {
+          const next = inputs[idx + 1];
+          if (next) next.focus();
+        }
+      });
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && !input.value && idx > 0) {
+          inputs[idx - 1].focus();
+        }
+        if (e.key === 'Enter') {
+          this.submitCode();
+        }
+      });
+      input.addEventListener('focus', () => input.select());
+    });
+  },
+
+  submitCode() {
+    if (!this.gameActive) return;
+    const inputs = document.querySelectorAll('#code-input input');
+    let code = '';
+    inputs.forEach(inp => code += inp.value);
+
+    if (code.length < 4) {
+      this.playTone(200, 0.1, 'square', 0.05);
+      return;
+    }
+
+    const digits = code.split('').map(Number);
+    if (digits.every((d, i) => d === this.secretCode[i])) {
+      this.onVictory();
+    } else {
+      this.playDeath();
+      inputs.forEach(inp => inp.value = '');
+      inputs[0].focus();
+      this.onDeath('密码错误。循环重置...');
+    }
+  },
+
+  onVictory() {
+    this.stopTimer();
+    this.gameActive = false;
+    this.playVictory();
+
+    const overlay = document.getElementById('victory-overlay');
+    overlay.style.display = 'flex';
+    document.getElementById('victory-stats').innerHTML =
+      `轮回次数：${this.loop} &nbsp;|&nbsp; 死亡次数：${this.deaths} &nbsp;|&nbsp; 揭示细胞：${this.totalReveals} &nbsp;|&nbsp; 密码：${this.secretCode.join('')}`;
+
+    this.clearState();
+  },
+
+  restart() {
+    document.getElementById('victory-overlay').style.display = 'none';
+    this.clearState();
+    this.loop = 1;
+    this.deaths = 0;
+    this.totalReveals = 0;
+    this.persistentMarks = [];
+    this.logs = [];
+    this.directClueDigits = new Set();
+    this.revealedCells.clear();
+    this.currentMark = null;
+    this.generateCode();
+    this.generateGrid();
+    this.generateEnvDetails();
+    this.addLog(this.getNarrative());
+    this.saveState();
+
+    // Clear code inputs
+    document.querySelectorAll('#code-input input').forEach(inp => inp.value = '');
+    this.startLoop();
+  },
+
+  addLog(text) {
+    this.logs.push({ loop: this.loop, text });
+    this.renderLogs();
+  },
+
+  renderLogs() {
+    const container = document.getElementById('log-entries');
+    container.innerHTML = '';
+    this.logs.forEach((log, i) => {
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.style.animationDelay = (i * 0.05) + 's';
+      entry.innerHTML = `<span class="loop-tag">[轮回${log.loop}]</span> ${log.text}`;
+      container.appendChild(entry);
+    });
+    container.scrollTop = container.scrollHeight;
+  },
+
+  updateUI() {
+    document.getElementById('loop-counter').textContent = `第 ${this.loop} 次轮回`;
+    document.getElementById('marks-left').textContent = Math.max(0, this.MAX_MARKS - this.persistentMarks.length);
+    document.getElementById('marks-placed').textContent = this.persistentMarks.length;
+    document.getElementById('cells-revealed').textContent = this.totalReveals;
+    document.getElementById('death-count').textContent = this.deaths;
+    document.getElementById('env-phase').textContent = this.getEnvPhaseName();
+    this.updateTimerBar();
+  },
+
+  drawGrid() {
+    const ctx = this.ctx;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Draw environment details
+    this.drawEnvDetails();
+
+    // Draw grid cells
+    for (let r = 0; r < this.GRID_SIZE; r++) {
+      for (let c = 0; c < this.GRID_SIZE; c++) {
+        const cell = this.grid[r * this.GRID_SIZE + c];
+        const x = c * (this.CELL_SIZE + this.CELL_GAP);
+        const y = r * (this.CELL_SIZE + this.CELL_GAP);
+        const key = `${r},${c}`;
+        const isRevealed = this.revealedCells.has(key);
+        const isMarked = this.persistentMarks.find(m => m.key === key);
+
+        ctx.save();
+
+        if (isMarked) {
+          // Golden glow for persistent marks
+          ctx.shadowColor = '#ffd700';
+          ctx.shadowBlur = 12;
+          ctx.fillStyle = '#1a1a0a';
+          ctx.strokeStyle = '#ffd700';
+          ctx.lineWidth = 2;
+          ctx.fillRect(x, y, this.CELL_SIZE, this.CELL_SIZE);
+          ctx.strokeRect(x, y, this.CELL_SIZE, this.CELL_SIZE);
+
+          // Draw clue icon
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = '#ffd700';
+          ctx.font = '20px serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('⭐', x + this.CELL_SIZE / 2, y + this.CELL_SIZE / 2);
+        } else if (isRevealed) {
+          if (cell.type === 'death') {
+            ctx.fillStyle = '#2a0a0a';
+            ctx.strokeStyle = '#ff4444';
+            ctx.lineWidth = 1;
+            ctx.fillRect(x, y, this.CELL_SIZE, this.CELL_SIZE);
+            ctx.strokeRect(x + 1, y + 1, this.CELL_SIZE - 2, this.CELL_SIZE - 2);
+            ctx.fillStyle = '#ff444466';
+            ctx.font = '18px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('☠', x + this.CELL_SIZE / 2, y + this.CELL_SIZE / 2);
+          } else if (cell.type === 'clue') {
+            ctx.fillStyle = '#0a1a2a';
+            ctx.strokeStyle = '#4488ff';
+            ctx.lineWidth = 1;
+            ctx.fillRect(x, y, this.CELL_SIZE, this.CELL_SIZE);
+            ctx.strokeRect(x + 1, y + 1, this.CELL_SIZE - 2, this.CELL_SIZE - 2);
+            ctx.fillStyle = '#4488ff88';
+            ctx.font = '18px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('ℹ', x + this.CELL_SIZE / 2, y + this.CELL_SIZE / 2);
+          } else {
+            ctx.fillStyle = '#0a0a1a';
+            ctx.strokeStyle = '#333355';
+            ctx.lineWidth = 1;
+            ctx.fillRect(x, y, this.CELL_SIZE, this.CELL_SIZE);
+            ctx.strokeRect(x + 1, y + 1, this.CELL_SIZE - 2, this.CELL_SIZE - 2);
+            ctx.fillStyle = 'rgba(80, 80, 120, 0.3)';
+            ctx.font = '16px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('·', x + this.CELL_SIZE / 2, y + this.CELL_SIZE / 2);
+          }
+        } else {
+          // Unrevealed cell
+          const hoverDark = 0.08 + (r + c) * 0.005;
+          ctx.fillStyle = `rgba(20, 20, 40, ${hoverDark + 0.4})`;
+          ctx.strokeStyle = '#2a2a5a44';
+          ctx.lineWidth = 1;
+          ctx.fillRect(x, y, this.CELL_SIZE, this.CELL_SIZE);
+          ctx.strokeRect(x + 1, y + 1, this.CELL_SIZE - 2, this.CELL_SIZE - 2);
+          // Subtle coordinate
+          ctx.fillStyle = 'rgba(100, 100, 140, 0.25)';
+          ctx.font = '9px monospace';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'top';
+          ctx.fillText(`${r}${c}`, x + 3, y + 3);
+        }
+
+        ctx.restore();
+      }
+    }
+
+    // Ghost traces from previous loops
+    if (this.loop >= 2) {
+      this.drawGhostTraces();
+    }
+  },
+
+  drawEnvDetails() {
+    const ctx = this.ctx;
+    this.envDetails.forEach(detail => {
+      ctx.save();
+      ctx.translate(detail.x, detail.y);
+      ctx.rotate(detail.angle);
+      ctx.strokeStyle = `rgba(255, 255, 255, ${detail.opacity})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      if (detail.type === 'crack') {
+        ctx.moveTo(0, 0);
+        ctx.lineTo(detail.length * 0.3, -3);
+        ctx.lineTo(detail.length * 0.6, 2);
+        ctx.lineTo(detail.length, -1);
+      } else {
+        ctx.moveTo(0, 0);
+        ctx.lineTo(detail.length, 0);
+      }
+      ctx.stroke();
+      ctx.restore();
+    });
+  },
+
+  drawGhostTraces() {
+    const ctx = this.ctx;
+    const ghostCount = Math.min(this.loop - 1, 5);
+    for (let i = 0; i < ghostCount; i++) {
+      const x = Math.random() * this.canvas.width;
+      const y = Math.random() * this.canvas.height;
+      const opacity = 0.02 + Math.random() * 0.03;
+
+      ctx.save();
+      ctx.fillStyle = `rgba(139, 92, 246, ${opacity})`;
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+
+      const ghostTexts = ['...?', `${this.secretCode[i % 4]}`, 'HELP', '0', '1', '3', '7', 'LOOP'];
+      ctx.fillText(ghostTexts[i % ghostTexts.length], x, y);
+      ctx.restore();
+    }
+  },
+
+  saveState() {
+    try {
+      const state = {
+        loop: this.loop,
+        secretCode: this.secretCode,
+        persistentMarks: this.persistentMarks,
+        logs: this.logs,
+        deaths: this.deaths,
+        totalReveals: this.totalReveals,
+        directClueDigits: Array.from(this.directClueDigits || []),
+      };
+      localStorage.setItem('loop_cipher_save', JSON.stringify(state));
+    } catch (e) { }
+  },
+
+  loadState() {
+    try {
+      const raw = localStorage.getItem('loop_cipher_save');
+      if (!raw) return;
+      const state = JSON.parse(raw);
+      if (!state || !state.secretCode || state.secretCode.length !== 4) return;
+
+      this.loop = state.loop || 1;
+      this.secretCode = state.secretCode;
+      this.persistentMarks = state.persistentMarks || [];
+      this.logs = state.logs || [];
+      this.deaths = state.deaths || 0;
+      this.totalReveals = state.totalReveals || 0;
+      this.directClueDigits = new Set(state.directClueDigits || []);
+
+      this.renderLogs();
+      this.updateUI();
+
+      if (this.logs.length > 0) {
+        // Show continue option on start screen
+        const startBtn = document.querySelector('#start-overlay button');
+        startBtn.textContent = '继续轮回';
+      }
+    } catch (e) { }
+  },
+
+  clearState() {
+    try {
+      localStorage.removeItem('loop_cipher_save');
+    } catch (e) { }
+  },
+
+  // Close clue display on background click
+  initCloseClue() {
+    document.getElementById('clue-display').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('clue-display')) {
+        e.target.style.display = 'none';
+      }
+    });
+  },
+
+  initHelp() {
+    const helpOverlay = document.getElementById('helpOverlay');
+    document.getElementById('helpBtn').addEventListener('click', () => {
+      helpOverlay.classList.add('show');
+    });
+    helpOverlay.addEventListener('click', (e) => {
+      if (e.target === helpOverlay) helpOverlay.classList.remove('show');
+    });
+    document.addEventListener('keydown', (e) => {
+      if (helpOverlay.classList.contains('show') && e.code === 'Escape') helpOverlay.classList.remove('show');
+    });
+  }
+};
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', () => {
+  Game.init();
+  Game.initCloseClue();
+  Game.initHelp();
+});
+</script>
+</body>
+</html>

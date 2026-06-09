@@ -1,0 +1,1712 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>时间导演 - Time Director</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+  display: flex; justify-content: center; align-items: center;
+  min-height: 100vh; font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  color: #fff; overflow: hidden; user-select: none;
+}
+#gameWrapper {
+  position: relative; display: flex; flex-direction: column; align-items: center;
+}
+#topBar {
+  width: 100%; max-width: min(960px, calc(100vw - 16px));
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px; background: rgba(0,0,0,0.4); border-radius: 10px 10px 0 0;
+  border: 1px solid rgba(255,255,255,0.1); border-bottom: none;
+  flex-wrap: nowrap; overflow-x: auto;
+}
+#topBar h1 { font-size: 14px; text-shadow: 0 0 10px rgba(100,200,255,0.8); white-space: nowrap; }
+#levelInfo { font-size: 12px; color: #aef; white-space: nowrap; }
+#recIndicator {
+  font-size: 11px; padding: 2px 8px; border-radius: 10px;
+  background: rgba(255,50,50,0.3); display: none;
+}
+#recIndicator.active {
+  display: inline-block;
+  animation: blink 0.6s ease-in-out infinite alternate;
+}
+@keyframes blink {
+  from { background: rgba(255,50,50,0.5); }
+  to { background: rgba(255,50,50,0.9); }
+}
+#trackStatus { display: flex; gap: 4px; align-items: center; }
+.track-badge {
+  font-size: 10px; padding: 1px 6px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(0,0,0,0.3); white-space: nowrap;
+}
+.track-badge.t1 { border-color: #4fc3f7; }
+.track-badge.t2 { border-color: #66bb6a; }
+.track-badge.t3 { border-color: #ba68c8; }
+.track-badge.recorded { background: rgba(255,255,255,0.15); }
+.track-badge.active { box-shadow: 0 0 6px currentColor; }
+#gameCanvas {
+  border: 1px solid rgba(255,255,255,0.15);
+  display: block; cursor: default;
+  max-width: calc(100vw - 16px);
+  height: auto;
+  aspect-ratio: 16/9;
+}
+#bottomBar {
+  width: 100%; max-width: min(960px, calc(100vw - 16px));
+  padding: 6px 12px; background: rgba(0,0,0,0.4);
+  border-radius: 0 0 10px 10px; border: 1px solid rgba(255,255,255,0.1); border-top: none;
+  display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #99a;
+}
+#controls { display: flex; gap: 8px; }
+.controls kbd {
+  background: rgba(255,255,255,0.12); padding: 1px 4px; border-radius: 4px;
+  font-family: inherit; font-size: 10px; border: 1px solid rgba(255,255,255,0.2);
+}
+#coinCount { font-size: 11px; white-space: nowrap; }
+
+/* Touch controls */
+#touchControls {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 8px 0;
+}
+.touch-row {
+  display: flex; gap: 8px; justify-content: center; align-items: center;
+}
+.touch-btn {
+  width: 56px; height: 56px; border-radius: 12px;
+  background: rgba(30, 30, 60, 0.85);
+  border: 1.5px solid rgba(100,180,255,0.25);
+  color: rgba(180, 210, 255, 0.9);
+  font-size: 18px; font-weight: bold;
+  display: flex; align-items: center; justify-content: center;
+  user-select: none; -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+.touch-btn:active, .touch-btn.pressed {
+  background: rgba(60, 80, 140, 0.9);
+  border-color: rgba(100,180,255,0.6);
+  box-shadow: 0 0 8px rgba(100,180,255,0.3);
+}
+.touch-btn.small {
+  width: 48px; height: 48px; font-size: 13px;
+}
+.touch-btn.wide {
+  width: 80px;
+}
+.touch-btn .btn-label {
+  font-size: 10px; color: rgba(150,180,220,0.7);
+}
+
+/* Overlay */
+#overlay {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  display: none; justify-content: center; align-items: center;
+  background: rgba(15,12,41,0.85); z-index: 10;
+  flex-direction: column; text-align: center; border-radius: 10px;
+  padding: 16px;
+}
+#overlay.show { display: flex; }
+#overlay h2 { font-size: 22px; margin-bottom: 8px; text-shadow: 0 0 20px rgba(100,200,255,0.8); }
+#overlay p { font-size: 12px; color: #b0c4de; margin-bottom: 6px; max-width: 500px; line-height: 1.5; }
+#overlay .hint { font-size: 11px; color: #7a8a9e; margin-top: 4px; }
+.btn-group { margin-top: 12px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.btn-group button, .btn-group a.button {
+  padding: 8px 22px; border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(100,180,255,0.15); color: #fff; border-radius: 8px;
+  font-size: 14px; cursor: pointer; font-family: inherit;
+  transition: background 0.2s, box-shadow 0.2s; text-decoration: none;
+}
+.btn-group button:hover, .btn-group a.button:hover {
+  background: rgba(100,180,255,0.35); box-shadow: 0 0 12px rgba(100,180,255,0.4);
+}
+.btn-group a.button { display: inline-block; line-height: 1.6; }
+
+/* Help overlay */
+#helpOverlay {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  display: none; justify-content: center; align-items: center;
+  background: rgba(15,12,41,0.92); z-index: 11;
+  flex-direction: column; text-align: center; border-radius: 10px;
+  padding: 16px;
+}
+#helpOverlay.show { display: flex; }
+#helpOverlay h2 { font-size: 18px; margin-bottom: 12px; color: #aef; }
+#helpOverlay .help-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px;
+  text-align: left; font-size: 11px; color: #c0d0e0;
+}
+#helpOverlay .help-grid kbd {
+  background: rgba(255,255,255,0.12); padding: 1px 4px; border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.2); margin-right: 4px; font-family: inherit;
+}
+#helpOverlay p { margin-top: 10px; color: #7a8a9e; font-size: 11px; }
+
+/* Toast */
+#toast {
+  position: absolute; top: 50px; left: 50%; transform: translateX(-50%);
+  padding: 6px 18px; border-radius: 8px;
+  background: rgba(100,180,255,0.2); border: 1px solid rgba(100,180,255,0.4);
+  color: #aef; font-size: 12px; z-index: 12;
+  opacity: 0; transition: opacity 0.2s;
+  pointer-events: none; white-space: nowrap;
+}
+#toast.show { opacity: 1; }
+
+/* Level select overlay */
+#levelSelectOverlay {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  display: none; justify-content: center; align-items: flex-start;
+  background: rgba(15,12,41,0.92); z-index: 13;
+  flex-direction: column; text-align: center; border-radius: 10px;
+  padding: 16px;
+}
+#levelSelectOverlay.show { display: flex; }
+#levelSelectOverlay h2 { font-size: 20px; margin-bottom: 6px; color: #aef; }
+#levelSelectOverlay p { font-size: 12px; color: #7a8a9e; margin-bottom: 12px; }
+.level-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+  margin-bottom: 12px;
+  max-height: 60vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px;
+}
+.level-grid button {
+  width: 60px; height: 44px; border: 1px solid rgba(100,180,255,0.3);
+  background: rgba(100,180,255,0.12); color: #fff; border-radius: 8px;
+  font-size: 15px; cursor: pointer; font-family: inherit;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.level-grid button:hover {
+  background: rgba(100,180,255,0.35); box-shadow: 0 0 10px rgba(100,180,255,0.4);
+}
+#levelSelectOverlay > button {
+  padding: 6px 20px; border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,100,100,0.12); color: #faa; border-radius: 8px;
+  font-size: 12px; cursor: pointer; font-family: inherit; margin-top: 4px;
+}
+
+@media (max-width: 600px) {
+  #overlay h2 { font-size: 18px; margin-bottom: 6px; }
+  #overlay p { font-size: 11px; }
+  #overlay .hint { font-size: 10px; }
+  .btn-group button, .btn-group a.button { padding: 7px 18px; font-size: 13px; }
+  #helpOverlay {
+    align-items: flex-start;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    justify-content: flex-start;
+    padding-top: 40px;
+  }
+  #helpOverlay h2 { font-size: 16px; margin-bottom: 10px; }
+  #helpOverlay .help-grid {
+    grid-template-columns: 1fr;
+    gap: 6px 0;
+    font-size: 12px;
+  }
+  #helpOverlay .help-grid > span {
+    display: flex; gap: 4px; padding: 3px 0; align-items: center;
+  }
+  #topBar h1 { font-size: 13px; }
+  #levelInfo { font-size: 11px; }
+  .track-badge { font-size: 9px; padding: 1px 5px; }
+}
+</style>
+</head>
+<body>
+<div id="gameWrapper">
+  <div id="topBar">
+    <h1>&#9201; 时间导演</h1>
+    <button id="helpBtn" style="
+      width:26px;height:26px;border-radius:50%;
+      background:rgba(100,180,255,0.15);border:1px solid rgba(100,180,255,0.3);
+      color:#aef;font-size:13px;font-weight:bold;cursor:pointer;
+      display:inline-flex;align-items:center;justify-content:center;
+      transition:background 0.2s; flex-shrink: 0;
+    " onmouseover="this.style.background='rgba(100,180,255,0.35)'"
+       onmouseout="this.style.background='rgba(100,180,255,0.15)'"
+       onclick="helpVisible=true;document.getElementById('helpOverlay').classList.add('show');this.blur()">?</button>
+    <span id="levelInfo">第 1 / 12 关</span>
+    <span id="recIndicator">&#8226; 录制中</span>
+    <div id="trackStatus">
+      <span class="track-badge t1">轨道1</span>
+      <span class="track-badge t2">轨道2</span>
+      <span class="track-badge t3">轨道3</span>
+    </div>
+  </div>
+  <canvas id="gameCanvas" width="960" height="540"></canvas>
+  <div id="bottomBar">
+    <div id="controls">
+      <span>&#9166;&#9167; 移动</span>
+      <span>Space 跳跃</span>
+      <span>R 录制</span>
+      <span>1/2/3 轨道</span>
+    </div>
+    <span id="coinCount"></span>
+  </div>
+  <!-- Touch controls -->
+  <div id="touchControls">
+    <div class="touch-row">
+      <div class="touch-btn wide" data-key="ArrowLeft" id="btnLeft">&#9664;</div>
+      <div class="touch-btn small" data-key="KeyR" id="btnRecord" ontouchstart="handleButtonStart(event);this.classList.add('pressed');sfxRecordStart();(function(){if(!helpVisible&&gameRunning&&!levelTransition)toggleRecording();if(helpVisible){helpVisible=false;document.getElementById('helpOverlay').classList.remove('show');this.classList.remove('pressed');return;}if(!gameRunning||levelTransition){this.classList.remove('pressed');return;}toggleRecording();this.classList.remove('pressed');})()}" ontouchend="this.classList.remove('pressed')" onclick="if(!helpVisible&&gameRunning&&!levelTransition)toggleRecording();">R</div>
+      <div class="touch-btn wide" data-key="ArrowRight" id="btnRight">&#9654;</div>
+    </div>
+    <div class="touch-row">
+      <div class="touch-btn wide" data-key="Space" id="btnJump">
+        <div style="display:flex;flex-direction:column;align-items:center;line-height:1.1;">
+          <span>&#9650;</span>
+          <span class="btn-label">跳跃</span>
+        </div>
+      </div>
+      <div class="touch-btn small" data-key="Digit1" id="btnT1" ontouchstart="handleButtonStart(event)" onclick="toggleTrack(0)">1</div>
+      <div class="touch-btn small" data-key="Digit2" id="btnT2" ontouchstart="handleButtonStart(event)" onclick="toggleTrack(1)">2</div>
+      <div class="touch-btn small" data-key="Digit3" id="btnT3" ontouchstart="handleButtonStart(event)" onclick="toggleTrack(2)">3</div>
+    </div>
+  </div>
+  <div id="overlay">
+    <h2 id="overlayTitle"></h2>
+    <p id="overlayDesc"></p>
+    <p class="hint" id="overlayHint"></p>
+    <div class="btn-group" id="overlayBtns"></div>
+  </div>
+  <div id="helpOverlay">
+    <h2>&#9201; 时间导演 - 操作指南</h2>
+    <div class="help-grid">
+      <span><kbd>&#8592;</kbd> <kbd>&#8594;</kbd></span><span>左右移动</span>
+      <span><kbd>Space</kbd></span><span>跳跃</span>
+      <span><kbd>R</kbd></span><span>开始 / 停止录制目标轨道</span>
+      <span><kbd>Shift+R</kbd></span><span>切换录制目标轨道</span>
+      <span><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></span><span>激活 / 停用对应轨道</span>
+      <span><kbd>Esc</kbd></span><span>重置当前关卡</span>
+      <span><kbd>H</kbd></span><span>显示/隐藏帮助</span>
+    </div>
+    <p>按 H 或 Esc 关闭</p>
+  </div>
+  <div id="toast"></div>
+  <div id="levelSelectOverlay">
+    <h2>&#127916; 选关测试</h2>
+    <p>选择关卡进行测试</p>
+    <div class="level-grid" id="levelGrid"></div>
+    <button onclick="document.getElementById('levelSelectOverlay').classList.remove('show')">关闭</button>
+  </div>
+<script>
+// ============================================================
+// TIME DIRECTOR - 时间导演
+// A time-clone puzzle platformer
+// ============================================================
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+// ---- Audio engine (Web Audio API) ----
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playTone(freq, duration, type, volume, freqEnd) {
+  try {
+    const ac = getAudioCtx();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, ac.currentTime);
+    if (freqEnd) osc.frequency.exponentialRampToValueAtTime(freqEnd, ac.currentTime + duration);
+    gain.gain.setValueAtTime(volume || 0.15, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ac.destination);
+    osc.start(ac.currentTime);
+    osc.stop(ac.currentTime + duration);
+  } catch (_) {}
+}
+function playNoise(duration, volume) {
+  try {
+    const ac = getAudioCtx();
+    const bufferSize = ac.sampleRate * duration;
+    const buffer = ac.createBuffer(1, bufferSize, ac.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1);
+    const source = ac.createBufferSource();
+    source.buffer = buffer;
+    const gain = ac.createGain();
+    gain.gain.setValueAtTime(volume || 0.1, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + duration);
+    source.connect(gain);
+    gain.connect(ac.destination);
+    source.start(ac.currentTime);
+  } catch (_) {}
+}
+function sfxJump() {
+  playTone(300, 0.12, 'square', 0.1, 600);
+}
+function sfxCoin() {
+  playTone(880, 0.08, 'sine', 0.18);
+  setTimeout(() => playTone(1320, 0.15, 'sine', 0.18), 60);
+}
+function sfxRecordStart() {
+  playTone(440, 0.06, 'square', 0.08);
+  setTimeout(() => playTone(660, 0.1, 'square', 0.08), 80);
+}
+function sfxRecordStop() {
+  playTone(660, 0.06, 'square', 0.08);
+  setTimeout(() => playTone(440, 0.12, 'square', 0.08), 80);
+}
+function sfxTrackToggle() {
+  playTone(520, 0.08, 'triangle', 0.1);
+}
+function sfxSwitchPress() {
+  playTone(200, 0.06, 'square', 0.12);
+  setTimeout(() => playTone(400, 0.1, 'square', 0.1), 50);
+}
+function sfxDoorOpen() {
+  playTone(150, 0.15, 'sawtooth', 0.06, 300);
+}
+function sfxVictory() {
+  const notes = [523, 659, 784, 1047];
+  notes.forEach((n, i) => setTimeout(() => playTone(n, 0.2, 'sine', 0.15), i * 100));
+}
+function sfxReset() {
+  playTone(400, 0.1, 'triangle', 0.08, 200);
+}
+function sfxPortal() {
+  playTone(440, 0.3, 'sine', 0.06);
+  playTone(660, 0.3, 'sine', 0.04);
+}
+
+// ---- Game constants ----
+const GRAVITY = 0.5;
+const JUMP_VEL = -10;
+const MOVE_SPEED = 4;
+const MAX_FALL = 12;
+const CLONE_COLORS = [
+  { r: 79, g: 195, b: 247 },   // blue
+  { r: 102, g: 187, b: 106 },  // green
+  { r: 186, g: 104, b: 200 },  // purple
+];
+const CLONE_LABELS = ['轨道1', '轨道2', '轨道3'];
+
+// ---- Game state ----
+let currentLevel = 0;
+let gameRunning = false;
+let frameCount = 0;
+let keys = {};
+let player = null;
+let clones = [];
+let platforms = [];
+let switches = [];
+let doors = [];
+let coins = [];
+let exitPortal = null;
+let particles = [];
+let recording = false;
+let recordingInputs = [];
+let lastRecordTarget = -1;
+let tracks = [
+  { inputs: [], active: false, recorded: false },
+  { inputs: [], active: false, recorded: false },
+  { inputs: [], active: false, recorded: false },
+];
+let levelStars = 0;
+let lastPortalSound = 0;
+let helpVisible = false;
+let levelTransition = false;
+
+// ---- Input handling (keyboard fallback) ----
+document.addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+  if (['Space','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.code)) e.preventDefault();
+
+  if (helpVisible) {
+    helpVisible = false;
+    document.getElementById('helpOverlay').classList.remove('show');
+    return;
+  }
+  if (e.code === 'KeyH') {
+    helpVisible = !helpVisible;
+    document.getElementById('helpOverlay').classList.toggle('show', helpVisible);
+    return;
+  }
+
+  if (!gameRunning || levelTransition) return;
+
+  if (e.code === 'KeyR') {
+    if (e.shiftKey) { cycleRecordTarget(); e.preventDefault(); return; }
+    toggleRecording();
+  }
+  if (e.code === 'Digit1') toggleTrack(0);
+  if (e.code === 'Digit2') toggleTrack(1);
+  if (e.code === 'Digit3') toggleTrack(2);
+  if (e.code === 'Escape') resetLevel();
+});
+document.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+// ---- Touch button handling ----
+// Helper: release audio context on first touch
+document.addEventListener('touchstart', function audioResume() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+}, { once: true });
+
+function handleButtonStart(e) {
+  if (e) e.preventDefault();
+}
+
+// Holdable buttons (movement, jump): set keys[code] on touchstart, clear on touchend
+function setupHoldButton(el) {
+  if (!el) return;
+  const code = el.dataset.key;
+  if (!code) return;
+
+  el.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    keys[code] = true;
+    this.classList.add('pressed');
+    // Resume audio on first interaction
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+  }, { passive: false });
+
+  el.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    keys[code] = false;
+    this.classList.remove('pressed');
+  }, { passive: false });
+
+  el.addEventListener('touchcancel', function(e) {
+    keys[code] = false;
+    this.classList.remove('pressed');
+  });
+
+  // Mouse fallback for desktop testing
+  el.addEventListener('mousedown', function(e) {
+    keys[code] = true;
+    this.classList.add('pressed');
+  });
+  el.addEventListener('mouseup', function() {
+    keys[code] = false;
+    this.classList.remove('pressed');
+  });
+  el.addEventListener('mouseleave', function() {
+    keys[code] = false;
+    this.classList.remove('pressed');
+  });
+}
+
+// Tap-only buttons (record, track toggle, help): trigger on tap
+function setupTapButton(el, handler) {
+  if (!el) return;
+  el.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    this.classList.add('pressed');
+    handler();
+  }, { passive: false });
+  el.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    this.classList.remove('pressed');
+  }, { passive: false });
+}
+
+// Setup all touch buttons
+setupHoldButton(document.getElementById('btnLeft'));
+setupHoldButton(document.getElementById('btnRight'));
+setupHoldButton(document.getElementById('btnJump'));
+
+// Record button (tap to toggle recording)
+setupTapButton(document.getElementById('btnRecord'), function() {
+  if (helpVisible) {
+    helpVisible = false;
+    document.getElementById('helpOverlay').classList.remove('show');
+    return;
+  }
+  if (!gameRunning || levelTransition) return;
+  toggleRecording();
+});
+
+// Track toggle buttons
+setupTapButton(document.getElementById('btnT1'), function() { toggleTrack(0); });
+setupTapButton(document.getElementById('btnT2'), function() { toggleTrack(1); });
+setupTapButton(document.getElementById('btnT3'), function() { toggleTrack(2); });
+
+// ---- Player class ----
+class Player {
+  constructor(x, y) {
+    this.startX = x; this.startY = y;
+    this.x = x; this.y = y;
+    this.w = 20; this.h = 28;
+    this.vx = 0; this.vy = 0;
+    this.onGround = false;
+    this.glowPhase = 0;
+  }
+  reset() {
+    this.x = this.startX; this.y = this.startY;
+    this.vx = 0; this.vy = 0;
+    this.onGround = false;
+  }
+  update(platforms, solidBodies) {
+    this.vx = 0;
+    if (keys['ArrowLeft'] || keys['KeyA']) this.vx = -MOVE_SPEED;
+    if (keys['ArrowRight'] || keys['KeyD']) this.vx = MOVE_SPEED;
+
+    if ((keys['Space'] || keys['ArrowUp'] || keys['KeyW']) && this.onGround) {
+      this.vy = JUMP_VEL;
+      this.onGround = false;
+      spawnJumpParticles(this.x + this.w / 2, this.y + this.h);
+      sfxJump();
+    }
+
+    this.vy += GRAVITY;
+    if (this.vy > MAX_FALL) this.vy = MAX_FALL;
+
+    this.x += this.vx;
+    collideX(this, platforms);
+    collideX(this, solidBodies);
+
+    this.y += this.vy;
+    this.onGround = false;
+    collideY(this, platforms);
+    collideY(this, solidBodies);
+
+    if (this.x < 0) this.x = 0;
+    if (this.x + this.w > W) this.x = W - this.w;
+    if (this.y > H + 50) { this.reset(); sfxReset(); }
+
+    if ((Math.abs(this.vx) > 0 || Math.abs(this.vy) > 1) && frameCount % 3 === 0) {
+      particles.push(createParticle(this.x + this.w / 2, this.y + this.h, '#ffffff', 0.5));
+    }
+
+    this.glowPhase += 0.05;
+  }
+  draw(ctx) {
+    const alpha = 0.9 + 0.1 * Math.sin(this.glowPhase);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.shadowColor = '#fff';
+    ctx.shadowBlur = 15;
+    ctx.fillStyle = '#fff';
+    roundRect(ctx, this.x, this.y, this.w, this.h, 4);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#302b63';
+    ctx.fillRect(this.x + 5, this.y + 7, 4, 4);
+    ctx.fillRect(this.x + 12, this.y + 7, 4, 4);
+    ctx.restore();
+  }
+}
+
+// ---- Clone class ----
+class Clone {
+  constructor(trackIndex, inputs) {
+    this.trackIndex = trackIndex;
+    this.inputs = inputs;
+    this.x = 0; this.y = 0;
+    this.w = 20; this.h = 28;
+    this.vx = 0; this.vy = 0;
+    this.onGround = false;
+    this.localFrame = 0;
+    this.color = CLONE_COLORS[trackIndex];
+    this.alive = true;
+    this.held = false; // reached end of inputs, holding position
+    this.spawned = true; // true = visible & active
+  }
+  reset(startX, startY) {
+    this.x = startX; this.y = startY;
+    this.vx = 0; this.vy = 0;
+    this.onGround = false;
+    this.localFrame = 0;
+    this.alive = true;
+    this.held = false;
+    this.spawned = true;
+  }
+  update(platforms, otherBodies) {
+    if (!this.alive || !this.spawned) return;
+
+    if (this.held) {
+      // Apply gravity so clone stays on ground/platform
+      this.vy += GRAVITY;
+      if (this.vy > MAX_FALL) this.vy = MAX_FALL;
+      this.y += this.vy;
+      this.onGround = false;
+      collideY(this, platforms);
+      collideY(this, otherBodies);
+      if (this.y > H + 50) this.alive = false;
+      return;
+    }
+
+    if (!this.inputs || this.inputs.length === 0) return;
+    this.localFrame++;
+    if (this.localFrame >= this.inputs.length) {
+      this.held = true;
+      // Apply one last frame of physics
+      this.vy += GRAVITY;
+      this.y += this.vy;
+      this.onGround = false;
+      collideY(this, platforms);
+      collideY(this, otherBodies);
+      return;
+    }
+
+    const input = this.inputs[this.localFrame];
+    this.vx = 0;
+    if (input.left) this.vx = -MOVE_SPEED;
+    if (input.right) this.vx = MOVE_SPEED;
+    if (input.jump && this.onGround) {
+      this.vy = JUMP_VEL;
+      this.onGround = false;
+    }
+
+    this.vy += GRAVITY;
+    if (this.vy > MAX_FALL) this.vy = MAX_FALL;
+
+    this.x += this.vx;
+    collideX(this, platforms);
+    collideX(this, otherBodies);
+
+    this.y += this.vy;
+    this.onGround = false;
+    collideY(this, platforms);
+    collideY(this, otherBodies);
+
+    if (this.x < 0) this.x = 0;
+    if (this.x + this.w > W) this.x = W - this.w;
+    if (this.y > H + 50) this.alive = false;
+  }
+  draw(ctx) {
+    if (!this.alive || !this.spawned) return;
+    const c = this.color;
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    ctx.shadowColor = `rgb(${c.r},${c.g},${c.b})`;
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = `rgb(${c.r},${c.g},${c.b})`;
+    roundRect(ctx, this.x, this.y, this.w, this.h, 4);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 0.65;
+    ctx.fillStyle = `rgb(${c.r},${c.g},${c.b})`;
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(CLONE_LABELS[this.trackIndex], this.x + this.w / 2, this.y - 6);
+    ctx.restore();
+  }
+  getBody() {
+    if (!this.alive || !this.spawned) return null;
+    return { x: this.x, y: this.y, w: this.w, h: this.h };
+  }
+}
+
+// ---- Collision helpers ----
+function collideX(obj, solids) {
+  for (const s of solids) {
+    if (!s) continue;
+    if (rectOverlap(obj, s)) {
+      if (obj.vx > 0) obj.x = s.x - obj.w;
+      else if (obj.vx < 0) obj.x = s.x + s.w;
+      else obj.x = s.x - obj.w; // default push left
+      obj.vx = 0;
+    }
+  }
+}
+function collideY(obj, solids) {
+  for (const s of solids) {
+    if (!s) continue;
+    if (rectOverlap(obj, s)) {
+      if (obj.vy > 0) {
+        obj.y = s.y - obj.h;
+        obj.vy = 0;
+        obj.onGround = true;
+      } else if (obj.vy < 0) {
+        obj.y = s.y + s.h;
+        obj.vy = 0;
+      } else {
+        obj.y = s.y - obj.h;
+        obj.onGround = true;
+      }
+    }
+  }
+}
+function rectOverlap(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+// ---- Drawing helpers ----
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// ---- Particles ----
+function createParticle(x, y, color, life) {
+  return {
+    x, y, color, life: life || 1, maxLife: life || 1,
+    vx: (Math.random() - 0.5) * 2,
+    vy: (Math.random() - 0.5) * 2 - 1,
+    size: 2 + Math.random() * 2,
+  };
+}
+function spawnJumpParticles(x, y) {
+  for (let i = 0; i < 6; i++) particles.push(createParticle(x, y, '#a0d0ff', 0.5));
+}
+function spawnCoinParticles(x, y) {
+  for (let i = 0; i < 10; i++) particles.push(createParticle(x, y, '#ffd700', 0.8));
+}
+function spawnVictoryParticles(x, y) {
+  const colors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#c77dff'];
+  for (let i = 0; i < 30; i++) particles.push(createParticle(x, y, colors[i % 5], 1.2));
+}
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+function drawParticles(ctx) {
+  for (const p of particles) {
+    ctx.save();
+    ctx.globalAlpha = (p.life / p.maxLife) * 0.7;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * (p.life / p.maxLife), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ---- Recording ----
+function captureInput() {
+  return {
+    left: !!keys['ArrowLeft'] || !!keys['KeyA'],
+    right: !!keys['ArrowRight'] || !!keys['KeyD'],
+    jump: !!keys['Space'] || !!keys['ArrowUp'] || !!keys['KeyW'],
+  };
+}
+
+function cycleRecordTarget() {
+  const current = lastRecordTarget >= 0 ? lastRecordTarget : 0;
+  lastRecordTarget = (current + 1) % 3;
+  sfxTrackToggle();
+  showToast('录制目标: ' + CLONE_LABELS[lastRecordTarget]);
+  updateTrackUI();
+}
+
+function getTargetTrack() {
+  if (lastRecordTarget >= 0 && lastRecordTarget < 3) return lastRecordTarget;
+  for (let i = 0; i < 3; i++) {
+    if (!tracks[i].recorded) return i;
+  }
+  return 0;
+}
+
+function toggleRecording() {
+  const targetTrack = getTargetTrack();
+  if (recording) {
+    recording = false;
+    sfxRecordStop();
+    lastRecordTarget = targetTrack;
+
+    // Trim trailing idle frames (keep enough for standing on switch)
+    const inputs = recordingInputs.slice();
+    let lastAction = -1;
+    let idleCount = 0;
+    for (let i = inputs.length - 1; i >= 0; i--) {
+      const inp = inputs[i];
+      if (inp.left || inp.right || inp.jump) { lastAction = i; break; }
+      idleCount++;
+      if (idleCount > 300) break; // scan up to 5 seconds of stillness
+    }
+    // Keep all trailing stillness (up to 300 frames / 5 seconds) for switch standing
+    const keepIdle = Math.min(idleCount, 300);
+    const trimmed = lastAction >= 0
+      ? inputs.slice(0, lastAction + 1 + keepIdle)
+      : inputs; // if never moved, keep everything
+
+    tracks[targetTrack].inputs = trimmed;
+    tracks[targetTrack].recorded = true;
+    tracks[targetTrack].active = true;
+
+    setupClones();
+    document.getElementById('recIndicator').classList.remove('active');
+    showToast('录制完成 - ' + CLONE_LABELS[targetTrack] + '已激活');
+  } else {
+    recording = true;
+    sfxRecordStart();
+    recordingInputs = [];
+    document.getElementById('recIndicator').classList.add('active');
+    showToast('开始录制 ' + CLONE_LABELS[targetTrack] + ' - 按 R 停止');
+  }
+  updateTrackUI();
+}
+
+function toggleTrack(idx) {
+  if (!tracks[idx].recorded) return;
+  tracks[idx].active = !tracks[idx].active;
+  sfxTrackToggle();
+  setupClones();
+  updateTrackUI();
+}
+
+function setupClones() {
+  clones = [];
+  for (let i = 0; i < 3; i++) {
+    if (tracks[i].recorded && tracks[i].active) {
+      const c = new Clone(i, tracks[i].inputs);
+      c.reset(player.startX, player.startY);
+      if (clones.length > 0) {
+        c.spawned = false; // wait for previous clone to finish
+      }
+      clones.push(c);
+    }
+  }
+}
+
+// ---- Level definitions ----
+const LEVELS = [
+  // Level 1: Tutorial - just run to exit
+  {
+    name: '初次旅行',
+    desc: '欢迎来到时间导演的世界！只需到达出口即可。',
+    hint: '使用 &#8592; &#8594; 移动，Space 跳跃。到达旋转的出口门户即可过关。',
+    playerStart: [60, 400],
+    platforms: [
+      { x: 0, y: 480, w: 960, h: 60 },
+      { x: 180, y: 410, w: 100, h: 20 },
+      { x: 350, y: 350, w: 100, h: 20 },
+      { x: 520, y: 290, w: 100, h: 20 },
+      { x: 700, y: 410, w: 120, h: 20 },
+    ],
+    switches: [],
+    doors: [],
+    coins: [
+      { x: 220, y: 375 }, { x: 390, y: 315 }, { x: 560, y: 255 },
+    ],
+    exitPortal: { x: 830, y: 430, w: 40, h: 50 },
+  },
+  // Level 2: First clone - press switch to open door
+  {
+    name: '时间克隆',
+    desc: '学习使用时间克隆！录制一个轨道，让克隆体按住开关，你跑过去。',
+    hint: '按 R 开始录制 -> 走到开关上站立不动 -> 按 R 停止录制 -> 按 1 激活克隆 -> 跑过打开的门到达出口。',
+    playerStart: [60, 380],
+    platforms: [
+      { x: 0, y: 440, w: 960, h: 100 },
+      { x: 180, y: 390, w: 100, h: 20 },
+      { x: 600, y: 370, w: 120, h: 20 },
+    ],
+    switches: [
+      { x: 210, y: 386, w: 40, h: 10, doorIndex: 0 },
+    ],
+    doors: [
+      { x: 480, y: 350, w: 20, h: 90, switchIndex: 0 },
+    ],
+    coins: [
+      { x: 225, y: 340 }, { x: 640, y: 330 },
+    ],
+    exitPortal: { x: 830, y: 390, w: 40, h: 50 },
+  },
+  // Level 3: Two clones - two switches at once
+  {
+    name: '双重协调',
+    desc: '两个开关需要同时按下！录制两个轨道来完成这个谜题。',
+    hint: '录制轨道1：跑到左开关站立 -> 录制轨道2：跑到右开关站立 -> 激活两个克隆 -> 自己跑向出口。',
+    playerStart: [60, 380],
+    platforms: [
+      { x: 0, y: 440, w: 960, h: 100 },
+      { x: 150, y: 390, w: 90, h: 20 },
+      { x: 480, y: 390, w: 90, h: 20 },
+      { x: 750, y: 350, w: 120, h: 20 },
+    ],
+    switches: [
+      { x: 170, y: 386, w: 40, h: 10, doorIndex: 0 },
+      { x: 500, y: 386, w: 40, h: 10, doorIndex: 1 },
+    ],
+    doors: [
+      { x: 330, y: 350, w: 20, h: 90, switchIndex: 0 },
+      { x: 620, y: 350, w: 20, h: 90, switchIndex: 1 },
+    ],
+    coins: [
+      { x: 185, y: 340 }, { x: 515, y: 340 }, { x: 800, y: 310 },
+    ],
+    exitPortal: { x: 880, y: 390, w: 40, h: 50 },
+  },
+  // Level 4: Timing - clone holds button, player navigates via stepping
+  {
+    name: '精准时机',
+    desc: '克隆体需要按住开关，同时你需要踩着平台（或克隆体）到达高处。',
+    hint: '录制轨道：走到开关站立 -> 激活克隆 -> 跑过门，踩着中间平台和克隆头到达高处 -> 到达出口。',
+    playerStart: [60, 380],
+    platforms: [
+      { x: 0, y: 440, w: 960, h: 100 },
+      { x: 180, y: 390, w: 100, h: 20 },  // switch platform
+      { x: 380, y: 400, w: 60, h: 20 },     // mid stepping platform
+      { x: 520, y: 340, w: 120, h: 20 },    // high platform
+      { x: 700, y: 270, w: 120, h: 20 },    // top platform with exit
+    ],
+    switches: [
+      { x: 210, y: 386, w: 40, h: 10, doorIndex: 0 },
+    ],
+    doors: [
+      { x: 320, y: 310, w: 20, h: 130, switchIndex: 0 },
+    ],
+    coins: [
+      { x: 210, y: 345 }, { x: 405, y: 365 }, { x: 570, y: 300 },
+    ],
+    exitPortal: { x: 780, y: 220, w: 40, h: 50 },
+  },
+  // Level 5: Final - three-way coordination
+  {
+    name: '时间交响',
+    desc: '终极挑战！三个轨道协调配合。两个克隆按住开关，第三个当跳板助你过门。',
+    hint: '轨道1：走到左开关站立 -> 轨道2：走到右开关站立 -> 轨道3：走到中间门左侧站立当跳板 -> 激活全部 -> 踩着克隆3跳上门顶到达出口。',
+    playerStart: [60, 380],
+    platforms: [
+      { x: 0, y: 440, w: 960, h: 100 },
+      { x: 120, y: 390, w: 90, h: 20 },   // left switch platform
+      { x: 580, y: 390, w: 90, h: 20 },   // right switch platform
+      // Door 1 between left switch and middle area
+      // Door 2 between right switch and exit
+      { x: 380, y: 300, w: 200, h: 20 },  // top platform (above doors)
+      { x: 750, y: 350, w: 120, h: 20 },  // exit platform
+    ],
+    switches: [
+      { x: 140, y: 386, w: 40, h: 10, doorIndex: 0 },
+      { x: 600, y: 386, w: 40, h: 10, doorIndex: 1 },
+    ],
+    doors: [
+      { x: 260, y: 350, w: 20, h: 90, switchIndex: 0 },
+      { x: 440, y: 350, w: 20, h: 90, switchIndex: 1 },
+    ],
+    coins: [
+      { x: 155, y: 340 }, { x: 615, y: 340 }, { x: 470, y: 260 },
+    ],
+    exitPortal: { x: 830, y: 300, w: 40, h: 50 },
+  },
+  // Level 6: 镜像回流 - clone holds switch, player steps on clone head
+  {
+    name: '镜像回流',
+    desc: '克隆体帮你在高处按住开关，你踩着它的头跳过障碍到达出口。',
+    hint: '录制轨道：走到上方平台，跳到开关平台上站立 -> 激活克隆 -> 本体从下方跑到门附近，跳到克隆头顶上，越过门到达出口。',
+    playerStart: [60, 380],
+    platforms: [
+      { x: 0, y: 440, w: 960, h: 100 },
+      { x: 300, y: 370, w: 80, h: 20 },
+      { x: 430, y: 370, w: 80, h: 20 },
+      { x: 760, y: 300, w: 160, h: 20 },
+    ],
+    switches: [
+      { x: 310, y: 366, w: 40, h: 10, doorIndex: 0 },
+    ],
+    doors: [
+      { x: 580, y: 340, w: 20, h: 200, switchIndex: 0 },
+    ],
+    coins: [
+      { x: 340, y: 330 }, { x: 470, y: 330 }, { x: 840, y: 260 },
+    ],
+    exitPortal: { x: 880, y: 250, w: 40, h: 50 },
+  },
+  // Level 7: 连锁反应 - 1 switch controls 2 doors
+  {
+    name: '连锁反应',
+    desc: '一个开关同时控制两扇门！但你需要在门关闭前完成整个路线。',
+    hint: '录制轨道：走到开关上站立足够长时间 -> 激活克隆 -> 本体快速穿过左门取金币，再跑到右门取金币，然后到达出口。记住录长一点！',
+    playerStart: [60, 380],
+    platforms: [
+      { x: 0, y: 440, w: 960, h: 100 },
+      { x: 160, y: 380, w: 80, h: 20 },
+      { x: 420, y: 360, w: 120, h: 20 },
+      { x: 700, y: 440, w: 260, h: 100 },
+    ],
+    switches: [
+      { x: 180, y: 376, w: 40, h: 10, doorIndex: 0 },
+    ],
+    doors: [
+      { x: 320, y: 340, w: 20, h: 200, switchIndex: 0 },
+      { x: 600, y: 340, w: 20, h: 200, switchIndex: 0 },
+    ],
+    coins: [
+      { x: 190, y: 330 }, { x: 480, y: 320 }, { x: 720, y: 390 },
+    ],
+    exitPortal: { x: 880, y: 390, w: 40, h: 50 },
+  },
+  // Level 8: 薛定谔的出口 - switch inside the door
+  {
+    name: '薛定谔的出口',
+    desc: '开关在门的里面！你需要让过去的自己去按它。',
+    hint: '录制前门是开的 -> 录制：走到门里面，站上开关保持不动 -> 停止录制后门关，你被挡在外面 -> 激活克隆从里面按开关 -> 本体穿过门到达出口。',
+    playerStart: [60, 380],
+    platforms: [
+      { x: 0, y: 440, w: 960, h: 100 },
+      { x: 360, y: 440, w: 80, h: 100 },  // gap before door
+      { x: 480, y: 440, w: 480, h: 100 },   // area behind door
+    ],
+    switches: [
+      { x: 520, y: 436, w: 40, h: 10, doorIndex: 0 },
+    ],
+    doors: [
+      { x: 440, y: 340, w: 20, h: 200, switchIndex: 0 },
+    ],
+    coins: [
+      { x: 180, y: 390 }, { x: 560, y: 390 }, { x: 780, y: 390 },
+    ],
+    exitPortal: { x: 880, y: 390, w: 40, h: 50 },
+  },
+  // Level 9: 阶梯电梯 - clone as moving platform
+  {
+    name: '阶梯电梯',
+    desc: '克隆体可以当你的交通工具！让它来回走动，你踩着它到达高处。',
+    hint: '录制轨道：走到左侧小平台，跳回地面，在地面和左侧平台之间来回走几次 -> 激活克隆 -> 等克隆走到低处时跳上它的头，跳到中间平台，再重复到达出口。',
+    playerStart: [60, 380],
+    platforms: [
+      { x: 0, y: 440, w: 350, h: 100 },
+      { x: 100, y: 380, w: 60, h: 20 },
+      { x: 350, y: 360, w: 260, h: 20 },
+      { x: 700, y: 280, w: 120, h: 20 },
+      { x: 800, y: 200, w: 120, h: 20 },
+    ],
+    switches: [
+      { x: 110, y: 376, w: 40, h: 10, doorIndex: 0 },
+    ],
+    doors: [
+      { x: 300, y: 310, w: 20, h: 130, switchIndex: 0 },
+    ],
+    coins: [
+      { x: 130, y: 335 }, { x: 470, y: 320 }, { x: 760, y: 240 },
+    ],
+    exitPortal: { x: 860, y: 150, w: 40, h: 50 },
+  },
+  // Level 10: 逆流而上 - RTL layout
+  {
+    name: '逆流而上',
+    desc: '出口在左边！逆向思考，反向操作。',
+    hint: '录制轨道1：向左走到右开关站立 -> 录制轨道2：向左走到左开关站立 -> 激活两个克隆 -> 本体向左穿过两扇门到达出口。',
+    playerStart: [880, 380],
+    platforms: [
+      { x: 0, y: 440, w: 960, h: 100 },
+      { x: 680, y: 380, w: 80, h: 20 },
+      { x: 340, y: 380, w: 80, h: 20 },
+      { x: 0, y: 350, w: 120, h: 20 },
+    ],
+    switches: [
+      { x: 700, y: 376, w: 40, h: 10, doorIndex: 0 },
+      { x: 360, y: 376, w: 40, h: 10, doorIndex: 1 },
+    ],
+    doors: [
+      { x: 580, y: 340, w: 20, h: 200, switchIndex: 0 },
+      { x: 200, y: 340, w: 20, h: 200, switchIndex: 1 },
+    ],
+    coins: [
+      { x: 720, y: 335 }, { x: 380, y: 335 }, { x: 50, y: 310 },
+    ],
+    exitPortal: { x: 30, y: 300, w: 40, h: 50 },
+  },
+  // Level 11: 时间差接力 - clone stepping on clone
+  {
+    name: '时间差接力',
+    desc: '克隆体可以踩着另一个克隆！利用这个新发现解开谜题。',
+    hint: '录制轨道1：走到中间平台站立不动（当跳板） -> 录制轨道2：等一会儿然后跳到克隆1头上，到达上方平台按开关 -> 本体按地面开关 -> 激活两个克隆 -> 穿过门到达出口。',
+    playerStart: [60, 380],
+    platforms: [
+      { x: 0, y: 440, w: 960, h: 100 },
+      { x: 300, y: 340, w: 80, h: 20 },
+      { x: 420, y: 270, w: 100, h: 20 },
+    ],
+    switches: [
+      { x: 120, y: 436, w: 40, h: 10, doorIndex: 0 },
+      { x: 440, y: 266, w: 40, h: 10, doorIndex: 1 },
+    ],
+    doors: [
+      { x: 240, y: 300, w: 20, h: 140, switchIndex: 0 },
+      { x: 520, y: 200, w: 20, h: 240, switchIndex: 1 },
+    ],
+    coins: [
+      { x: 140, y: 390 }, { x: 340, y: 295 }, { x: 470, y: 225 },
+    ],
+    exitPortal: { x: 880, y: 390, w: 40, h: 50 },
+  },
+  // Level 12: 终章 - 时空交响曲
+  {
+    name: '时空交响曲',
+    desc: '最终挑战！三个轨道协同工作。两个克隆按住开关，一个当跳板，你踩着"自己"完成跨越。',
+    hint: '轨道1：走到左开关站立 -> 轨道2：走到右开关站立 -> 轨道3：走到中间平台站立当跳板 -> 激活全部 -> 穿过两扇门，跳到克隆3头上，到达高处出口。',
+    playerStart: [60, 380],
+    platforms: [
+      { x: 0, y: 440, w: 960, h: 100 },
+      { x: 140, y: 380, w: 80, h: 20 },
+      { x: 680, y: 380, w: 80, h: 20 },
+      { x: 400, y: 370, w: 120, h: 20 },
+      { x: 720, y: 270, w: 180, h: 20 },
+    ],
+    switches: [
+      { x: 160, y: 376, w: 40, h: 10, doorIndex: 0 },
+      { x: 700, y: 376, w: 40, h: 10, doorIndex: 1 },
+    ],
+    doors: [
+      { x: 300, y: 340, w: 20, h: 200, switchIndex: 0 },
+      { x: 560, y: 340, w: 20, h: 200, switchIndex: 1 },
+    ],
+    coins: [
+      { x: 180, y: 335 }, { x: 720, y: 335 }, { x: 460, y: 325 },
+      { x: 820, y: 230 },
+    ],
+    exitPortal: { x: 860, y: 220, w: 40, h: 50 },
+  },
+];
+
+// ---- Level loading ----
+function loadLevel(idx) {
+  const lvl = LEVELS[idx];
+  player = new Player(lvl.playerStart[0], lvl.playerStart[1]);
+  platforms = lvl.platforms.map(p => ({ ...p }));
+  switches = lvl.switches.map(s => ({ ...s, pressed: false, wasPressed: false }));
+  doors = lvl.doors.map(d => ({ ...d, open: false, wasOpen: false }));
+  coins = lvl.coins.map(c => ({ ...c, collected: false, phase: Math.random() * Math.PI * 2 }));
+  exitPortal = { ...lvl.exitPortal, phase: 0 };
+  particles = [];
+  recording = false;
+  recordingInputs = [];
+  lastRecordTarget = -1;
+  tracks = [
+    { inputs: [], active: false, recorded: false },
+    { inputs: [], active: false, recorded: false },
+    { inputs: [], active: false, recorded: false },
+  ];
+  clones = [];
+  frameCount = 0;
+  levelStars = 0;
+  lastPortalSound = 0;
+  levelTransition = false;
+
+  document.getElementById('recIndicator').classList.remove('active');
+  document.getElementById('levelInfo').textContent = '第 ' + (idx + 1) + ' / ' + LEVELS.length + ' 关';
+  updateTrackUI();
+  updateCoinUI();
+  gameRunning = true;
+}
+
+function resetLevel() {
+  const lvl = LEVELS[currentLevel];
+  player = new Player(lvl.playerStart[0], lvl.playerStart[1]);
+  particles = [];
+  frameCount = 0;
+  recording = false;
+  recordingInputs = [];
+  clones = [];
+  levelTransition = false;
+
+  // Reset switch/door states (tracks are preserved)
+  for (const sw of switches) sw.pressed = false;
+  for (const d of doors) d.open = false;
+
+  // Re-setup clones from existing tracks
+  setupClones();
+  document.getElementById('recIndicator').classList.remove('active');
+  updateCoinUI();
+  gameRunning = true;
+}
+
+// ---- Toast notification ----
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ---- UI updates ----
+function updateTrackUI() {
+  const badges = document.querySelectorAll('.track-badge');
+  for (let i = 0; i < 3; i++) {
+    badges[i].className = 'track-badge t' + (i + 1);
+    if (tracks[i].recorded) badges[i].classList.add('recorded');
+    if (tracks[i].active) badges[i].classList.add('active');
+    const status = tracks[i].recorded
+      ? (tracks[i].active ? '●' : '○')
+      : '·';
+    badges[i].textContent = status + ' ' + CLONE_LABELS[i];
+  }
+}
+function updateCoinUI() {
+  const total = coins.filter(c => !c.collected).length;
+  document.getElementById('coinCount').textContent = total > 0
+    ? '金币: ' + total
+    : '金币: 全部收集！';
+}
+
+// ---- Overlay ----
+function showOverlay(title, desc, hint, buttons) {
+  gameRunning = false;
+  document.getElementById('overlayTitle').textContent = title;
+  document.getElementById('overlayDesc').textContent = desc || '';
+  document.getElementById('overlayHint').textContent = hint || '';
+  const btnDiv = document.getElementById('overlayBtns');
+  btnDiv.innerHTML = '';
+  for (const b of buttons) {
+    if (b.type === 'link') {
+      const a = document.createElement('a');
+      a.className = 'button';
+      a.href = b.href;
+      a.textContent = b.text;
+      btnDiv.appendChild(a);
+    } else {
+      const btn = document.createElement('button');
+      btn.textContent = b.text;
+      btn.onclick = b.action;
+      btnDiv.appendChild(btn);
+    }
+  }
+  document.getElementById('overlay').classList.add('show');
+}
+function hideOverlay() {
+  document.getElementById('overlay').classList.remove('show');
+}
+
+function showLevelIntro() {
+  const lvl = LEVELS[currentLevel];
+  showOverlay(
+    '第 ' + (currentLevel + 1) + ' 关: ' + lvl.name,
+    lvl.desc,
+    lvl.hint,
+    [{ text: '开始', action: () => { hideOverlay(); gameRunning = true; } }]
+  );
+}
+
+function showLevelComplete() {
+  const nextLevel = currentLevel + 1;
+  const totalLevels = LEVELS.length;
+  showOverlay(
+    nextLevel >= totalLevels ? '恭喜通关！' : '第 ' + (currentLevel + 1) + ' 关 完成！',
+    nextLevel >= totalLevels ? '你已通关所有关卡！你是真正的"时间导演"！' : '',
+    '',
+    nextLevel >= totalLevels
+      ? [
+          { text: '再来一局', action: () => { currentLevel = 0; hideOverlay(); loadLevel(0); showLevelIntro(); } },
+          { text: '返回主页', type: 'link', href: '../index.html' },
+        ]
+      : [
+          { text: '下一关', action: () => { currentLevel++; hideOverlay(); loadLevel(currentLevel); showLevelIntro(); } },
+          { text: '重新挑战', action: () => { hideOverlay(); resetLevel(); } },
+        ]
+  );
+}
+
+// ---- Game update ----
+function update() {
+  if (!gameRunning || levelTransition) return;
+  frameCount++;
+
+  // Record input
+  if (recording) {
+    recordingInputs.push(captureInput());
+  }
+
+  // Build solid body list: clone bodies for player collision
+  const cloneBodies = clones
+    .filter(c => c.alive)
+    .map(c => ({ x: c.x, y: c.y, w: c.w, h: c.h }));
+
+  // Update player (collides with platforms + clone bodies)
+  player.update(platforms, cloneBodies);
+
+  // Update each clone (collides with platforms + other clones)
+  // Clones play sequentially: next spawns when previous enters held state
+  for (let i = 0; i < clones.length; i++) {
+    const otherBodies = [];
+    for (let j = 0; j < clones.length; j++) {
+      if (i === j || !clones[j].alive || !clones[j].spawned) continue;
+      // Held clones are solid (can be stood on), moving clones are ignored
+      // This prevents moving clones from pushing held clones around
+      if (clones[j].held) {
+        const b = clones[j].getBody();
+        if (b) otherBodies.push(b);
+      }
+    }
+    const wasHeld = clones[i].held;
+    clones[i].update(platforms, otherBodies);
+    // When clone i finishes (enters held), spawn clone i+1
+    if (clones[i].held && !wasHeld && i + 1 < clones.length) {
+      clones[i + 1].spawned = true;
+      clones[i + 1].reset(player.startX, player.startY);
+      const sc = CLONE_COLORS[clones[i + 1].trackIndex];
+      for (let k = 0; k < 12; k++) {
+        particles.push(createParticle(clones[i + 1].x + 10, clones[i + 1].y + 14, `rgb(${sc.r},${sc.g},${sc.b})`, 0.6));
+      }
+    }
+  }
+
+  // Check switch states (player + clones standing on them)
+  for (const sw of switches) {
+    let pressed = false;
+    // Player
+    if (player.x + player.w > sw.x + 4 && player.x < sw.x + sw.w - 4 &&
+        player.y + player.h >= sw.y - 2 && player.y + player.h <= sw.y + sw.h + 6) {
+      pressed = true;
+    }
+    // Clones
+    for (const c of clones) {
+      if (!c.alive) continue;
+      if (c.x + c.w > sw.x + 4 && c.x < sw.x + sw.w - 4 &&
+          c.y + c.h >= sw.y - 2 && c.y + c.h <= sw.y + sw.h + 6) {
+        pressed = true;
+      }
+    }
+    if (pressed && !sw.wasPressed) sfxSwitchPress();
+    sw.pressed = pressed;
+    sw.wasPressed = pressed;
+  }
+
+  // Update door states
+  for (const d of doors) {
+    const sw = switches[d.switchIndex];
+    d.open = sw && sw.pressed;
+    if (d.open && !d.wasOpen) sfxDoorOpen();
+    d.wasOpen = d.open;
+  }
+
+  // Door collision (only solid when closed)
+  for (const d of doors) {
+    if (!d.open && rectOverlap(player, d)) {
+      // Determine collision side by overlap depth
+      const overlapLeft = (player.x + player.w) - d.x;
+      const overlapRight = (d.x + d.w) - player.x;
+      const overlapTop = (player.y + player.h) - d.y;
+      const overlapBottom = (d.y + d.h) - player.y;
+      const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+
+      if (minOverlap === overlapLeft) { player.x = d.x - player.w; player.vx = 0; }
+      else if (minOverlap === overlapRight) { player.x = d.x + d.w; player.vx = 0; }
+      else if (minOverlap === overlapTop) { player.y = d.y - player.h; player.vy = 0; player.onGround = true; }
+      else { player.y = d.y + d.h; player.vy = 0; }
+    }
+  }
+
+  // Door collision for clones (closed doors are solid)
+  for (const c of clones) {
+    if (!c.alive) continue;
+    for (const d of doors) {
+      if (!d.open && rectOverlap(c, d)) {
+        const overlapLeft = (c.x + c.w) - d.x;
+        const overlapRight = (d.x + d.w) - c.x;
+        const overlapTop = (c.y + c.h) - d.y;
+        const overlapBottom = (d.y + d.h) - c.y;
+        const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+
+        if (minOverlap === overlapLeft) { c.x = d.x - c.w; }
+        else if (minOverlap === overlapRight) { c.x = d.x + d.w; }
+        else if (minOverlap === overlapTop) { c.y = d.y - c.h; c.vy = 0; c.onGround = true; }
+        else { c.y = d.y + d.h; c.vy = 0; }
+      }
+    }
+  }
+
+  // Coin collection
+  for (const c of coins) {
+    if (c.collected) continue;
+    c.phase += 0.05;
+    const coinRect = { x: c.x - 8, y: c.y - 8 + Math.sin(c.phase) * 3, w: 16, h: 16 };
+    if (rectOverlap(player, coinRect)) {
+      c.collected = true;
+      sfxCoin();
+      spawnCoinParticles(c.x, c.y);
+      levelStars++;
+      updateCoinUI();
+    }
+  }
+
+  // Exit portal check
+  exitPortal.phase += 0.03;
+  if (exitPortal && rectOverlap(player, exitPortal)) {
+    let allDoorsOpen = true;
+    for (const d of doors) { if (!d.open) allDoorsOpen = false; }
+    // Portal hum when near
+    if (Math.abs(player.x - exitPortal.x) < 100 && Math.abs(player.y - exitPortal.y) < 80) {
+      if (frameCount - lastPortalSound > 120) {
+        sfxPortal();
+        lastPortalSound = frameCount;
+      }
+    }
+    if (allDoorsOpen) {
+      levelTransition = true;
+      sfxVictory();
+      spawnVictoryParticles(player.x + player.w / 2, player.y + player.h / 2);
+      setTimeout(() => showLevelComplete(), 800);
+    }
+  }
+
+  updateParticles();
+}
+
+// ---- Drawing ----
+function draw() {
+  // Background
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, '#0f0c29');
+  grad.addColorStop(0.5, '#302b63');
+  grad.addColorStop(1, '#24243e');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid pattern
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 40) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y < H; y += 40) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  ctx.restore();
+
+  // Platforms
+  for (const p of platforms) {
+    ctx.save();
+    const pGrad = ctx.createLinearGradient(p.x, p.y, p.x, p.y + p.h);
+    pGrad.addColorStop(0, 'rgba(80,120,180,0.5)');
+    pGrad.addColorStop(1, 'rgba(40,60,100,0.3)');
+    ctx.fillStyle = pGrad;
+    roundRect(ctx, p.x, p.y, p.w, p.h, 3);
+    ctx.fill();
+    ctx.shadowColor = '#6090c0';
+    ctx.shadowBlur = 6;
+    ctx.strokeStyle = 'rgba(120,160,220,0.4)';
+    ctx.lineWidth = 1;
+    roundRect(ctx, p.x, p.y, p.w, p.h, 3);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Switches
+  for (const sw of switches) {
+    ctx.save();
+    const swColor = sw.pressed ? '#6bcb77' : '#ff6b6b';
+    ctx.fillStyle = swColor;
+    ctx.globalAlpha = sw.pressed ? 0.9 : 0.6;
+    roundRect(ctx, sw.x, sw.y, sw.w, sw.h, 3);
+    ctx.fill();
+    if (sw.pressed) {
+      ctx.shadowColor = '#6bcb77';
+      ctx.shadowBlur = 10;
+      ctx.fill();
+      // Label
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('● ON', sw.x + sw.w / 2, sw.y - 5);
+    } else {
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('○ OFF', sw.x + sw.w / 2, sw.y - 5);
+    }
+    ctx.restore();
+  }
+
+  // Doors
+  for (const d of doors) {
+    ctx.save();
+    if (d.open) {
+      ctx.globalAlpha = 0.06 + 0.04 * Math.sin(frameCount * 0.1);
+      ctx.fillStyle = '#6bcb77';
+      ctx.fillRect(d.x, d.y, d.w, d.h);
+      // Open label
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = '#6bcb77';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('OPEN', d.x + d.w / 2, d.y - 6);
+    } else {
+      ctx.globalAlpha = 0.6;
+      const dGrad = ctx.createLinearGradient(d.x, d.y, d.x, d.y + d.h);
+      dGrad.addColorStop(0, '#ff4444');
+      dGrad.addColorStop(0.5, '#ff6b6b');
+      dGrad.addColorStop(1, '#ff4444');
+      ctx.fillStyle = dGrad;
+      ctx.shadowColor = '#ff4444';
+      ctx.shadowBlur = 8;
+      ctx.fillRect(d.x, d.y, d.w, d.h);
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 0.2;
+      ctx.fillStyle = '#fff';
+      for (let sy = d.y; sy < d.y + d.h; sy += 4) {
+        ctx.fillRect(d.x, sy, d.w, 1);
+      }
+      // Lock icon
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = '#ff8888';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('LOCKED', d.x + d.w / 2, d.y - 6);
+    }
+    ctx.restore();
+  }
+
+  // Coins
+  for (const c of coins) {
+    if (c.collected) continue;
+    const cy = c.y + Math.sin(c.phase) * 3;
+    ctx.save();
+    ctx.shadowColor = '#ffd700';
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = '#ffd700';
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath();
+    ctx.arc(c.x, cy, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(c.x - 2, cy - 2, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Exit portal
+  if (exitPortal) {
+    ctx.save();
+    const cx = exitPortal.x + exitPortal.w / 2;
+    const cy = exitPortal.y + exitPortal.h / 2;
+    ctx.shadowColor = '#a0d0ff';
+    ctx.shadowBlur = 20;
+    ctx.strokeStyle = 'rgba(160,208,255,0.6)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 22, exitPortal.phase, exitPortal.phase + Math.PI * 1.5);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(160,208,255,0.4)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 16, -exitPortal.phase, -exitPortal.phase + Math.PI);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(200,230,255,0.25)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Clones
+  for (const c of clones) c.draw(ctx);
+
+  // Player
+  if (player) player.draw(ctx);
+
+  // Particles
+  drawParticles(ctx);
+
+  // Recording indicator on canvas
+  if (recording) {
+    ctx.save();
+    ctx.globalAlpha = 0.7 + 0.3 * Math.sin(frameCount * 0.15);
+    ctx.fillStyle = '#ff4444';
+    ctx.beginPath();
+    ctx.arc(20, 20, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = '#fff';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('录制中', 30, 24);
+    ctx.restore();
+  }
+
+  // Hint near exit when doors are closed
+  if (doors.length > 0 && exitPortal) {
+    const anyClosed = doors.some(d => !d.open);
+    if (anyClosed) {
+      const nearExit = Math.abs(player.x - exitPortal.x) < 80 && Math.abs(player.y - exitPortal.y) < 60;
+      if (nearExit) {
+        ctx.save();
+        ctx.globalAlpha = 0.6;
+        ctx.fillStyle = '#ff8888';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('需要打开所有门', exitPortal.x + exitPortal.w / 2, exitPortal.y - 15);
+        ctx.restore();
+      }
+    }
+  }
+
+  // Frame counter debug (hidden, for reference)
+  // ctx.fillStyle = '#fff'; ctx.font = '10px monospace'; ctx.fillText('Frame: ' + frameCount, W - 80, 15);
+}
+
+// ---- Game loop ----
+function gameLoop() {
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+// ---- Start ----
+loadLevel(0);
+showLevelIntro();
+gameLoop();
+
+// ---- Cheat: Level Select ----
+let helpClicks = [];
+let helpClickTimeout = null;
+const helpBtn = document.getElementById('helpBtn');
+helpBtn.addEventListener('click', function() {
+  const now = Date.now();
+  helpClicks.push(now);
+  // Remove clicks older than 60 seconds
+  helpClicks = helpClicks.filter(t => now - t < 60000);
+  if (helpClicks.length >= 10) {
+    helpClicks = [];
+    showLevelSelect();
+  }
+  // Reset if too long between clicks
+  if (helpClicks.length > 0 && helpClicks.length < 10) {
+    clearTimeout(helpClickTimeout);
+    helpClickTimeout = setTimeout(() => { helpClicks = []; }, 65000);
+  }
+});
+
+function showLevelSelect() {
+  const grid = document.getElementById('levelGrid');
+  grid.innerHTML = '';
+  for (let i = 0; i < LEVELS.length; i++) {
+    const btn = document.createElement('button');
+    btn.textContent = i + 1;
+    btn.title = LEVELS[i].name;
+    btn.onclick = function() {
+      currentLevel = i;
+      document.getElementById('levelSelectOverlay').classList.remove('show');
+      loadLevel(i);
+      showLevelIntro();
+    };
+    grid.appendChild(btn);
+  }
+  document.getElementById('levelSelectOverlay').classList.add('show');
+}
+</script>
+</body>
+</html>
