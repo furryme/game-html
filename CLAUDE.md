@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+## 项目概述
+
+独立 HTML 小游戏合集。每款游戏是单个 `.html` 文件（内联 CSS + JS），无需构建工具，浏览器直接打开即可游玩。`web/index.html` 是游戏大厅首页，支持移动端自适应。
+
 ## 开发规范
 
 ### Log 调试法（最重要的规则）
@@ -13,16 +17,15 @@
 5. **问题确认解决前，不要删除调试日志**
 
 **日志格式约定：**
-- 每个标签用方括号开头，大写：`[SPAWN]`, `[LOCK]`, `[moveDown]`, `[GHOST]`, `[HARD DROP]`, `[LATERAL]`, `[HOLD]`, `[GAMELOOP]`
+- 每个标签用方括号开头，大写：`[init]`, `[update]`, `[render]`, `[input]`, `[collision]`, `[spawn]`, `[score]` 等
 - 一行包含：标签 + 关键参数 + 坐标 + 结果/返回值
 - 嵌套信息用空格缩进 `  key: value`
 
 **示例日志输出：**
 ```
-[SPAWN] Z dir=down world(4,-1) minY=0 maxY=1 minX=0 maxX=2
-  internal cells: [[-1,4],[-1,5],[0,5],[0,6]] isValid: true
-[GHOST] from(4,-1)->(4,18) steps=19
-[LATERAL] dir=1 gravity=down dx=1 dy=0 from(4,0)->(5,0) ok=true
+[SPAWN] snake dir=right pos(5,3) length=3
+[COLLISION] ball pos(200,150) vel(3,-2) paddle.hit=true
+[LOCK] piece T pos(4,8) linesCleared=2 score=800
 ```
 
 **严禁行为：**
@@ -42,11 +45,23 @@
 - 提交信息格式：`<type>: <short description>`
 - type: `feat`（新功能）, `fix`（修 bug）, `refactor`（重构）, `style`（样式）, `chore`（配置）
 
-### 游戏文件
+### 目录结构
 
-- 游戏文件放在 `web/games/` 下
-- 设计文档放在 `ideas/` 下
-- 设计文档命名：`ideas/<game-name>-design.md`
+```
+web/games/           游戏文件（桌面端）
+web/mobile/games/    游戏文件（移动端适配版本）
+web/index.html       游戏大厅首页
+ideas/               新游戏的设计文档
+ideas/archive/       已实装游戏的设计文档（归档）
+```
+
+### 文件命名
+
+- **已完成游戏**：`web/games/NN-name.html`，`NN` 为两位数序号（如 `01-snake.html`）
+- **开发中游戏**：`web/games/dev-N-name.html`，`N` 为序号（如 `dev-1-rpg.html`）
+- **移动端适配**：同步复制到 `web/mobile/games/`，文件名保持一致
+- **设计文档**：`ideas/<中文名称>.md`（如 `物理崩塌.md`、`技能卡对决.md`）
+- **已归档设计**：`ideas/archive/<中文名称>.md`（已实装游戏的设计文档移入归档）
 
 ### 参考实现
 
