@@ -175,7 +175,7 @@ const Audio = (() => {
     o.connect(g).connect(ac._master);
     o.start(t); o.stop(t + dur + 0.01);
   };
-  const noise = (dur, vol, delay) => {
+  const noise = (dur, vol, delay, filterFreq) => {
     if (muted || !ac) return;
     const t = ac.currentTime + (delay || 0);
     const bufSize = Math.floor(ac.sampleRate * dur);
@@ -189,12 +189,22 @@ const Audio = (() => {
     g.gain.setValueAtTime(vol || 0.2, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
     const f = ac.createBiquadFilter();
-    f.type = 'lowpass'; f.frequency.value = 800;
+    f.type = 'lowpass'; f.frequency.value = filterFreq || 800;
     src.connect(f).connect(g).connect(ac._master);
     src.start(t);
   };
   let bgmInterval = null;
-  const bgmNotes = [130.81, 155.56, 174.61, 196.00, 174.61, 155.56, 130.81, 146.83];
+  const bgmBass = [65.41, 77.78, 87.31, 98.00, 87.31, 77.78, 65.41, 73.42];
+  const bgmChord = [
+    [130.81, 164.81, 196.00],
+    [155.56, 196.00, 233.08],
+    [174.61, 220.00, 261.63],
+    [196.00, 246.94, 293.66],
+    [174.61, 220.00, 261.63],
+    [155.56, 196.00, 233.08],
+    [130.81, 164.81, 196.00],
+    [146.83, 174.61, 220.00]
+  ];
   return {
     supportCheck() {
       master();
@@ -208,8 +218,13 @@ const Audio = (() => {
       o.connect(g).connect(ac._master);
       o.start(t); o.stop(t + 0.51);
     },
-    blockFall() { tone(350, 0.05, 'square', 0.03); },
-    collision() { noise(0.1, 0.12); tone(180, 0.06, 'square', 0.05); },
+    blockFall() { tone(350, 0.04, 'square', 0.025); },
+    collision() { noise(0.12, 0.15); tone(150, 0.08, 'square', 0.06); },
+    fragileShatter() {
+      noise(0.15, 0.1, 0, 2500);
+      tone(1200, 0.06, 'sine', 0.04);
+      tone(800, 0.08, 'sine', 0.03, 0.02);
+    },
     lineClear() {
       master();
       tone(523, 0.12, 'square', 0.07, 0);
@@ -217,24 +232,48 @@ const Audio = (() => {
       tone(784, 0.18, 'square', 0.09, 0.14);
       noise(0.15, 0.08, 0);
     },
-    pieceLock() { tone(440, 0.07, 'sine', 0.05); },
+    pieceLock() { tone(440, 0.06, 'sine', 0.04); },
+    pieceTouch() { tone(330, 0.05, 'triangle', 0.03); },
+    hardDrop() {
+      noise(0.08, 0.18);
+      tone(200, 0.1, 'square', 0.07);
+      tone(120, 0.15, 'sine', 0.05, 0.02);
+    },
+    move() { tone(600, 0.02, 'sine', 0.015); },
+    rotate() { tone(500, 0.03, 'triangle', 0.025); },
     gameOver() {
       master();
-      tone(392, 0.2, 'sawtooth', 0.08, 0);
-      tone(349, 0.2, 'sawtooth', 0.08, 0.2);
-      tone(330, 0.2, 'sawtooth', 0.08, 0.4);
-      tone(262, 0.5, 'sawtooth', 0.1, 0.6);
+      const t = ac.currentTime;
+      const notes = [
+        { f: 392, d: 0.25, dl: 0 },
+        { f: 349, d: 0.25, dl: 0.22 },
+        { f: 330, d: 0.25, dl: 0.44 },
+        { f: 262, d: 0.6, dl: 0.66 }
+      ];
+      notes.forEach(n => {
+        const o = ac.createOscillator(), g = ac.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(n.f, t + n.dl);
+        o.frequency.linearRampToValueAtTime(n.f * 0.95, t + n.dl + n.d);
+        g.gain.setValueAtTime(0.08, t + n.dl);
+        g.gain.exponentialRampToValueAtTime(0.001, t + n.dl + n.d);
+        o.connect(g).connect(ac._master);
+        o.start(t + n.dl); o.stop(t + n.dl + n.d + 0.01);
+      });
+      noise(0.4, 0.06, 0.66, 400);
     },
     start() {
       master();
       tone(523, 0.1, 'square', 0.07, 0);
       tone(659, 0.1, 'square', 0.07, 0.1);
       tone(784, 0.15, 'square', 0.09, 0.2);
+      tone(1047, 0.2, 'square', 0.06, 0.3);
     },
     foundationPlace() {
       master();
-      tone(70, 0.25, 'sine', 0.12);
+      tone(70, 0.3, 'sine', 0.12);
       tone(110, 0.15, 'triangle', 0.05, 0.05);
+      tone(165, 0.1, 'triangle', 0.03, 0.1);
     },
     startBGM() {
       if (bgmInterval) clearInterval(bgmInterval);
@@ -243,21 +282,26 @@ const Audio = (() => {
       bgmInterval = setInterval(() => {
         if (muted || !ac) return;
         const t = ac.currentTime;
-        const freq = bgmNotes[idx % bgmNotes.length];
-        const o = ac.createOscillator(), g = ac.createGain();
-        o.type = 'triangle';
-        o.frequency.setValueAtTime(freq, t);
-        g.gain.setValueAtTime(0.035, t);
-        g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-        o.connect(g).connect(ac._master);
-        o.start(t); o.stop(t + 0.41);
+        const i = idx % bgmBass.length;
+        // Bass
         const b = ac.createOscillator(), bg = ac.createGain();
         b.type = 'sine';
-        b.frequency.setValueAtTime(freq / 2, t);
-        bg.gain.setValueAtTime(0.025, t);
-        bg.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+        b.frequency.setValueAtTime(bgmBass[i], t);
+        bg.gain.setValueAtTime(0.03, t);
+        bg.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
         b.connect(bg).connect(ac._master);
-        b.start(t); b.stop(t + 0.36);
+        b.start(t); b.stop(t + 0.41);
+        // Chord layer (soft pad)
+        const chord = bgmChord[i];
+        chord.forEach(cf => {
+          const o = ac.createOscillator(), g = ac.createGain();
+          o.type = 'triangle';
+          o.frequency.setValueAtTime(cf, t);
+          g.gain.setValueAtTime(0.012, t);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+          o.connect(g).connect(ac._master);
+          o.start(t); o.stop(t + 0.39);
+        });
         idx++;
       }, 450);
     },
@@ -276,6 +320,7 @@ const BOARD_Y = 50;
 const BOARD_W = COLS * CELL, BOARD_H = ROWS * CELL;
 const GRACE_FRAMES = 90; // 1.5s at 60fps
 const MAX_FALL = 5;
+const MAX_PARTICLES = 500;
 const LEVEL_LINES = 10;
 const HIGH_SCORE_KEY = 'gravitycollapse_high';
 
@@ -400,6 +445,7 @@ function movePiece(dx, dy) {
 
 function hardDrop() {
   if (!currentPiece) return;
+  Audio.hardDrop();
   let dropped = 0;
   while (movePiece(0, 1)) dropped++;
   score += dropped * 2;
@@ -417,12 +463,15 @@ function updateGhost() {
 /* ---- Support check ---- */
 function hasSupport(x, y, memo) {
   const key = `${x},${y}`;
-  if (memo.has(key)) return memo.get(key);
+  const cached = memo.get(key);
+  if (cached !== undefined) return cached === true;
   const block = grid[y][x];
   if (!block || block === 0) { memo.set(key, false); return false; }
   if (block.type === 'foundation') { memo.set(key, true); return true; }
   // Floor
   if (y >= ROWS - 1) { memo.set(key, true); return true; }
+  // Mark as checking to break circular dependency
+  memo.set(key, null);
   // Block below with support
   if (grid[y + 1][x] && grid[y + 1][x] !== 0) {
     if (hasSupport(x, y + 1, memo)) { memo.set(key, true); return true; }
@@ -477,6 +526,7 @@ function startCollapse(callback) {
   for (const b of blocks) {
     for (let yy = b.y + 1; yy < ROWS; yy++) {
       if (grid[yy][b.x] && grid[yy][b.x] !== 0 && grid[yy][b.x].type === 'fragile') {
+        Audio.fragileShatter();
         spawnCollisionParticles(
           b.x * CELL + BOARD_X + CELL / 2,
           yy * CELL + BOARD_Y + CELL / 2,
@@ -1097,7 +1147,7 @@ function update() {
     if (dropTimer >= dropInterval) {
       dropTimer = 0;
       if (!movePiece(0, 1)) {
-        if (!currentPiece._touchedDown) { currentPiece._touchedDown = true; lockTimer = 0; }
+        if (!currentPiece._touchedDown) { currentPiece._touchedDown = true; lockTimer = 0; Audio.pieceTouch(); }
         lockTimer++;
         if (lockTimer >= GRACE_FRAMES) { lockPiece(); return; }
       } else {
@@ -1149,6 +1199,7 @@ function update() {
     p.life -= p.decay;
     if (p.life <= 0) particles.splice(i, 1);
   }
+  if (particles.length > MAX_PARTICLES) particles.splice(0, particles.length - MAX_PARTICLES);
 
   // Shake
   if (shakeTimer > 0) { shakeTimer--; shakeIntensity *= 0.92; }
@@ -1188,9 +1239,9 @@ document.addEventListener('keydown', (e) => {
   const inGrace = currentPiece._touchedDown && lockTimer < GRACE_FRAMES;
   const canControl = inGrace || !currentPiece._touchedDown;
   switch (e.code) {
-    case 'ArrowLeft':  e.preventDefault(); if (canControl) movePiece(-1, 0); break;
-    case 'ArrowRight': e.preventDefault(); if (canControl) movePiece(1, 0); break;
-    case 'ArrowUp':    e.preventDefault(); if (canControl) rotatePiece(1); break;
+    case 'ArrowLeft':  e.preventDefault(); if (canControl) { movePiece(-1, 0); Audio.move(); } break;
+    case 'ArrowRight': e.preventDefault(); if (canControl) { movePiece(1, 0); Audio.move(); } break;
+    case 'ArrowUp':    e.preventDefault(); if (canControl) { rotatePiece(1); Audio.rotate(); } break;
     case 'ArrowDown':  e.preventDefault(); if (movePiece(0, 1)) { score += 1; dropTimer = 0; } break;
     case 'Space':      e.preventDefault(); hardDrop(); break;
   }
