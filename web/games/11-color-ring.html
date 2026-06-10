@@ -226,6 +226,160 @@ canvas {
     src.start(t);
   }
 
+  function playWrongSound() {
+    if (muted || !audioCtx) return;
+    const t = audioCtx.currentTime;
+
+    const osc1 = audioCtx.createOscillator();
+    const osc2 = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    const filter = audioCtx.createBiquadFilter();
+
+    osc1.type = "sine";
+    osc1.frequency.setValueAtTime(110, t);
+    osc1.frequency.exponentialRampToValueAtTime(70, t + 0.15);
+    osc2.type = "sine";
+    osc2.frequency.setValueAtTime(168, t);
+    osc2.frequency.exponentialRampToValueAtTime(105, t + 0.12);
+
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(500, t);
+    filter.frequency.exponentialRampToValueAtTime(120, t + 0.35);
+
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.18, t + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.06, t + 0.08);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+
+    osc1.connect(filter);
+    osc2.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc1.start(t);
+    osc2.start(t);
+    osc1.stop(t + 0.55);
+    osc2.stop(t + 0.55);
+  }
+
+  // --- Background Music (ambient pad) ---
+  let bgMusicStarted = false;
+  let bgNodes = null;
+  let bgChordTimer = null;
+  let bgChordIndex = 0;
+
+  const BG_CHORDS = [
+    { freqs: [65.41, 261.63, 329.63, 392.00, 493.88] },
+    { freqs: [73.42, 220.00, 261.63, 329.63, 440.00] },
+    { freqs: [73.42, 174.61, 220.00, 293.66, 349.23] },
+    { freqs: [98.00, 196.00, 246.94, 293.66, 392.00] },
+  ];
+
+  const BG_CHORD_DURATION = 8000;
+  const BG_CROSSFADE = 2.5;
+
+  function startBackgroundMusic() {
+    if (bgMusicStarted || muted || !audioCtx) return;
+    bgMusicStarted = true;
+
+    const masterGain = audioCtx.createGain();
+    masterGain.gain.setValueAtTime(0, audioCtx.currentTime);
+    masterGain.gain.linearRampToValueAtTime(0.08, audioCtx.currentTime + 3);
+
+    const masterFilter = audioCtx.createBiquadFilter();
+    masterFilter.type = "lowpass";
+    masterFilter.frequency.value = 600;
+    masterFilter.Q.value = 0.5;
+
+    masterGain.connect(masterFilter);
+    masterFilter.connect(audioCtx.destination);
+
+    bgNodes = { masterGain, masterFilter, activeChord: null };
+    playBgChord(bgChordIndex);
+
+    bgChordTimer = setInterval(() => {
+      bgChordIndex = (bgChordIndex + 1) % BG_CHORDS.length;
+      playBgChord(bgChordIndex);
+    }, BG_CHORD_DURATION);
+  }
+
+  function playBgChord(chordIndex) {
+    if (!bgNodes || !audioCtx || muted) return;
+    const t = audioCtx.currentTime;
+    const chord = BG_CHORDS[chordIndex];
+
+    if (bgNodes.activeChord) {
+      const old = bgNodes.activeChord;
+      for (let i = 0; i < old.gains.length; i++) {
+        old.gains[i].gain.setValueAtTime(old.gains[i].gain.value, t);
+        old.gains[i].gain.linearRampToValueAtTime(0, t + BG_CROSSFADE);
+      }
+      for (const node of old.nodesToStop) {
+        node.stop(t + BG_CROSSFADE + 0.1);
+      }
+    }
+
+    const newChord = { gains: [], nodesToStop: [] };
+    const volPerVoice = 0.15 / chord.freqs.length;
+
+    chord.freqs.forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const lfo = audioCtx.createOscillator();
+      const lfoGain = audioCtx.createGain();
+
+      osc.type = i === 0 ? "triangle" : "sine";
+      osc.frequency.value = freq;
+      osc.detune.setValueAtTime((Math.random() - 0.5) * 12, t);
+
+      lfo.type = "sine";
+      lfo.frequency.value = 0.08 + i * 0.02;
+      lfoGain.gain.value = freq * 0.004;
+
+      lfo.connect(lfoGain);
+      lfoGain.connect(osc.frequency);
+
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(volPerVoice, t + BG_CROSSFADE);
+
+      osc.connect(gain);
+      gain.connect(bgNodes.masterGain);
+
+      osc.start(t);
+      lfo.start(t);
+
+      newChord.gains.push(gain);
+      newChord.nodesToStop.push(osc, lfo);
+    });
+
+    bgNodes.activeChord = newChord;
+  }
+
+  function stopBackgroundMusic() {
+    if (bgChordTimer) {
+      clearInterval(bgChordTimer);
+      bgChordTimer = null;
+    }
+    if (bgNodes && bgNodes.masterGain && audioCtx) {
+      const t = audioCtx.currentTime;
+      bgNodes.masterGain.gain.setValueAtTime(bgNodes.masterGain.gain.value, t);
+      bgNodes.masterGain.gain.linearRampToValueAtTime(0, t + 1.5);
+    }
+    bgMusicStarted = false;
+    bgNodes = null;
+  }
+
+  function toggleMute() {
+    muted = !muted;
+    muteBtn.innerHTML = muted ? "&#9836;" : "&#9835;";
+    if (muted) {
+      stopBackgroundMusic();
+    } else {
+      ensureAudio();
+      startBackgroundMusic();
+    }
+  }
+
   // --- Canvas ---
   const canvas = document.getElementById("c");
   const ctx = canvas.getContext("2d");
@@ -273,6 +427,7 @@ canvas {
   let comboText = null;
   let hoverGlow = null;     // {alpha, colorIndex} subtle glow near indicator
   let proximityGlow = 0;    // 0-1, how close the target segment is
+  let wrongFlash = null;    // {startTime} ring flash on wrong click
 
   // --- Indicator angle (top of ring) ---
   const IND_ANGLE = -Math.PI / 2;
@@ -631,6 +786,23 @@ canvas {
     ctx.fillRect(0, 0, W, H);
   }
 
+  function drawWrongFlash(time) {
+    if (!wrongFlash) return;
+    const elapsed = time - wrongFlash.startTime;
+    const progress = elapsed / 600;
+    if (progress > 1) { wrongFlash = null; return; }
+
+    const alpha = (1 - progress) * 0.1;
+    const grad = ctx.createRadialGradient(cx, cy, ringRadius * 0.85, cx, cy, ringRadius * 1.15);
+    grad.addColorStop(0, `rgba(180,80,70,0)`);
+    grad.addColorStop(0.5, `rgba(180,80,70,${alpha})`);
+    grad.addColorStop(1, `rgba(180,80,70,0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, ringRadius * 1.15, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   function drawComboText(time) {
     if (!comboText) return;
     const elapsed = time - comboText.startTime;
@@ -803,9 +975,17 @@ canvas {
   }
 
   // --- Input ---
+  let bgMusicInitialized = false;
+
   function handleInteraction(e) {
     e.preventDefault();
     ensureAudio();
+
+    // Start background music on first interaction
+    if (!bgMusicInitialized) {
+      bgMusicInitialized = true;
+      startBackgroundMusic();
+    }
 
     if (completed) {
       initSegments();
@@ -815,6 +995,9 @@ canvas {
     const { segment, distance } = findNearestTargetSegment();
     if (segment && distance < toleranceDeg * Math.PI / 180) {
       captureSegment(segment);
+    } else {
+      playWrongSound();
+      wrongFlash = { startTime: performance.now() };
     }
   }
 
@@ -828,9 +1011,7 @@ canvas {
   const muteBtn = document.getElementById("mute-btn");
   muteBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    muted = !muted;
-    muteBtn.innerHTML = muted ? "&#9836;" : "&#9835;";
-    if (!muted) ensureAudio();
+    toggleMute();
   });
 
   // --- Main loop ---
@@ -845,6 +1026,7 @@ canvas {
     drawBackground();
     drawParticles(time);
     drawFusionFlash(time);
+    drawWrongFlash(time);
     drawRing(time);
     drawIndicator(time);
     drawRipples(time);

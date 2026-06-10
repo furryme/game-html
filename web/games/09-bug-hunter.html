@@ -738,20 +738,9 @@
     transition: all 0.2s;
   }
 
-  #victory-screen .actions button:hover, #victory-screen .actions a:hover {
+  #victory-screen .actions button:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4);
-  }
-
-  #victory-screen .actions a.home-link {
-    background: transparent;
-    border: 1px solid rgba(255,255,255,0.2);
-    color: #aaa;
-  }
-
-  #victory-screen .actions a.home-link:hover {
-    color: white;
-    border-color: rgba(255,255,255,0.5);
   }
 
   /* Progress bar */
@@ -1561,7 +1550,6 @@ function showVictory() {
     </div>
     <div class="actions">
       <button onclick="startGame()">再来一局</button>
-      <a href="../index.html" class="home-link">返回主页</a>
     </div>
   `;
 }
