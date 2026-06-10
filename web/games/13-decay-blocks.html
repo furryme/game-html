@@ -1,0 +1,1516 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>腐朽方块</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a1a;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  color: #fff;
+  overflow: hidden;
+}
+#game-container {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+canvas { display: block; }
+#left-panel, #right-panel {
+  width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.panel-box {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 12px;
+}
+.panel-box h3 {
+  font-size: 12px;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+.stat-value {
+  font-size: 24px;
+  font-weight: bold;
+  background: linear-gradient(135deg, #ff6b6b, #ffa726);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+#next-canvas { width: 140px; height: 240px; }
+#hold-canvas { width: 120px; height: 80px; }
+#decay-bar-bg {
+  width: 100%;
+  height: 8px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+#decay-bar {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #ff5252, #ffd740, #69f0ae);
+  border-radius: 4px;
+  transition: width 0.3s;
+}
+#decay-label {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  margin-top: 4px;
+  text-align: center;
+}
+#controls {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  text-align: center;
+}
+#helpBtn {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.6);
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  font-family: sans-serif;
+}
+#helpBtn:hover {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+}
+#muteBtn {
+  position: fixed;
+  top: 16px;
+  right: 60px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.6);
+  font-size: 16px;
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+#muteBtn:hover {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+}
+#helpOverlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.8);
+  z-index: 100;
+  justify-content: center;
+  align-items: center;
+}
+#helpOverlay.show { display: flex; }
+.help-box {
+  background: linear-gradient(135deg, #1a1a2e, #0f0f23);
+  border: 1px solid rgba(255,165,0,0.3);
+  border-radius: 12px;
+  padding: 28px 32px;
+  max-width: 520px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 0 60px rgba(255,107,107,0.2);
+}
+.help-box h2 {
+  font-size: 22px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, #ff6b6b, #ffa726);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-align: center;
+}
+.help-section {
+  margin-bottom: 14px;
+}
+.help-title {
+  font-size: 13px;
+  font-weight: bold;
+  color: #ffa726;
+  margin-bottom: 6px;
+  letter-spacing: 1px;
+}
+.help-row {
+  font-size: 12px;
+  color: rgba(255,255,255,0.7);
+  line-height: 1.8;
+}
+.help-row .key {
+  display: inline-block;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 4px;
+  padding: 1px 8px;
+  font-size: 11px;
+  color: #fff;
+  min-width: 36px;
+  text-align: center;
+  font-family: monospace;
+  margin-right: 4px;
+}
+.help-row .mechanism {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.help-close {
+  text-align: center;
+  margin-top: 16px;
+  color: rgba(255,255,255,0.3);
+  font-size: 12px;
+}
+</style>
+</head>
+<body>
+<button id="muteBtn" title="静音/开启">🔊</button>
+<button id="helpBtn" title="腐朽机制">?</button>
+
+<div id="helpOverlay">
+  <div class="help-box">
+    <h2>腐朽方块 — 机制说明</h2>
+
+    <div class="help-section">
+      <div class="help-title">操作</div>
+      <div class="help-row"><span class="key">← →</span> 或 <span class="key">A D</span> 左右移动</div>
+      <div class="help-row"><span class="key">↑</span> 或 <span class="key">W</span> 旋转</div>
+      <div class="help-row"><span class="key">↓</span> 或 <span class="key">S</span> 加速下落</div>
+      <div class="help-row"><span class="key">空格</span> 硬降（瞬间落底）</div>
+      <div class="help-row"><span class="key">C</span> 保持方块</div>
+      <div class="help-row"><span class="key">P</span> 暂停 / 继续</div>
+    </div>
+
+    <div class="help-section">
+      <div class="help-title">方块腐朽</div>
+      <div class="help-row">
+        <span class="mechanism" style="background:#ff6b6b"></span>
+        方块放置 25 秒后变为腐朽状态，出现裂纹并褪色
+      </div>
+      <div class="help-row">
+        <span class="mechanism" style="background:#ffa726"></span>
+        右侧面板显示下一个即将腐朽的方块倒计时
+      </div>
+    </div>
+
+    <div class="help-section">
+      <div class="help-title">重力沉降</div>
+      <div class="help-row">
+        <span class="mechanism" style="background:#69f0ae"></span>
+        新方块落在腐朽块上时，腐朽块因重力向下沉
+      </div>
+      <div class="help-row">
+        <span class="mechanism" style="background:#69f0ae"></span>
+        最底部的腐朽块从棋盘底部掉落消除，上方的块依次下移
+      </div>
+      <div class="help-row">
+        <span class="mechanism" style="background:#69f0ae"></span>
+        连锁反应：如果上方的块也是腐朽的，会继续沉降
+      </div>
+    </div>
+
+    <div class="help-section">
+      <div class="help-title">消行冲击波</div>
+      <div class="help-row">
+        <span class="mechanism" style="background:#ffab40"></span>
+        消除一行时产生冲击，所有腐朽块如果下方有空位就下沉 1 格
+      </div>
+      <div class="help-row">
+        <span class="mechanism" style="background:#ff5252"></span>
+        沉降可能填满新行 → 再消除 → 再沉降 → 连锁反应
+      </div>
+    </div>
+
+    <div class="help-section">
+      <div class="help-title">策略要点</div>
+      <div class="help-row">✦ 在腐朽块上堆叠方块可以触发沉降消除</div>
+      <div class="help-row">✦ 底部铺满腐朽块后消行，冲击波会触发连锁沉降</div>
+      <div class="help-row">✦ 腐朽块是容错空间——放不下？等它腐朽后沉降腾出位置</div>
+      <div class="help-row">✦ 硬降方块到腐朽块上，能立刻触发沉降</div>
+    </div>
+
+    <div class="help-section">
+      <div class="help-title">得分</div>
+      <div class="help-row">消行：1行=100 / 2行=300 / 3行=500 / 4行=800（×等级）</div>
+      <div class="help-row">沉降消除：每块 +10 分</div>
+      <div class="help-row">连击：连续消行（5秒内）分数 × 连击数（最高 10 倍）</div>
+    </div>
+
+    <div class="help-close">按 Esc 或点击背景关闭</div>
+  </div>
+</div>
+
+<div id="game-container">
+  <div id="left-panel">
+    <div class="panel-box">
+      <h3>保持</h3>
+      <canvas id="hold-canvas" width="120" height="80"></canvas>
+    </div>
+    <div class="panel-box">
+      <h3>分数</h3>
+      <div class="stat-value" id="score-val">0</div>
+    </div>
+    <div class="panel-box">
+      <h3>等级</h3>
+      <div class="stat-value" id="level-val">1</div>
+    </div>
+    <div class="panel-box">
+      <h3>行数</h3>
+      <div class="stat-value" id="lines-val">0</div>
+    </div>
+    <div class="panel-box">
+      <h3>连击</h3>
+      <div class="stat-value" id="combo-val">0</div>
+    </div>
+  </div>
+
+  <canvas id="board" width="300" height="600"></canvas>
+
+  <div id="right-panel">
+    <div class="panel-box">
+      <h3>下一个</h3>
+      <canvas id="next-canvas" width="140" height="240"></canvas>
+    </div>
+    <div class="panel-box">
+      <h3>腐朽倒计时</h3>
+      <div id="decay-bar-bg"><div id="decay-bar"></div></div>
+      <div id="decay-label">--</div>
+    </div>
+    <div class="panel-box">
+      <h3>沉降消除</h3>
+      <div class="stat-value" id="settle-val">0</div>
+    </div>
+    <div class="panel-box">
+      <h3>最高分</h3>
+      <div class="stat-value" id="best-val">0</div>
+    </div>
+  </div>
+</div>
+
+<div id="controls">方向键移动 / 上旋转 / 下加速 / 空格硬降 / C保持 / P暂停</div>
+
+<script>
+// ============================================================
+//  CONSTANTS
+// ============================================================
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+const nextCanvas = document.getElementById('next-canvas');
+const nextCtx = nextCanvas.getContext('2d');
+const holdCanvas = document.getElementById('hold-canvas');
+const holdCtx = holdCanvas.getContext('2d');
+
+const COLS = 10, ROWS = 20, BS = 30;
+const DECAY_TIME = 25000;
+const MAX_SETTLE_DEPTH = 20;
+const SETTLE_SCORE = 10;
+const LINE_SCORES = [0, 100, 300, 500, 800];
+const COMBO_WINDOW = 5000;
+const LINES_PER_LEVEL = 5;
+const INIT_DROP = 800;
+const DROP_DECREASE = 50;
+const MIN_DROP = 80;
+
+const PIECES = {
+  I: { shape: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], color: '#00e5ff' },
+  O: { shape: [[1,1],[1,1]], color: '#ffd740' },
+  T: { shape: [[0,1,0],[1,1,1],[0,0,0]], color: '#b388ff' },
+  S: { shape: [[0,1,1],[1,1,0],[0,0,0]], color: '#69f0ae' },
+  Z: { shape: [[1,1,0],[0,1,1],[0,0,0]], color: '#ff5252' },
+  J: { shape: [[1,0,0],[1,1,1],[0,0,0]], color: '#448aff' },
+  L: { shape: [[0,0,1],[1,1,1],[0,0,0]], color: '#ffab40' }
+};
+
+const PIECE_NAMES = ['I','O','T','S','Z','J','L'];
+
+// ============================================================
+//  GAME STATE
+// ============================================================
+let board, piece, nextQueue, holdPiece, canHold;
+let score, level, lines, combo, lastComboTime;
+let settleScore;
+let bag, gameOver, paused, started;
+let dropTimer, dropInterval, lastTime;
+let particles, floatingTexts, screenShake, shakeX, shakeY;
+let settlingAnims; // blocks currently animating their fall off the bottom
+let gameLoop;
+
+function tryGetBest() {
+  try { return localStorage.getItem('decayblocks_high'); } catch (e) { return null; } }
+
+function initState() {
+  board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+  piece = null; nextQueue = []; holdPiece = null; canHold = true;
+  score = 0; level = 1; lines = 0; combo = 0; lastComboTime = 0;
+  settleScore = 0;
+  bag = [];
+  gameOver = false; paused = false; started = false;
+  dropTimer = 0; dropInterval = INIT_DROP; lastTime = 0;
+  particles = []; floatingTexts = []; screenShake = 0; shakeX = 0; shakeY = 0;
+  settlingAnims = [];
+  shockFlash = 0;
+}
+
+// ============================================================
+//  7-BAG RANDOMIZER
+// ============================================================
+function fillBag() {
+  const types = PIECE_NAMES.slice();
+  for (let i = types.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [types[i], types[j]] = [types[j], types[i]];
+  }
+  bag.push(...types);
+}
+
+function randomType() {
+  if (bag.length < 7) fillBag();
+  return bag.shift();
+}
+
+// ============================================================
+//  PIECE MANAGEMENT
+// ============================================================
+function createPiece(type) {
+  const p = PIECES[type];
+  return {
+    type,
+    blocks: p.shape.map(r => [...r]),
+    color: p.color,
+    x: Math.floor((COLS - p.shape[0].length) / 2),
+    y: 0
+  };
+}
+
+function spawnFromQueue() {
+  while (nextQueue.length < 5) nextQueue.push(randomType());
+  const type = nextQueue.shift();
+  piece = createPiece(type);
+  if (!isValid(piece, piece.x, piece.y)) {
+    piece.y = -1;
+    if (!isValid(piece, piece.x, piece.y)) {
+      endGame();
+      return;
+    }
+  }
+  canHold = true;
+  updateGhost();
+}
+
+// ============================================================
+//  COLLISION
+// ============================================================
+function isValid(p, px, py) {
+  for (let r = 0; r < p.blocks.length; r++) {
+    for (let c = 0; c < p.blocks[r].length; c++) {
+      if (!p.blocks[r][c]) continue;
+      const nx = px + c, ny = py + r;
+      if (nx < 0 || nx >= COLS || ny >= ROWS) return false;
+      if (ny >= 0 && board[ny][nx]) return false;
+    }
+  }
+  return true;
+}
+
+function moveLeft() {
+  if (isValid(piece, piece.x - 1, piece.y)) { piece.x--; updateGhost(); AudioEngine.move(); }
+}
+function moveRight() {
+  if (isValid(piece, piece.x + 1, piece.y)) { piece.x++; updateGhost(); AudioEngine.move(); }
+}
+function moveDown() {
+  if (isValid(piece, piece.x, piece.y + 1)) {
+    piece.y++;
+    dropTimer = 0;
+  } else {
+    lockPiece();
+  }
+}
+function hardDrop() {
+  let dist = 0;
+  while (isValid(piece, piece.x, piece.y + 1)) { piece.y++; dist++; }
+  score += dist * 2;
+  AudioEngine.hardDrop();
+  lockPiece();
+}
+function rotate() {
+  if (!piece || piece.type === 'O') return;
+  const blocks = piece.blocks;
+  const n = blocks.length;
+  const rotated = Array.from({ length: n }, () => Array(n).fill(0));
+  for (let r = 0; r < n; r++)
+    for (let c = 0; c < n; c++)
+      rotated[c][n - 1 - r] = blocks[r][c];
+  const old = piece.blocks;
+  piece.blocks = rotated;
+  const kicks = [0, -1, 1, -2, 2];
+  let valid = false;
+  for (const kx of kicks) {
+    for (const ky of [0, -1, -2]) {
+      if (isValid(piece, piece.x + kx, piece.y + ky)) {
+        piece.x += kx; piece.y += ky;
+        valid = true; break;
+      }
+    }
+    if (valid) break;
+  }
+  if (!valid) piece.blocks = old;
+  updateGhost();
+  AudioEngine.rotate();
+}
+
+function updateGhost() {
+  if (!piece) return;
+  let gy = piece.y;
+  while (isValid(piece, piece.x, gy + 1)) gy++;
+  piece._ghostY = gy;
+}
+
+// ============================================================
+//  BLOCK DATA HELPERS
+// ============================================================
+function makeBlock(color) {
+  return { color, placedAt: Date.now() };
+}
+
+function isDecayed(cell) {
+  return cell && typeof cell === 'object' && (Date.now() - cell.placedAt) > DECAY_TIME;
+}
+
+function decayProgress(cell) {
+  if (!cell || typeof cell !== 'object') return 1;
+  const elapsed = Date.now() - cell.placedAt;
+  return Math.min(elapsed / DECAY_TIME, 1);
+}
+
+// ============================================================
+//  GRAVITY SETTLING
+// ============================================================
+// When a new piece locks on top of decayed blocks, the weight settles
+// the contiguous decayed stack downward. If the stack touches the
+// bottom, the lowest block falls off and is eliminated. Chains:
+// after one block is eliminated, the stack above it shifts down,
+// potentially eliminating more if they're also decayed.
+function settleColumn(col) {
+  let eliminated = 0;
+
+  // Find contiguous decayed stack from bottom of column upward
+  let stackTop = ROWS;
+  let stackBottom = ROWS - 1;
+  while (stackBottom >= 0 && board[stackBottom][col] &&
+         typeof board[stackBottom][col] === 'object' &&
+         isDecayed(board[stackBottom][col])) {
+    stackTop = stackBottom;
+    stackBottom--;
+  }
+
+  // If stackTop >= ROWS, no decayed blocks at the bottom
+  if (stackTop >= ROWS) return 0;
+
+  // Eliminate the bottom-most decayed block and shift stack down
+  const bottomCell = board[ROWS - 1][col];
+  const color = bottomCell.color;
+
+  for (let r = ROWS - 1; r > stackTop; r--) {
+    board[r][col] = board[r - 1][col];
+  }
+  board[stackTop][col] = 0;
+  eliminated++;
+
+  spawnParticles(col * BS + BS / 2, ROWS * BS - BS / 2, color, 8);
+  settlingAnims.push({
+    x: col * BS,
+    y: (ROWS - 1) * BS,
+    color,
+    vy: 0,
+    life: 20
+  });
+
+  // Chain: if the block now at stackTop is also decayed and the column
+  // below is all decayed, settle again
+  if (board[stackTop][col] && typeof board[stackTop][col] === 'object' &&
+      isDecayed(board[stackTop][col])) {
+    let allDecayed = true;
+    for (let r = stackTop + 1; r < ROWS; r++) {
+      if (!board[r][col] || !(typeof board[r][col] === 'object' && isDecayed(board[r][col]))) {
+        allDecayed = false;
+        break;
+      }
+    }
+    if (allDecayed) {
+      eliminated += settleColumn(col);
+    }
+  }
+
+  return eliminated;
+}
+
+function applySettling(placedCells) {
+  const cols = [...new Set(placedCells.map(([c]) => c))];
+  let total = 0;
+
+  for (const col of cols) {
+    // Find lowest placed row in this column
+    let lowest = -1;
+    for (const [c, r] of placedCells) {
+      if (c === col && r > lowest) lowest = r;
+    }
+    if (lowest < 0 || lowest + 1 >= ROWS) continue;
+
+    // Cell directly below must be decayed for settling to trigger
+    const below = board[lowest + 1][col];
+    if (!below || !(typeof below === 'object' && isDecayed(below))) continue;
+
+    total += settleColumn(col);
+  }
+
+  return total;
+}
+
+// ============================================================
+//  SHOCK WAVE
+// ============================================================
+// When a line is cleared, the resulting shock wave causes all decayed
+// blocks with empty space below to settle down 1 row.
+function applyShockWave() {
+  let count = 0;
+  // Process bottom-to-top to avoid moving the same block twice
+  for (let r = ROWS - 2; r >= 0; r--) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = board[r][c];
+      if (!cell || !(typeof cell === 'object' && isDecayed(cell))) continue;
+      if (board[r + 1][c] !== 0) continue; // below must be empty
+      board[r + 1][c] = cell;
+      board[r][c] = 0;
+      count++;
+      settlingAnims.push({
+        x: c * BS,
+        y: r * BS,
+        color: cell.color,
+        vy: 0,
+        life: 15
+      });
+    }
+  }
+  return count;
+}
+
+// ============================================================
+//  LOCK & LINE CLEAR
+// ============================================================
+function lockPiece() {
+  AudioEngine.blockLock();
+  let placedCells = [];
+  for (let r = 0; r < piece.blocks.length; r++) {
+    for (let c = 0; c < piece.blocks[r].length; c++) {
+      if (!piece.blocks[r][c]) continue;
+      const bx = piece.x + c, by = piece.y + r;
+      if (by >= 0 && by < ROWS && bx >= 0 && bx < COLS) {
+        board[by][bx] = makeBlock(piece.color);
+        placedCells.push([bx, by]);
+      }
+    }
+  }
+
+  // Apply gravity settling
+  const settled = applySettling(placedCells);
+  if (settled > 0) {
+    settleScore += settled * SETTLE_SCORE;
+    score += settled * SETTLE_SCORE;
+    spawnFloatingText(COLS / 2 * BS, ROWS * BS - 40, `沉降 x${settled}`, '#69f0ae', 16);
+    AudioEngine.settle(settled);
+    screenShake = Math.max(screenShake, settled * 2);
+  }
+
+  // Clear lines
+  const cleared = clearLines();
+
+  // Combo
+  const now = Date.now();
+  if (cleared > 0) {
+    if (now - lastComboTime < COMBO_WINDOW) {
+      combo++;
+    } else {
+      combo = 1;
+    }
+    lastComboTime = now;
+
+    const comboMult = Math.min(combo, 10);
+    score += (LINE_SCORES[cleared] || 800) * level * comboMult;
+    lines += cleared;
+    level = Math.floor(lines / LINES_PER_LEVEL) + 1;
+    dropInterval = Math.max(MIN_DROP, INIT_DROP - (level - 1) * DROP_DECREASE);
+  } else {
+    combo = 0;
+  }
+
+  updateUI();
+  spawnFromQueue();
+}
+
+function clearLines() {
+  let cleared = 0;
+  const clearedRows = [];
+  for (let r = ROWS - 1; r >= 0; r--) {
+    if (board[r].every(c => c !== 0)) {
+      clearedRows.push(r);
+      for (let c = 0; c < COLS; c++) {
+        if (board[r][c]) {
+          spawnParticles(c * BS + BS/2, r * BS + BS/2,
+            typeof board[r][c] === 'object' ? board[r][c].color : '#fff', 4);
+        }
+      }
+    }
+  }
+  if (clearedRows.length === 0) return 0;
+
+  // Check if all blocks in cleared rows are decayed
+  let allDecayed = true;
+  for (const r of clearedRows) {
+    for (let c = 0; c < COLS; c++) {
+      if (board[r][c] && !(typeof board[r][c] === 'object' && isDecayed(board[r][c]))) {
+        allDecayed = false;
+        break;
+      }
+    }
+    if (!allDecayed) break;
+  }
+  if (allDecayed && clearedRows.length > 0) {
+    // Half points already handled in lockPiece by not adding the full score here
+    // We still add base score at half
+    const base = LINE_SCORES[clearedRows.length] || 800;
+    score += Math.floor(base * 0.5) * level;
+    spawnFloatingText(COLS / 2 * BS, ROWS / 2 * BS, '腐朽清除!', '#888', 18);
+  }
+
+  // Remove cleared rows from bottom to top
+  for (const r of clearedRows.sort((a, b) => a - b)) {
+    board.splice(r, 1);
+    board.unshift(Array(COLS).fill(0));
+  }
+  cleared = clearedRows.length;
+
+  // Shock wave chain: settle decayed blocks → check for new lines → repeat
+  let shockTotal = 0;
+  let chainCount = 0;
+  for (let chain = 0; chain < 5; chain++) {
+    const shockSettled = applyShockWave();
+    if (shockSettled === 0) break;
+    shockTotal += shockSettled;
+    chainCount++;
+
+    // Check if settling created new full lines
+    const newFull = [];
+    for (let r = ROWS - 1; r >= 0; r--) {
+      if (board[r].every(c => c !== 0)) newFull.push(r);
+    }
+    if (newFull.length === 0) break;
+
+    // Clear the new lines
+    for (const r of newFull.sort((a, b) => a - b)) {
+      for (let c = 0; c < COLS; c++) {
+        spawnParticles(c * BS + BS / 2, r * BS + BS / 2,
+          typeof board[r][c] === 'object' ? board[r][c].color : '#fff', 4);
+      }
+      board.splice(r, 1);
+      board.unshift(Array(COLS).fill(0));
+    }
+    cleared += newFull.length;
+  }
+
+  if (shockTotal > 0) {
+    settleScore += shockTotal * SETTLE_SCORE;
+    score += shockTotal * SETTLE_SCORE;
+    if (chainCount > 1) {
+      spawnFloatingText(COLS / 2 * BS, ROWS * BS - 30, `连锁 x${chainCount}`, '#ff5252', 20);
+    }
+    spawnFloatingText(COLS / 2 * BS, ROWS * BS - 10, `冲击沉降 x${shockTotal}`, '#ffab40', 18);
+    AudioEngine.shockWave();
+  }
+
+  screenShake = Math.min(cleared * 3, 12);
+  shockFlash = 25;
+  const labels = ['', '消行!', '双消!', '三消!', 'TETRIS!!'];
+  if (cleared >= 4) {
+    screenShake = 15;
+    spawnFloatingText(COLS / 2 * BS, ROWS / 2 * BS, 'TETRIS!!', '#ffd740', 30);
+  } else if (cleared > 0) {
+    spawnFloatingText(COLS / 2 * BS, ROWS / 2 * BS, labels[cleared] || '超级!', '#fff', 22 + cleared * 2);
+  }
+  if (cleared > 0) AudioEngine.lineClear(cleared);
+
+  return cleared;
+}
+
+// ============================================================
+//  HOLD PIECE
+// ============================================================
+function hold() {
+  if (!canHold || !piece || gameOver || paused) return;
+  canHold = false;
+  if (holdPiece) {
+    const tmp = holdPiece;
+    holdPiece = piece.type;
+    piece = createPiece(tmp);
+  } else {
+    holdPiece = piece.type;
+    spawnFromQueue();
+    return;
+  }
+  updateGhost();
+}
+
+// ============================================================
+//  PARTICLES & EFFECTS
+// ============================================================
+function spawnParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 8,
+      vy: (Math.random() - 0.5) * 8 - 2,
+      life: 30 + Math.random() * 20,
+      maxLife: 50,
+      color,
+      size: 2 + Math.random() * 3
+    });
+  }
+}
+
+function spawnFloatingText(x, y, text, color, size) {
+  floatingTexts.push({ x, y, text, color, size, life: 60, maxLife: 60 });
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.15;
+    p.life--;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+  for (let i = floatingTexts.length - 1; i >= 0; i--) {
+    const ft = floatingTexts[i];
+    ft.y -= 1;
+    ft.life--;
+    if (ft.life <= 0) floatingTexts.splice(i, 1);
+  }
+  // Settling animations
+  for (let i = settlingAnims.length - 1; i >= 0; i--) {
+    const s = settlingAnims[i];
+    s.vy += 0.8;
+    s.y += s.vy;
+    s.life--;
+    if (s.life <= 0) settlingAnims.splice(i, 1);
+  }
+  // Shock flash decay
+  if (shockFlash > 0) shockFlash--;
+
+  if (screenShake > 0) {
+    shakeX = (Math.random() - 0.5) * screenShake;
+    shakeY = (Math.random() - 0.5) * screenShake;
+    screenShake *= 0.85;
+    if (screenShake < 0.5) { screenShake = 0; shakeX = 0; shakeY = 0; }
+  }
+}
+
+// ============================================================
+//  SOONEST DECAY TIMER
+// ============================================================
+function findSoonestDecay() {
+  let soonest = Infinity;
+  let exist = false;
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = board[r][c];
+      if (cell && typeof cell === 'object') {
+        exist = true;
+        const remaining = DECAY_TIME - (Date.now() - cell.placedAt);
+        if (remaining > 0 && remaining < soonest) soonest = remaining;
+      }
+    }
+  }
+  return { exist, remaining: Math.max(0, soonest) };
+}
+
+// ============================================================
+//  DRAWING
+// ============================================================
+function draw() {
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
+
+  // Background
+  ctx.fillStyle = '#0f0f23';
+  ctx.fillRect(-10, -10, COLS * BS + 20, ROWS * BS + 20);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x <= COLS; x++) {
+    ctx.beginPath(); ctx.moveTo(x * BS, 0); ctx.lineTo(x * BS, ROWS * BS); ctx.stroke();
+  }
+  for (let y = 0; y <= ROWS; y++) {
+    ctx.beginPath(); ctx.moveTo(0, y * BS); ctx.lineTo(COLS * BS, y * BS); ctx.stroke();
+  }
+
+  // Board blocks
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (board[r][c]) {
+        const cell = board[r][c];
+        const color = typeof cell === 'object' ? cell.color : cell;
+        const decayed = typeof cell === 'object' ? isDecayed(cell) : false;
+        const prog = typeof cell === 'object' ? decayProgress(cell) : 1;
+        drawBlock(c, r, color, decayed, prog, false);
+      }
+    }
+  }
+
+  // Ghost piece
+  if (piece && piece._ghostY !== undefined) {
+    for (let r = 0; r < piece.blocks.length; r++) {
+      for (let c = 0; c < piece.blocks[r].length; c++) {
+        if (!piece.blocks[r][c]) continue;
+        const gx = piece.x + c, gy = piece._ghostY + r;
+        if (gy >= 0) drawBlock(gx, gy, piece.color, false, 1, true);
+      }
+    }
+  }
+
+  // Current piece
+  if (piece) {
+    for (let r = 0; r < piece.blocks.length; r++) {
+      for (let c = 0; c < piece.blocks[r].length; c++) {
+        if (!piece.blocks[r][c]) continue;
+        const bx = piece.x + c, by = piece.y + r;
+        if (by >= 0) drawBlock(bx, by, piece.color, false, 1, false);
+      }
+    }
+  }
+
+  // Particles
+  for (const p of particles) {
+    ctx.globalAlpha = p.life / p.maxLife;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * (p.life / p.maxLife), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Settling animations (blocks falling off the bottom)
+  for (const s of settlingAnims) {
+    ctx.globalAlpha = Math.max(0, s.life / 20);
+    ctx.fillStyle = s.color;
+    ctx.fillRect(s.x + 1, s.y + 1, BS - 2, BS - 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(s.x + 1.5, s.y + 1.5, BS - 3, BS - 3);
+  }
+  ctx.globalAlpha = 1;
+
+  // Shock wave sweep visual
+  if (shockFlash > 0) {
+    const pct = 1 - shockFlash / 25;
+    const sweepY = pct * ROWS * BS;
+    const grad = ctx.createLinearGradient(0, sweepY - 30, 0, sweepY + 10);
+    grad.addColorStop(0, 'rgba(255,255,255,0)');
+    grad.addColorStop(0.6, `rgba(255,220,150,${0.4 * (1 - pct)})`);
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, sweepY - 30, COLS * BS, 40);
+    // Brief board flash
+    ctx.fillStyle = `rgba(255,240,200,${0.08 * (1 - pct)})`;
+    ctx.fillRect(0, 0, COLS * BS, ROWS * BS);
+  }
+
+  // Floating texts
+  for (const ft of floatingTexts) {
+    ctx.globalAlpha = ft.life / ft.maxLife;
+    ctx.fillStyle = ft.color;
+    ctx.font = `bold ${ft.size}px 'Microsoft YaHei', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(ft.text, ft.x, ft.y);
+  }
+  ctx.globalAlpha = 1;
+
+  // Game over overlay
+  if (gameOver) {
+    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+    ctx.fillRect(0, 0, COLS * BS, ROWS * BS);
+    ctx.fillStyle = '#fff';
+    ctx.font = "bold 36px 'Microsoft YaHei', sans-serif";
+    ctx.textAlign = 'center';
+    ctx.fillText('游戏结束', COLS * BS / 2, ROWS * BS / 2 - 50);
+    ctx.font = "bold 24px 'Microsoft YaHei', sans-serif";
+    ctx.fillText(`分数: ${score}`, COLS * BS / 2, ROWS * BS / 2);
+    ctx.font = "16px 'Microsoft YaHei', sans-serif";
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText(`等级 ${level} | 消行 ${lines}`, COLS * BS / 2, ROWS * BS / 2 + 35);
+    ctx.font = "16px 'Microsoft YaHei', sans-serif";
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.fillText('按空格重新开始', COLS * BS / 2, ROWS * BS / 2 + 70);
+  }
+
+  // Pause overlay
+  if (paused && !gameOver) {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, 0, COLS * BS, ROWS * BS);
+    ctx.fillStyle = '#fff';
+    ctx.font = "bold 32px 'Microsoft YaHei', sans-serif";
+    ctx.textAlign = 'center';
+    ctx.fillText('暂停', COLS * BS / 2, ROWS * BS / 2);
+    ctx.font = "16px 'Microsoft YaHei', sans-serif";
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.fillText('按 P 继续', COLS * BS / 2, ROWS * BS / 2 + 40);
+  }
+
+  ctx.restore();
+
+  drawNextQueue();
+  drawHoldPiece();
+  updateDecayBar();
+}
+
+function drawBlock(bx, by, color, decayed, decayProg, ghost) {
+  const x = bx * BS, y = by * BS;
+
+  if (ghost) {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.35;
+    ctx.fillRect(x + 1, y + 1, BS - 2, BS - 2);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x + 1, y + 1, BS - 2, BS - 2);
+    ctx.globalAlpha = 1;
+    return;
+  }
+
+  // Desaturate and darken for decayed blocks
+  let drawColor = color;
+  if (decayed) {
+    drawColor = desaturateColor(color, 0.6);
+  } else if (decayProg > 0.5) {
+    // Partial desaturation as blocks approach decay
+    const factor = 0.6 + 0.4 * (1 - (decayProg - 0.5) * 2);
+    drawColor = desaturateColor(color, factor);
+  }
+
+  // Main fill
+  ctx.fillStyle = drawColor;
+  ctx.fillRect(x + 1, y + 1, BS - 2, BS - 2);
+
+  // Inner highlight (top-left bevel)
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.fillRect(x + 2, y + 2, BS - 6, BS / 2 - 4);
+
+  // Border
+  if (decayed) {
+    ctx.strokeStyle = 'rgba(150,150,150,0.5)';
+  } else {
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  }
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 1.5, y + 1.5, BS - 3, BS - 3);
+
+  // Decay visual: crack lines
+  if (decayed) {
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.lineWidth = 1;
+    // Draw 2-3 diagonal scratch lines based on position for variety
+    const seed = (bx * 7 + by * 13) % 3;
+    drawCrack(x, y, seed, 0);
+    drawCrack(x, y, seed + 3, 1);
+    if (seed < 2) drawCrack(x, y, seed + 6, 2);
+  }
+
+  // Visual timer indicator: shrinking outline near edges
+  if (!decayed && decayProg > 0.7) {
+    const shrink = (decayProg - 0.7) / 0.3;
+    const inset = Math.floor(shrink * 4);
+    ctx.strokeStyle = `rgba(255, 200, 50, ${shrink * 0.5})`;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 2]);
+    ctx.strokeRect(x + 2 + inset, y + 2 + inset, BS - 4 - inset * 2, BS - 4 - inset * 2);
+    ctx.setLineDash([]);
+  }
+}
+
+function drawCrack(x, y, seed, idx) {
+  const s = seed % 5;
+  const startX = x + 4 + (s * 7 + idx * 5) % 18;
+  const startY = y + 4 + (s * 11 + idx * 3) % 18;
+  const len = 6 + (s + idx) % 8;
+  const angle = (s * 0.8 + idx * 1.2) % (Math.PI * 0.6) - 0.3;
+
+  ctx.beginPath();
+  ctx.moveTo(startX, startY);
+  const midX = startX + Math.cos(angle) * len * 0.5 + (s % 3 - 1) * 3;
+  const midY = startY + Math.sin(angle) * len * 0.5 + (s % 2) * 2;
+  ctx.lineTo(midX, midY);
+  ctx.lineTo(startX + Math.cos(angle) * len, startY + Math.sin(angle) * len);
+  ctx.stroke();
+}
+
+function desaturateColor(hex, factor) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+  const nr = Math.round(gray + (r - gray) * factor);
+  const ng = Math.round(gray + (g - gray) * factor);
+  const nb = Math.round(gray + (b - gray) * factor);
+  return `rgb(${nr},${ng},${nb})`;
+}
+
+function drawNextQueue() {
+  nextCtx.clearRect(0, 0, 140, 240);
+  for (let i = 0; i < Math.min(3, nextQueue.length); i++) {
+    const type = nextQueue[i];
+    const p = PIECES[type];
+    const shape = p.shape;
+    const color = p.color;
+    const s = 18;
+    const offsetY = 10 + i * 75;
+
+    // Find bounding box
+    let minR = shape.length, maxR = 0, minC = shape[0].length, maxC = 0;
+    for (let r = 0; r < shape.length; r++)
+      for (let c = 0; c < shape[r].length; c++)
+        if (shape[r][c]) { minR = Math.min(minR, r); maxR = Math.max(maxR, r); minC = Math.min(minC, c); maxC = Math.max(maxC, c); }
+
+    const w = (maxC - minC + 1) * s;
+    const startX = (140 - w) / 2;
+
+    for (let r = minR; r <= maxR; r++) {
+      for (let c = minC; c <= maxC; c++) {
+        if (!shape[r][c]) continue;
+        const bx = startX + (c - minC) * s;
+        const by = offsetY + (r - minR) * s;
+        nextCtx.fillStyle = color;
+        nextCtx.fillRect(bx + 1, by + 1, s - 2, s - 2);
+        nextCtx.fillStyle = 'rgba(255,255,255,0.12)';
+        nextCtx.fillRect(bx + 2, by + 2, s - 6, s / 2 - 3);
+        nextCtx.strokeStyle = 'rgba(255,255,255,0.1)';
+        nextCtx.lineWidth = 1;
+        nextCtx.strokeRect(bx + 1.5, by + 1.5, s - 3, s - 3);
+      }
+    }
+  }
+}
+
+function drawHoldPiece() {
+  holdCtx.clearRect(0, 0, 120, 80);
+  if (!holdPiece) return;
+  const p = PIECES[holdPiece];
+  const shape = p.shape;
+  const color = p.color;
+  const s = 18;
+
+  let minR = shape.length, maxR = 0, minC = shape[0].length, maxC = 0;
+  for (let r = 0; r < shape.length; r++)
+    for (let c = 0; c < shape[r].length; c++)
+      if (shape[r][c]) { minR = Math.min(minR, r); maxR = Math.max(maxR, r); minC = Math.min(minC, c); maxC = Math.max(maxC, c); }
+
+  const w = (maxC - minC + 1) * s;
+  const h = (maxR - minR + 1) * s;
+  const startX = (120 - w) / 2;
+  const startY = (80 - h) / 2;
+
+  for (let r = minR; r <= maxR; r++) {
+    for (let c = minC; c <= maxC; c++) {
+      if (!shape[r][c]) continue;
+      const bx = startX + (c - minC) * s;
+      const by = startY + (r - minR) * s;
+      holdCtx.fillStyle = color;
+      holdCtx.fillRect(bx + 1, by + 1, s - 2, s - 2);
+      holdCtx.fillStyle = 'rgba(255,255,255,0.12)';
+      holdCtx.fillRect(bx + 2, by + 2, s - 6, s / 2 - 3);
+      holdCtx.strokeStyle = 'rgba(255,255,255,0.1)';
+      holdCtx.lineWidth = 1;
+      holdCtx.strokeRect(bx + 1.5, by + 1.5, s - 3, s - 3);
+    }
+  }
+}
+
+function updateDecayBar() {
+  const { exist, remaining } = findSoonestDecay();
+  const bar = document.getElementById('decay-bar');
+  const label = document.getElementById('decay-label');
+  if (!exist) {
+    bar.style.width = '100%';
+    label.textContent = '无方块';
+  } else if (remaining >= DECAY_TIME) {
+    bar.style.width = '100%';
+    label.textContent = '尚未放置';
+  } else {
+    const pct = (remaining / DECAY_TIME) * 100;
+    bar.style.width = pct + '%';
+    const secs = Math.ceil(remaining / 1000);
+    label.textContent = `${secs}s 后腐朽`;
+  }
+}
+
+// ============================================================
+//  UI UPDATES
+// ============================================================
+function updateUI() {
+  document.getElementById('score-val').textContent = score;
+  document.getElementById('level-val').textContent = level;
+  document.getElementById('lines-val').textContent = lines;
+  document.getElementById('combo-val').textContent = combo > 1 ? `${combo}x` : '0';
+  document.getElementById('settle-val').textContent = settleScore;
+  document.getElementById('best-val').textContent = tryGetBest() || '0';
+}
+
+// ============================================================
+//  GAME LOOP
+// ============================================================
+function update(timestamp) {
+  if (!lastTime) lastTime = timestamp;
+  const delta = timestamp - lastTime;
+  lastTime = timestamp;
+
+  if (!gameOver && !paused && piece) {
+    dropTimer += delta;
+    if (dropTimer >= dropInterval) {
+      dropTimer = 0;
+      if (isValid(piece, piece.x, piece.y + 1)) {
+        piece.y++;
+      } else {
+        lockPiece();
+      }
+    }
+  }
+
+  updateParticles();
+  draw();
+  gameLoop = requestAnimationFrame(update);
+}
+
+// ============================================================
+//  INPUT
+// ============================================================
+const KEY_MAP = {
+  ArrowLeft: moveLeft,
+  ArrowRight: moveRight,
+  ArrowDown: moveDown,
+  ArrowUp: rotate,
+  KeyA: moveLeft,
+  KeyD: moveRight,
+  KeyS: moveDown,
+  KeyW: rotate,
+  KeyC: hold
+};
+
+let dashing = null;
+let dashTimer = 0;
+
+document.addEventListener('keydown', e => {
+  if (!started) {
+    started = true;
+    AudioEngine.start();
+    gameLoop = requestAnimationFrame(update);
+  }
+
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (gameOver) { restartGame(); return; }
+    if (piece) hardDrop();
+    return;
+  }
+
+  if (e.code === 'KeyP') {
+    paused = !paused;
+    return;
+  }
+
+  if (gameOver || !piece) return;
+
+  const action = KEY_MAP[e.code];
+  if (action) {
+    e.preventDefault();
+    action();
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+      dashing = { dir: 'left', initial: Date.now(), repeat: 0 };
+    }
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+      dashing = { dir: 'right', initial: Date.now(), repeat: 0 };
+    }
+  }
+});
+
+document.addEventListener('keyup', e => {
+  if ((e.code === 'ArrowLeft' || e.code === 'KeyA') && dashing && dashing.dir === 'left') {
+    dashing = null; dashTimer = 0;
+  }
+  if ((e.code === 'ArrowRight' || e.code === 'KeyD') && dashing && dashing.dir === 'right') {
+    dashing = null; dashTimer = 0;
+  }
+});
+
+let dashIntervalId = setInterval(() => {
+  if (gameOver || paused || !piece || !dashing) return;
+  const elapsed = Date.now() - dashing.initial;
+  if (elapsed < 170) return;
+  dashTimer += 50;
+  if (dashTimer < 70) return;
+  dashTimer = 0;
+  if (dashing.dir === 'left') moveLeft();
+  if (dashing.dir === 'right') moveRight();
+}, 50);
+
+// ============================================================
+//  AUDIO ENGINE
+// ============================================================
+const AudioEngine = (() => {
+  let ac, masterGain, muted = false;
+
+  function init() {
+    if (ac) return;
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = ac.createGain();
+    masterGain.gain.value = muted ? 0 : 0.35;
+    masterGain.connect(ac.destination);
+  }
+
+  function tone(freq, dur, type, vol, delay) {
+    if (!ac) return;
+    const t = ac.currentTime + (delay || 0);
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(vol || 0.06, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(masterGain);
+    o.start(t);
+    o.stop(t + dur + 0.01);
+  }
+
+  return {
+    init,
+    blockLock() {
+      init();
+      tone(440, 0.06, 'sine', 0.05);
+    },
+    hardDrop() {
+      init();
+      tone(200, 0.08, 'square', 0.04);
+      tone(120, 0.12, 'sine', 0.03, 0.02);
+    },
+    move() {
+      init();
+      tone(600, 0.015, 'sine', 0.01);
+    },
+    rotate() {
+      init();
+      tone(500, 0.02, 'triangle', 0.015);
+    },
+    lineClear(n) {
+      init();
+      const base = 523 + n * 80;
+      tone(base, 0.12, 'square', 0.06);
+      tone(base * 1.25, 0.15, 'square', 0.06, 0.06);
+      tone(base * 1.5, 0.2, 'square', 0.07, 0.12);
+    },
+    settle(n) {
+      init();
+      for (let i = 0; i < Math.min(n, 6); i++) {
+        tone(180 - i * 15, 0.1, 'sine', 0.04, i * 0.04);
+      }
+    },
+    shockWave() {
+      init();
+      tone(80, 0.4, 'sawtooth', 0.05);
+      tone(60, 0.5, 'sine', 0.03, 0.05);
+      const bufSize = Math.floor((ac.sampleRate || 44100) * 0.2);
+      const buf = ac.createBuffer(1, bufSize, ac.sampleRate || 44100);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufSize; i++)
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 3);
+      const src = ac.createBufferSource();
+      src.buffer = buf;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0.08, ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.2);
+      const f = ac.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = 600;
+      src.connect(f).connect(g).connect(masterGain);
+      src.start();
+    },
+    gameOver() {
+      init();
+      tone(392, 0.25, 'sawtooth', 0.05);
+      tone(349, 0.25, 'sawtooth', 0.05, 0.22);
+      tone(330, 0.25, 'sawtooth', 0.05, 0.44);
+      tone(262, 0.5, 'sawtooth', 0.06, 0.66);
+    },
+    start() {
+      init();
+      tone(523, 0.1, 'square', 0.05);
+      tone(659, 0.1, 'square', 0.05, 0.08);
+      tone(784, 0.15, 'square', 0.06, 0.16);
+    },
+    setMuted(v) {
+      muted = v;
+      if (masterGain) masterGain.gain.value = muted ? 0 : 0.35;
+    },
+    isMuted() { return muted; }
+  };
+})();
+
+// Help overlay
+const helpOverlay = document.getElementById('helpOverlay');
+document.getElementById('helpBtn').addEventListener('click', () => {
+  helpOverlay.classList.add('show');
+});
+helpOverlay.addEventListener('click', e => {
+  if (e.target === helpOverlay) helpOverlay.classList.remove('show');
+});
+
+// Mute button
+const muteBtn = document.getElementById('muteBtn');
+muteBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  const m = !AudioEngine.isMuted();
+  AudioEngine.setMuted(m);
+  muteBtn.textContent = m ? '🔇' : '🔊';
+});
+
+// Global key: Esc closes help overlay, ? toggles help overlay
+document.addEventListener('keydown', e => {
+  if (e.code === 'Escape') {
+    helpOverlay.classList.remove('show');
+  }
+  if (e.code === 'Question') {
+    helpOverlay.classList.toggle('show');
+  }
+});
+
+// ============================================================
+//  GAME MANAGEMENT
+// ============================================================
+function endGame() {
+  clearInterval(dashIntervalId);
+  gameOver = true;
+  screenShake = 15;
+  AudioEngine.gameOver();
+  const best = parseInt(tryGetBest() || '0');
+  if (score > best) {
+    try { localStorage.setItem('decayblocks_high', score); } catch (e) {}
+    spawnFloatingText(COLS / 2 * BS, ROWS / 2 * BS - 60, '新纪录!', '#ffcc00', 28);
+  }
+  updateUI();
+}
+
+function restartGame() {
+  if (gameLoop) cancelAnimationFrame(gameLoop);
+  clearInterval(dashIntervalId);
+  gameLoop = null;
+  initState();
+  for (let i = 0; i < 5; i++) nextQueue.push(randomType());
+  spawnFromQueue();
+  updateUI();
+  gameLoop = requestAnimationFrame(update);
+  dashIntervalId = setInterval(() => {
+    if (gameOver || paused || !piece || !dashing) return;
+    const elapsed = Date.now() - dashing.initial;
+    if (elapsed < 170) return;
+    dashTimer += 50;
+    if (dashTimer < 70) return;
+    dashTimer = 0;
+    if (dashing.dir === 'left') moveLeft();
+    if (dashing.dir === 'right') moveRight();
+  }, 50);
+}
+
+// ============================================================
+//  INIT
+// ============================================================
+function init() {
+  initState();
+  for (let i = 0; i < 5; i++) nextQueue.push(randomType());
+  spawnFromQueue();
+  updateUI();
+
+  // Start screen
+  ctx.fillStyle = '#0f0f23';
+  ctx.fillRect(0, 0, COLS * BS, ROWS * BS);
+
+  // Title
+  ctx.fillStyle = '#fff';
+  ctx.font = "bold 40px 'Microsoft YaHei', sans-serif";
+  ctx.textAlign = 'center';
+  ctx.fillText('腐朽方块', COLS * BS / 2, ROWS * BS / 2 - 100);
+
+  // Subtitle
+  ctx.font = "16px 'Microsoft YaHei', sans-serif";
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fillText('方块会随时间腐朽，被新方块压住后会沉降消除', COLS * BS / 2, ROWS * BS / 2 - 55);
+
+  // Decay time hint
+  ctx.font = "14px 'Microsoft YaHei', sans-serif";
+  ctx.fillStyle = 'rgba(255,200,100,0.6)';
+  ctx.fillText(`方块放置 ${DECAY_TIME / 1000} 秒后开始腐朽`, COLS * BS / 2, ROWS * BS / 2 - 25);
+
+  // Controls
+  ctx.font = "14px 'Microsoft YaHei', sans-serif";
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.fillText('方向键移动 | 上旋转 | 空格硬降 | C保持 | P暂停', COLS * BS / 2, ROWS * BS / 2 + 30);
+
+  // Start hint
+  ctx.fillStyle = `rgba(255,255,255,${0.3 + Math.sin(Date.now() / 500) * 0.2})`;
+  ctx.font = "18px 'Microsoft YaHei', sans-serif";
+  ctx.fillText('按任意键开始', COLS * BS / 2, ROWS * BS / 2 + 80);
+
+  document.addEventListener('keydown', function startHandler(e) {
+    started = true;
+    AudioEngine.start();
+    gameLoop = requestAnimationFrame(update);
+    document.removeEventListener('keydown', startHandler);
+  });
+}
+
+init();
+</script>
+</body>
+</html>

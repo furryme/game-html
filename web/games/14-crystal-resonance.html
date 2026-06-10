@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>晶体共振</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #050510;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  color: #fff;
+  overflow: hidden;
+}
+#game-container {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+canvas { display: block; }
+#left-panel, #right-panel {
+  width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.panel-box {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 12px;
+}
+.panel-box h3 {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 8px;
+  letter-spacing: 2px;
+}
+.stat-value {
+  font-size: 22px;
+  font-weight: bold;
+  background: linear-gradient(135deg, #d500f9, #00e5ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+#next-canvas { width: 140px; height: 260px; }
+#hold-canvas { width: 140px; height: 80px; }
+#controls {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+  text-align: center;
+}
+</style>
+</head>
+<body>
+<div id="game-container">
+  <div id="left-panel">
+    <div class="panel-box">
+      <h3>保 持</h3>
+      <canvas id="hold-canvas" width="140" height="80"></canvas>
+    </div>
+    <div class="panel-box">
+      <h3>分 数</h3>
+      <div class="stat-value" id="score-val">0</div>
+    </div>
+    <div class="panel-box">
+      <h3>等 级</h3>
+      <div class="stat-value" id="level-val">1</div>
+    </div>
+    <div class="panel-box">
+      <h3>行 数</h3>
+      <div class="stat-value" id="lines-val">0</div>
+    </div>
+    <div class="panel-box">
+      <h3>连 击</h3>
+      <div class="stat-value" id="combo-val">0</div>
+    </div>
+  </div>
+
+  <canvas id="board" width="300" height="600"></canvas>
+
+  <div id="right-panel">
+    <div class="panel-box">
+      <h3>下一个</h3>
+      <canvas id="next-canvas" width="140" height="260"></canvas>
+    </div>
+    <div class="panel-box">
+      <h3>最高分</h3>
+      <div class="stat-value" id="best-val">0</div>
+    </div>
+  </div>
+</div>
+
+<div id="controls">方向键移动 / 上旋转 / 下加速 / 空格硬降 / C保持 / P暂停</div>
+
+<script>
+// ============================================================
+//  CONSTANTS
+// ============================================================
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+const nextCanvas = document.getElementById('next-canvas');
+const nextCtx = nextCanvas.getContext('2d');
+const holdCanvas = document.getElementById('hold-canvas');
+const holdCtx = holdCanvas.getContext('2d');
+
+const COLS = 10, ROWS = 20, BS = 30;
+
+// Performance detection
+const isLowEnd = (window.devicePixelRatio || 1) < 1.5 || (navigator.hardwareConcurrency || 4) <= 2;
+const PARTICLE_COUNT = isLowEnd ? 3 : 8;
+const USE_SCREEN = !isLowEnd;
+
+const COLORS = {
+  I: '#00e5ff',
+  O: '#ffea00',
+  T: '#d500f9',
+  S: '#00e676',
+  Z: '#ff1744',
+  J: '#2979ff',
+  L: '#ff9100'
+};
+
+const PIECES = {
+  I: { shape: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], color: COLORS.I },
+  O: { shape: [[1,1],[1,1]], color: COLORS.O },
+  T: { shape: [[0,1,0],[1,1,1],[0,0,0]], color: COLORS.T },
+  S: { shape: [[0,1,1],[1,1,0],[0,0,0]], color: COLORS.S },
+  Z: { shape: [[1,1,0],[0,1,1],[0,0,0]], color: COLORS.Z },
+  J: { shape: [[1,0,0],[1,1,1],[0,0,0]], color: COLORS.J },
+  L: { shape: [[0,0,1],[1,1,1],[0,0,0]], color: COLORS.L }
+};
+
+const PIECE_TYPES = ['I','O','T','S','Z','J','L'];
+
+// SRS wall kick data
+const KICK_DATA = {
+  normal: {
+    '0>1': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+    '1>0': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
+    '1>2': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
+    '2>1': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+    '2>3': [[0,0],[1,0],[1,1],[0,-2],[1,-2]],
+    '3>2': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+    '3>0': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+    '0>3': [[0,0],[1,0],[1,1],[0,-2],[1,-2]]
+  },
+  I: {
+    '0>1': [[0,0],[-2,0],[1,0],[-2,-1],[1,2]],
+    '1>0': [[0,0],[2,0],[-1,0],[2,1],[-1,-2]],
+    '1>2': [[0,0],[-1,0],[2,0],[-1,2],[2,-1]],
+    '2>1': [[0,0],[1,0],[-2,0],[1,-2],[-2,1]],
+    '2>3': [[0,0],[2,0],[-1,0],[2,1],[-1,-2]],
+    '3>2': [[0,0],[-2,0],[1,0],[-2,-1],[1,2]],
+    '3>0': [[0,0],[1,0],[-2,0],[1,-2],[-2,1]],
+    '0>3': [[0,0],[-1,0],[2,0],[-1,2],[2,-1]]
+  }
+};
+
+// ============================================================
+//  GAME STATE
+// ============================================================
+let board, piece, nextQueue, holdPiece, canHold;
+let score, level, lines, combo, lastComboTime;
+let bag, gameOver, paused, started;
+let dropTimer, dropInterval, lastTime;
+let particles, floatingTexts, screenShake, shakeX, shakeY;
+let gameLoop;
+
+// Background bokeh spots
+let bokehSpots = [];
+
+function initState() {
+  board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+  piece = null; nextQueue = []; holdPiece = null; canHold = true;
+  score = 0; level = 1; lines = 0; combo = 0; lastComboTime = 0;
+  bag = [];
+  gameOver = false; paused = false; started = false;
+  dropTimer = 0; dropInterval = 800; lastTime = 0;
+  particles = []; floatingTexts = []; screenShake = 0; shakeX = 0; shakeY = 0;
+  initBokeh();
+}
+
+function initBokeh() {
+  bokehSpots = [];
+  for (let i = 0; i < 12; i++) {
+    bokehSpots.push({
+      x: Math.random() * COLS * BS,
+      y: Math.random() * ROWS * BS,
+      r: 20 + Math.random() * 40,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.2,
+      hue: Math.random() * 60 + 240,
+      alpha: 0.02 + Math.random() * 0.03
+    });
+  }
+}
+
+// ============================================================
+//  BAG RANDOMIZER (7-bag)
+// ============================================================
+function fillBag() {
+  const types = PIECE_TYPES.slice();
+  for (let i = types.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [types[i], types[j]] = [types[j], types[i]];
+  }
+  bag.push(...types);
+}
+
+function randomType() {
+  if (bag.length < 7) fillBag();
+  return bag.shift();
+}
+
+// ============================================================
+//  PIECE MANAGEMENT
+// ============================================================
+function createPiece(type) {
+  const p = PIECES[type];
+  return {
+    type,
+    color: p.color,
+    blocks: p.shape.map(r => [...r]),
+    rotation: 0,
+    x: Math.floor((COLS - p.shape[0].length) / 2),
+    y: 0
+  };
+}
+
+function spawnPiece() {
+  piece = createPiece(randomType());
+  if (!isValid(piece, piece.x, piece.y)) {
+    piece.y = -1;
+    if (!isValid(piece, piece.x, piece.y)) {
+      endGame();
+      return;
+    }
+  }
+  fillNextQueue();
+  updateGhost();
+}
+
+function fillNextQueue() {
+  while (nextQueue.length < 3) {
+    nextQueue.push(randomType());
+  }
+}
+
+// ============================================================
+//  COLLISION & MOVEMENT
+// ============================================================
+function isValid(p, px, py) {
+  for (let r = 0; r < p.blocks.length; r++) {
+    for (let c = 0; c < p.blocks[r].length; c++) {
+      if (!p.blocks[r][c]) continue;
+      const nx = px + c, ny = py + r;
+      if (nx < 0 || nx >= COLS || ny >= ROWS) return false;
+      if (ny >= 0 && board[ny][nx]) return false;
+    }
+  }
+  return true;
+}
+
+function moveLeft() {
+  if (isValid(piece, piece.x - 1, piece.y)) { piece.x--; updateGhost(); }
+}
+
+function moveRight() {
+  if (isValid(piece, piece.x + 1, piece.y)) { piece.x++; updateGhost(); }
+}
+
+function moveDown() {
+  if (isValid(piece, piece.x, piece.y + 1)) {
+    piece.y++;
+    dropTimer = 0;
+  } else {
+    lockPiece();
+  }
+}
+
+function hardDrop() {
+  let dist = 0;
+  while (isValid(piece, piece.x, piece.y + 1)) { piece.y++; dist++; }
+  score += dist * 2;
+  lockPiece();
+}
+
+function rotate() {
+  if (!piece || piece.type === 'O') return;
+  const blocks = piece.blocks;
+  const n = blocks.length;
+  const rotated = Array.from({ length: n }, () => Array(n).fill(0));
+  for (let r = 0; r < n; r++)
+    for (let c = 0; c < n; c++)
+      rotated[c][n - 1 - r] = blocks[r][c];
+
+  const oldBlocks = piece.blocks;
+  const oldRotation = piece.rotation;
+  const newRotation = (oldRotation + 1) % 4;
+  const kickKey = oldRotation + '>' + newRotation;
+
+  piece.blocks = rotated;
+  piece.rotation = newRotation;
+
+  const kickTable = piece.type === 'I' ? KICK_DATA.I : KICK_DATA.normal;
+  const kicks = kickTable[kickKey] || [[0,0]];
+
+  let valid = false;
+  for (const [kx, ky] of kicks) {
+    if (isValid(piece, piece.x + kx, piece.y - ky)) {
+      piece.x += kx;
+      piece.y -= ky;
+      valid = true;
+      break;
+    }
+  }
+  if (!valid) {
+    piece.blocks = oldBlocks;
+    piece.rotation = oldRotation;
+  }
+  updateGhost();
+}
+
+function updateGhost() {
+  if (!piece) return;
+  let gy = piece.y;
+  while (isValid(piece, piece.x, gy + 1)) gy++;
+  piece._ghostY = gy;
+}
+
+// ============================================================
+//  LOCK & LINE CLEAR
+// ============================================================
+function lockPiece() {
+  for (let r = 0; r < piece.blocks.length; r++) {
+    for (let c = 0; c < piece.blocks[r].length; c++) {
+      if (!piece.blocks[r][c]) continue;
+      const bx = piece.x + c, by = piece.y + r;
+      if (by >= 0 && by < ROWS && bx >= 0 && bx < COLS) {
+        board[by][bx] = piece.color;
+      }
+    }
+  }
+
+  const cleared = clearLines();
+
+  const now = Date.now();
+  if (cleared > 0 && now - lastComboTime < 5000) {
+    combo++;
+  } else if (cleared > 0) {
+    combo = 1;
+  } else {
+    combo = 0;
+  }
+  lastComboTime = now;
+
+  if (cleared > 0) {
+    const base = [0, 100, 300, 500, 800];
+    const comboMult = Math.min(combo, 10);
+    score += (base[cleared] || 800) * level * comboMult;
+    lines += cleared;
+    level = Math.floor(lines / 5) + 1;
+    dropInterval = Math.max(80, 800 - (level - 1) * 50);
+
+    const labels = ['', '消行!', '双消!', '三消!', 'TETRIS!!'];
+    const ftSize = 22 + cleared * 3;
+    spawnFloatingText(COLS / 2 * BS, ROWS / 2 * BS, labels[cleared] || '超级!', '#fff', ftSize);
+  }
+
+  updateUI();
+  spawnPiece();
+}
+
+function clearLines() {
+  let clearedRows = [];
+  for (let r = ROWS - 1; r >= 0; r--) {
+    if (board[r].every(c => c !== 0)) {
+      clearedRows.push(r);
+    }
+  }
+
+  if (clearedRows.length === 0) return 0;
+
+  const isTetris = clearedRows.length === 4;
+
+  for (const row of clearedRows) {
+    for (let c = 0; c < COLS; c++) {
+      const color = board[row][c];
+      const isTopHalf = row < ROWS / 2;
+      spawnShatter(c * BS + BS / 2, row * BS + BS / 2, color, isTopHalf, isTetris);
+    }
+  }
+
+  for (const row of clearedRows.sort((a, b) => a - b)) {
+    board.splice(row, 1);
+    board.unshift(Array(COLS).fill(0));
+  }
+
+  screenShake = Math.min(clearedRows.length * 4, 16);
+
+  return clearedRows.length;
+}
+
+// ============================================================
+//  HOLD PIECE
+// ============================================================
+function hold() {
+  if (!canHold || !piece || gameOver || paused) return;
+  canHold = false;
+  const type = piece.type;
+
+  if (holdPiece) {
+    piece = createPiece(holdPiece);
+    holdPiece = type;
+  } else {
+    holdPiece = type;
+    spawnPiece();
+    return;
+  }
+  updateGhost();
+}
+
+// ============================================================
+//  SHATTER PARTICLES
+// ============================================================
+function spawnShatter(px, py, color, isTopHalf, isTetris) {
+  const count = isTetris ? 16 : PARTICLE_COUNT;
+  for (let i = 0; i < count; i++) {
+    let vx, vy;
+    if (isTopHalf) {
+      vx = (Math.random() - 0.5) * 12;
+      vy = (Math.random() - 0.5) * 6;
+    } else {
+      vx = (Math.random() - 0.5) * 8;
+      vy = -3 - Math.random() * 8;
+    }
+    particles.push({
+      x: px, y: py,
+      vx, vy,
+      life: 30 + Math.random() * 15,
+      maxLife: 45,
+      color: Math.random() > 0.3 ? '#fff' : color,
+      size: 1.5 + Math.random() * 3,
+      rotation: Math.random() * Math.PI * 2
+    });
+  }
+}
+
+function spawnFloatingText(x, y, text, color, size) {
+  floatingTexts.push({ x, y, text, color, size, life: 60, maxLife: 60 });
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.1;
+    p.rotation += (Math.random() - 0.5) * 0.3;
+    p.life--;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+  for (let i = floatingTexts.length - 1; i >= 0; i--) {
+    const ft = floatingTexts[i];
+    ft.y -= 1.2;
+    ft.life--;
+    if (ft.life <= 0) floatingTexts.splice(i, 1);
+  }
+  if (screenShake > 0) {
+    shakeX = (Math.random() - 0.5) * screenShake;
+    shakeY = (Math.random() - 0.5) * screenShake;
+    screenShake *= 0.85;
+    if (screenShake < 0.5) { screenShake = 0; shakeX = 0; shakeY = 0; }
+  }
+}
+
+// ============================================================
+//  UTILS
+// ============================================================
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function countStackAbove(row) {
+  let count = 0;
+  for (let r = row - 1; r >= 0; r--) {
+    if (board[r]) count++;
+    else break;
+  }
+  return count;
+}
+
+// ============================================================
+//  CRYSTAL BLOCK DRAWING
+// ============================================================
+function drawCrystalBlock(bx, by, color, stackAbove) {
+  const x = bx * BS, y = by * BS;
+
+  // Gradient: bright center, dimmer edges
+  const grad = ctx.createRadialGradient(x + BS / 2, y + BS / 2, 2, x + BS / 2, y + BS / 2, BS * 0.7);
+  grad.addColorStop(0, hexToRgba(color, 0.85));
+  grad.addColorStop(0.6, hexToRgba(color, 0.5));
+  grad.addColorStop(1, hexToRgba(color, 0.3));
+  ctx.fillStyle = grad;
+  ctx.fillRect(x + 1, y + 1, BS - 2, BS - 2);
+
+  // Internal "facets" - subtle light refraction lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(x + 2, y + 2);
+  ctx.lineTo(x + BS / 2, y + BS / 2);
+  ctx.lineTo(x + BS - 2, y + 2);
+  ctx.stroke();
+
+  // Second facet line
+  ctx.beginPath();
+  ctx.moveTo(x + 2, y + BS - 2);
+  ctx.lineTo(x + BS / 2, y + BS / 2);
+  ctx.stroke();
+
+  // Outline, width scales with stack height above
+  const lineWidth = 1 + Math.min(stackAbove / 3, 4) * 0.5;
+  ctx.strokeStyle = hexToRgba(color, 0.7);
+  ctx.lineWidth = lineWidth;
+  ctx.strokeRect(x + 1, y + 1, BS - 2, BS - 2);
+}
+
+function drawSolidBlock(bx, by, color) {
+  const x = bx * BS, y = by * BS;
+  ctx.fillStyle = hexToRgba(color, 0.85);
+  ctx.fillRect(x + 1, y + 1, BS - 2, BS - 2);
+  ctx.strokeStyle = hexToRgba(color, 0.7);
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 1, y + 1, BS - 2, BS - 2);
+}
+
+// ============================================================
+//  DRAWING
+// ============================================================
+function drawBokeh() {
+  for (const spot of bokehSpots) {
+    spot.x += spot.vx;
+    spot.y += spot.vy;
+    if (spot.x < -spot.r) spot.x = COLS * BS + spot.r;
+    if (spot.x > COLS * BS + spot.r) spot.x = -spot.r;
+    if (spot.y < -spot.r) spot.y = ROWS * BS + spot.r;
+    if (spot.y > ROWS * BS + spot.r) spot.y = -spot.r;
+
+    const grad = ctx.createRadialGradient(spot.x, spot.y, 0, spot.x, spot.y, spot.r);
+    grad.addColorStop(0, `hsla(${spot.hue}, 80%, 60%, ${spot.alpha})`);
+    grad.addColorStop(1, `hsla(${spot.hue}, 80%, 60%, 0)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(spot.x - spot.r, spot.y - spot.r, spot.r * 2, spot.r * 2);
+  }
+}
+
+function drawBoardBorder(time) {
+  const glowAlpha = 0.4 + Math.sin(time / 600) * 0.15;
+  ctx.shadowColor = `rgba(213, 0, 249, ${glowAlpha})`;
+  ctx.shadowBlur = 12;
+  ctx.strokeStyle = `rgba(180, 120, 255, ${glowAlpha + 0.2})`;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(0, 0, COLS * BS, ROWS * BS);
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+}
+
+function drawGrid() {
+  ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x <= COLS; x++) {
+    ctx.beginPath(); ctx.moveTo(x * BS, 0); ctx.lineTo(x * BS, ROWS * BS); ctx.stroke();
+  }
+  for (let y = 0; y <= ROWS; y++) {
+    ctx.beginPath(); ctx.moveTo(0, y * BS); ctx.lineTo(COLS * BS, y * BS); ctx.stroke();
+  }
+}
+
+function drawGhostPiece(time) {
+  if (!piece || piece._ghostY === undefined) return;
+  const pulse = 0.5 + Math.sin(time / 300) * 0.15;
+
+  for (let r = 0; r < piece.blocks.length; r++) {
+    for (let c = 0; c < piece.blocks[r].length; c++) {
+      if (!piece.blocks[r][c]) continue;
+      const gx = piece.x + c, gy = piece._ghostY + r;
+      if (gy < 0) continue;
+      const x = gx * BS, y = gy * BS;
+      ctx.strokeStyle = hexToRgba(piece.color, pulse);
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x + 1.5, y + 1.5, BS - 3, BS - 3);
+    }
+  }
+
+  // Subtle glow on ghost
+  ctx.shadowColor = hexToRgba(piece.color, pulse * 0.5);
+  ctx.shadowBlur = 8;
+  for (let r = 0; r < piece.blocks.length; r++) {
+    for (let c = 0; c < piece.blocks[r].length; c++) {
+      if (!piece.blocks[r][c]) continue;
+      const gx = piece.x + c, gy = piece._ghostY + r;
+      if (gy < 0) continue;
+      const x = gx * BS, y = gy * BS;
+      ctx.fillStyle = hexToRgba(piece.color, 0.08);
+      ctx.fillRect(x + 2, y + 2, BS - 4, BS - 4);
+    }
+  }
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+}
+
+function draw() {
+  const time = Date.now();
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
+
+  // Background
+  ctx.fillStyle = '#050510';
+  ctx.fillRect(-10, -10, COLS * BS + 20, ROWS * BS + 20);
+
+  // Animated background bokeh
+  drawBokeh();
+
+  // Grid
+  drawGrid();
+
+  // Board blocks with screen blend mode for crystal refraction effect
+  if (USE_SCREEN) {
+    ctx.globalCompositeOperation = 'screen';
+  }
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (board[r][c]) {
+        const stackAbove = ROWS - 1 - r;
+        drawCrystalBlock(c, r, board[r][c], stackAbove);
+      }
+    }
+  }
+  ctx.globalCompositeOperation = 'source-over';
+
+  // Ghost piece
+  drawGhostPiece(time);
+
+  // Current piece (drawn normally on top)
+  if (piece) {
+    for (let r = 0; r < piece.blocks.length; r++) {
+      for (let c = 0; c < piece.blocks[r].length; c++) {
+        if (!piece.blocks[r][c]) continue;
+        const bx = piece.x + c, by = piece.y + r;
+        if (by >= 0) drawCrystalBlock(bx, by, piece.color, 0);
+      }
+    }
+  }
+
+  // Particles (rotating squares)
+  for (const p of particles) {
+    const alpha = p.life / p.maxLife;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rotation);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.color;
+    const s = p.size * alpha;
+    ctx.fillRect(-s / 2, -s / 2, s, s);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+
+  // Floating texts
+  for (const ft of floatingTexts) {
+    const alpha = ft.life / ft.maxLife;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = ft.color;
+    ctx.font = `bold ${ft.size}px 'Microsoft YaHei', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.shadowColor = ft.color;
+    ctx.shadowBlur = 10;
+    ctx.fillText(ft.text, ft.x, ft.y);
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+  }
+  ctx.globalAlpha = 1;
+
+  // Board border with glow
+  drawBoardBorder(time);
+
+  // Game over overlay
+  if (gameOver) {
+    ctx.fillStyle = 'rgba(5,5,16,0.85)';
+    ctx.fillRect(0, 0, COLS * BS, ROWS * BS);
+    ctx.fillStyle = '#fff';
+    ctx.font = "bold 36px 'Microsoft YaHei', sans-serif";
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#d500f9';
+    ctx.shadowBlur = 20;
+    ctx.fillText('游戏结束', COLS * BS / 2, ROWS * BS / 2 - 50);
+    ctx.shadowBlur = 0;
+    ctx.font = "bold 26px 'Microsoft YaHei', sans-serif";
+    ctx.fillText(`分数: ${score}`, COLS * BS / 2, ROWS * BS / 2);
+    ctx.font = "16px 'Microsoft YaHei', sans-serif";
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText('按空格重新开始', COLS * BS / 2, ROWS * BS / 2 + 45);
+  }
+
+  // Pause overlay
+  if (paused && !gameOver) {
+    ctx.fillStyle = 'rgba(5,5,16,0.7)';
+    ctx.fillRect(0, 0, COLS * BS, ROWS * BS);
+    ctx.fillStyle = '#fff';
+    ctx.font = "bold 32px 'Microsoft YaHei', sans-serif";
+    ctx.textAlign = 'center';
+    ctx.fillText('暂停', COLS * BS / 2, ROWS * BS / 2);
+  }
+
+  ctx.restore();
+
+  // Side panels
+  drawNextQueue();
+  drawHoldPiece();
+}
+
+// ============================================================
+//  PREVIEW DRAWING
+// ============================================================
+function drawMiniCrystalBlock(context, bx, by, color, cellSize) {
+  const x = bx * cellSize, y = by * cellSize;
+  const grad = context.createRadialGradient(x + cellSize / 2, y + cellSize / 2, 1, x + cellSize / 2, y + cellSize / 2, cellSize * 0.6);
+  grad.addColorStop(0, hexToRgba(color, 0.85));
+  grad.addColorStop(0.6, hexToRgba(color, 0.5));
+  grad.addColorStop(1, hexToRgba(color, 0.3));
+  context.fillStyle = grad;
+  context.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+
+  // Facet lines
+  context.strokeStyle = 'rgba(255,255,255,0.12)';
+  context.lineWidth = 0.5;
+  context.beginPath();
+  context.moveTo(x + 2, y + 2);
+  context.lineTo(x + cellSize / 2, y + cellSize / 2);
+  context.lineTo(x + cellSize - 2, y + 2);
+  context.stroke();
+
+  context.strokeStyle = hexToRgba(color, 0.6);
+  context.lineWidth = 1;
+  context.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+}
+
+function drawMiniPiece(context, type, offsetX, offsetY, cellSize) {
+  const p = PIECES[type];
+  const shape = p.shape;
+  let minR = shape.length, maxR = 0, minC = shape[0].length, maxC = 0;
+  for (let r = 0; r < shape.length; r++)
+    for (let c = 0; c < shape[r].length; c++)
+      if (shape[r][c]) {
+        minR = Math.min(minR, r); maxR = Math.max(maxR, r);
+        minC = Math.min(minC, c); maxC = Math.max(maxC, c);
+      }
+  const w = (maxC - minC + 1) * cellSize;
+  const h = (maxR - minR + 1) * cellSize;
+
+  for (let r = minR; r <= maxR; r++) {
+    for (let c = minC; c <= maxC; c++) {
+      if (!shape[r][c]) continue;
+      drawMiniCrystalBlock(context,
+        offsetX + (c - minC) * cellSize,
+        offsetY + (r - minR) * cellSize,
+        p.color,
+        cellSize
+      );
+    }
+  }
+}
+
+function drawNextQueue() {
+  nextCtx.clearRect(0, 0, 140, 260);
+  const cellSize = 20;
+  for (let i = 0; i < Math.min(3, nextQueue.length); i++) {
+    const type = nextQueue[i];
+    const p = PIECES[type];
+    const shape = p.shape;
+    let minR = shape.length, maxR = 0, minC = shape[0].length, maxC = 0;
+    for (let r = 0; r < shape.length; r++)
+      for (let c = 0; c < shape[r].length; c++)
+        if (shape[r][c]) {
+          minR = Math.min(minR, r); maxR = Math.max(maxR, r);
+          minC = Math.min(minC, c); maxC = Math.max(maxC, c);
+        }
+    const w = (maxC - minC + 1) * cellSize;
+    const offsetX = (140 - w) / 2;
+    const offsetY = 15 + i * 82;
+    drawMiniPiece(nextCtx, type, offsetX, offsetY, cellSize);
+  }
+}
+
+function drawHoldPiece() {
+  holdCtx.clearRect(0, 0, 140, 80);
+  if (!holdPiece) return;
+  const cellSize = 18;
+  const p = PIECES[holdPiece];
+  const shape = p.shape;
+  let minR = shape.length, maxR = 0, minC = shape[0].length, maxC = 0;
+  for (let r = 0; r < shape.length; r++)
+    for (let c = 0; c < shape[r].length; c++)
+      if (shape[r][c]) {
+        minR = Math.min(minR, r); maxR = Math.max(maxR, r);
+        minC = Math.min(minC, c); maxC = Math.max(maxC, c);
+      }
+  const w = (maxC - minC + 1) * cellSize;
+  const h = (maxR - minR + 1) * cellSize;
+  const offsetX = (140 - w) / 2;
+  const offsetY = (80 - h) / 2;
+  drawMiniPiece(holdCtx, holdPiece, offsetX, offsetY, cellSize);
+}
+
+// ============================================================
+//  UI UPDATES
+// ============================================================
+function updateUI() {
+  document.getElementById('score-val').textContent = score;
+  document.getElementById('level-val').textContent = level;
+  document.getElementById('lines-val').textContent = lines;
+  document.getElementById('combo-val').textContent = combo > 1 ? `${combo}x` : '0';
+  const best = parseInt(getBest() || '0');
+  document.getElementById('best-val').textContent = best;
+}
+
+function getBest() {
+  try { return localStorage.getItem('crystalresonance_high'); } catch (e) { return null; }
+}
+
+function saveBest(val) {
+  try { localStorage.setItem('crystalresonance_high', val); } catch (e) {}
+}
+
+// ============================================================
+//  GAME LOOP
+// ============================================================
+function update(timestamp) {
+  if (!lastTime) lastTime = timestamp;
+  const delta = timestamp - lastTime;
+  lastTime = timestamp;
+
+  if (!gameOver && !paused && piece) {
+    dropTimer += delta;
+    if (dropTimer >= dropInterval) {
+      dropTimer = 0;
+      if (isValid(piece, piece.x, piece.y + 1)) {
+        piece.y++;
+      } else {
+        lockPiece();
+      }
+    }
+  }
+
+  updateParticles();
+  draw();
+  gameLoop = requestAnimationFrame(update);
+}
+
+// ============================================================
+//  INPUT
+// ============================================================
+const KEY_MAP = {
+  ArrowLeft: moveLeft,
+  ArrowRight: moveRight,
+  ArrowDown: moveDown,
+  ArrowUp: rotate,
+  KeyA: moveLeft,
+  KeyD: moveRight,
+  KeyS: moveDown,
+  KeyW: rotate,
+  KeyC: hold
+};
+
+let dashing = null;
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (gameOver) { restartGame(); return; }
+    if (!started) {
+      started = true;
+      gameLoop = requestAnimationFrame(update);
+      return;
+    }
+    if (piece) hardDrop();
+    return;
+  }
+
+  if (e.code === 'KeyP') {
+    if (started) paused = !paused;
+    return;
+  }
+
+  if (!started || gameOver || !piece || paused) return;
+
+  const action = KEY_MAP[e.code];
+  if (action) {
+    e.preventDefault();
+    action();
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+      dashing = { dir: 'left', initial: Date.now(), repeat: 0 };
+    }
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+      dashing = { dir: 'right', initial: Date.now(), repeat: 0 };
+    }
+  }
+});
+
+document.addEventListener('keyup', e => {
+  if ((e.code === 'ArrowLeft' || e.code === 'KeyA') && dashing && dashing.dir === 'left') dashing = null;
+  if ((e.code === 'ArrowRight' || e.code === 'KeyD') && dashing && dashing.dir === 'right') dashing = null;
+});
+
+let dashTimer = 0;
+const dashIntervalId = setInterval(() => {
+  if (gameOver || paused || !piece || !dashing) return;
+  const elapsed = Date.now() - dashing.initial;
+  if (elapsed < 170) return;
+  dashTimer += 50;
+  if (dashTimer < 70) return;
+  dashTimer = 0;
+  if (dashing.dir === 'left') moveLeft();
+  if (dashing.dir === 'right') moveRight();
+}, 50);
+
+// ============================================================
+//  GAME MANAGEMENT
+// ============================================================
+function endGame() {
+  gameOver = true;
+  screenShake = 15;
+  const best = parseInt(getBest() || '0');
+  if (score > best) {
+    saveBest(score);
+    spawnFloatingText(COLS / 2 * BS, ROWS / 2 * BS - 60, '新纪录!', '#ffcc00', 28);
+  }
+  updateUI();
+}
+
+function restartGame() {
+  if (gameLoop) cancelAnimationFrame(gameLoop);
+  gameLoop = null;
+  initState();
+  fillNextQueue();
+  spawnPiece();
+  updateUI();
+  gameLoop = requestAnimationFrame(update);
+}
+
+// ============================================================
+//  INIT
+// ============================================================
+function init() {
+  initState();
+  fillNextQueue();
+  spawnPiece();
+  updateUI();
+
+  // Start screen
+  ctx.fillStyle = '#050510';
+  ctx.fillRect(0, 0, COLS * BS, ROWS * BS);
+
+  // Draw some decorative blocks on start screen
+  const demoColors = Object.values(COLORS);
+  for (let i = 0; i < 21; i++) {
+    const bx = Math.floor(i % 10);
+    const by = Math.floor(i / 10);
+    const color = demoColors[i % demoColors.length];
+    drawCrystalBlock(bx, ROWS - 5 + by, color, 0);
+  }
+  drawBoardBorder(Date.now());
+
+  ctx.fillStyle = 'rgba(5,5,16,0.6)';
+  ctx.fillRect(0, 0, COLS * BS, ROWS * BS);
+
+  ctx.shadowColor = '#d500f9';
+  ctx.shadowBlur = 30;
+  ctx.fillStyle = '#fff';
+  ctx.font = "bold 40px 'Microsoft YaHei', sans-serif";
+  ctx.textAlign = 'center';
+  ctx.fillText('晶体共振', COLS * BS / 2, ROWS * BS / 2 - 70);
+  ctx.shadowBlur = 0;
+
+  ctx.font = "14px 'Microsoft YaHei', sans-serif";
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fillText('方向键移动 / 上旋转 / 下加速 / 空格硬降', COLS * BS / 2, ROWS * BS / 2 - 10);
+  ctx.fillText('C保持 / P暂停', COLS * BS / 2, ROWS * BS / 2 + 18);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.font = "16px 'Microsoft YaHei', sans-serif";
+  ctx.fillText('按空格开始', COLS * BS / 2, ROWS * BS / 2 + 70);
+}
+
+init();
+</script>
+</body>
+</html>
