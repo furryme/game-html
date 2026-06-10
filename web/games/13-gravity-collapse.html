@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>引力崩塌</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+canvas {
+  border-radius: 10px;
+  box-shadow: 0 0 100px rgba(108, 92, 231, 0.4);
+  cursor: pointer;
+}
+#muteBtn {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #ccc;
+  font-size: 18px;
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+#muteBtn:hover { background: rgba(255,255,255,0.18); }
+#helpBtn {
+  position: fixed;
+  top: 16px;
+  right: 64px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(108, 92, 231, 0.2);
+  border: 1px solid rgba(108, 92, 231, 0.4);
+  color: #b388ff;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+#helpBtn:hover { background: rgba(108, 92, 231, 0.4); }
+#helpOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 100;
+  display: none;
+  justify-content: center;
+  align-items: center;
+}
+#helpOverlay.show { display: flex; }
+#helpOverlay .help-box {
+  background: linear-gradient(135deg, #1a1a3e, #0d0d1f);
+  border: 1px solid rgba(108, 92, 231, 0.4);
+  border-radius: 16px;
+  padding: 32px 40px;
+  max-width: 460px;
+  max-height: 80vh;
+  overflow-y: auto;
+  text-align: center;
+  box-shadow: 0 0 60px rgba(108, 92, 231, 0.3);
+}
+#helpOverlay h2 {
+  color: #b388ff;
+  font-size: 22px;
+  margin-bottom: 16px;
+}
+#helpOverlay .help-list {
+  text-align: left;
+  font-size: 13px;
+  color: #ccc;
+  line-height: 1.8;
+}
+#helpOverlay .help-list .bug-item {
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+#helpOverlay .help-list .bug-num {
+  color: #6c5ce7;
+  font-weight: bold;
+  margin-right: 6px;
+  display: inline-block;
+  min-width: 60px;
+}
+#helpOverlay .close-hint {
+  color: #666;
+  font-size: 12px;
+  margin-top: 16px;
+}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<button id="muteBtn" title="静音/开启">🔊</button>
+<button id="helpBtn" title="玩法说明">?</button>
+<div id="helpOverlay">
+  <div class="help-box">
+    <h2>引力崩塌 — 玩法说明</h2>
+    <div class="help-list">
+      <p style="margin-bottom:12px;">方块落下后不会立刻锁定——如果结构不稳，悬空方块会因引力崩塌！</p>
+      <div class="bug-item"><span class="bug-num">← →</span> 左右移动方块</div>
+      <div class="bug-item"><span class="bug-num">↑</span> 旋转方块</div>
+      <div class="bug-item"><span class="bug-num">↓</span> 加速下落</div>
+      <div class="bug-item"><span class="bug-num">空格</span> 直接硬降到底</div>
+      <div class="bug-item"><span class="bug-num">P</span> 暂停/继续</div>
+      <div class="bug-item" style="margin-top:12px;"><span class="bug-num">◆</span> <span style="color:#ffd740">基石</span> — 永不坍塌，提供支撑</div>
+      <div class="bug-item"><span class="bug-num">◆</span> <span style="color:#ff80ab">胶合</span> — 可为相邻方块提供侧撑</div>
+      <div class="bug-item"><span class="bug-num">◆</span> <span style="color:#aaa">脆弱</span> — 被坍塌方块碰撞即碎裂</div>
+      <div class="bug-item"><span class="bug-num">◆</span> 普通方块 — 需要下方有支撑，否则崩塌</div>
+    </div>
+    <div class="close-hint">按 Esc 或点击背景关闭</div>
+  </div>
+</div>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+/* ---- Canvas ---- */
+const W = 760, H = 620;
+canvas.width = W;
+canvas.height = H;
+function resize() {
+  const scale = Math.min(window.innerWidth / W, window.innerHeight / H) * 0.92;
+  canvas.style.width = (W * scale) + 'px';
+  canvas.style.height = (H * scale) + 'px';
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ---- Audio Engine (Web Audio API) ---- */
+const Audio = (() => {
+  let ac, muted = false;
+  const master = () => {
+    if (!ac) {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      ac._master = ac.createGain();
+      ac._master.gain.value = muted ? 0 : 0.4;
+      ac._master.connect(ac.destination);
+    }
+    return ac;
+  };
+  const tone = (freq, dur, type, vol, delay) => {
+    if (muted || !ac) return;
+    const t = ac.currentTime + (delay || 0);
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(vol || 0.08, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(ac._master);
+    o.start(t); o.stop(t + dur + 0.01);
+  };
+  const noise = (dur, vol, delay) => {
+    if (muted || !ac) return;
+    const t = ac.currentTime + (delay || 0);
+    const bufSize = Math.floor(ac.sampleRate * dur);
+    const buf = ac.createBuffer(1, bufSize, ac.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++)
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 2);
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(vol || 0.2, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    const f = ac.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = 800;
+    src.connect(f).connect(g).connect(ac._master);
+    src.start(t);
+  };
+  let bgmInterval = null;
+  const bgmNotes = [130.81, 155.56, 174.61, 196.00, 174.61, 155.56, 130.81, 146.83];
+  return {
+    supportCheck() {
+      master();
+      const t = ac.currentTime;
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(55, t);
+      o.frequency.linearRampToValueAtTime(75, t + 0.3);
+      g.gain.setValueAtTime(0.12, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+      o.connect(g).connect(ac._master);
+      o.start(t); o.stop(t + 0.51);
+    },
+    blockFall() { tone(350, 0.05, 'square', 0.03); },
+    collision() { noise(0.1, 0.12); tone(180, 0.06, 'square', 0.05); },
+    lineClear() {
+      master();
+      tone(523, 0.12, 'square', 0.07, 0);
+      tone(659, 0.12, 'square', 0.07, 0.07);
+      tone(784, 0.18, 'square', 0.09, 0.14);
+      noise(0.15, 0.08, 0);
+    },
+    pieceLock() { tone(440, 0.07, 'sine', 0.05); },
+    gameOver() {
+      master();
+      tone(392, 0.2, 'sawtooth', 0.08, 0);
+      tone(349, 0.2, 'sawtooth', 0.08, 0.2);
+      tone(330, 0.2, 'sawtooth', 0.08, 0.4);
+      tone(262, 0.5, 'sawtooth', 0.1, 0.6);
+    },
+    start() {
+      master();
+      tone(523, 0.1, 'square', 0.07, 0);
+      tone(659, 0.1, 'square', 0.07, 0.1);
+      tone(784, 0.15, 'square', 0.09, 0.2);
+    },
+    foundationPlace() {
+      master();
+      tone(70, 0.25, 'sine', 0.12);
+      tone(110, 0.15, 'triangle', 0.05, 0.05);
+    },
+    startBGM() {
+      if (bgmInterval) clearInterval(bgmInterval);
+      master();
+      let idx = 0;
+      bgmInterval = setInterval(() => {
+        if (muted || !ac) return;
+        const t = ac.currentTime;
+        const freq = bgmNotes[idx % bgmNotes.length];
+        const o = ac.createOscillator(), g = ac.createGain();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(freq, t);
+        g.gain.setValueAtTime(0.035, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+        o.connect(g).connect(ac._master);
+        o.start(t); o.stop(t + 0.41);
+        const b = ac.createOscillator(), bg = ac.createGain();
+        b.type = 'sine';
+        b.frequency.setValueAtTime(freq / 2, t);
+        bg.gain.setValueAtTime(0.025, t);
+        bg.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+        b.connect(bg).connect(ac._master);
+        b.start(t); b.stop(t + 0.36);
+        idx++;
+      }, 450);
+    },
+    stopBGM() {
+      if (bgmInterval) { clearInterval(bgmInterval); bgmInterval = null; }
+    },
+    setMuted(v) { muted = v; if (ac) ac._master.gain.value = muted ? 0 : 0.4; },
+    isMuted() { return muted; }
+  };
+})();
+
+/* ---- Constants ---- */
+const COLS = 10, ROWS = 20, CELL = 28;
+const BOARD_X = (W - COLS * CELL) / 2;
+const BOARD_Y = 50;
+const BOARD_W = COLS * CELL, BOARD_H = ROWS * CELL;
+const GRACE_FRAMES = 90; // 1.5s at 60fps
+const MAX_FALL = 5;
+const LEVEL_LINES = 10;
+const HIGH_SCORE_KEY = 'gravitycollapse_high';
+
+const SHAPES = {
+  I: { blocks: [[0,0],[1,0],[2,0],[3,0]], color: '#00e5ff' },
+  O: { blocks: [[0,0],[1,0],[0,1],[1,1]], color: '#ffd740' },
+  T: { blocks: [[0,0],[1,0],[2,0],[1,1]], color: '#b388ff' },
+  S: { blocks: [[1,0],[2,0],[0,1],[1,1]], color: '#69f0ae' },
+  Z: { blocks: [[0,0],[1,0],[1,1],[2,1]], color: '#ff5252' },
+  L: { blocks: [[0,0],[1,0],[2,0],[2,1]], color: '#ffab40' },
+  J: { blocks: [[0,0],[1,0],[2,0],[0,1]], color: '#448aff' },
+};
+const SHAPE_KEYS = Object.keys(SHAPES);
+
+/* ---- Game state ---- */
+let state = 'menu'; // menu | playing | paused | gameover | collapsing
+let grid = [];
+let particles = [];
+let bgParticles = [];
+let score = 0, lines = 0, level = 1, highScore = 0;
+let bag = [];
+let currentPiece = null;
+let ghostBaseY = null;
+let gameOverTime = 0;
+let dropTimer = 0;
+let dropInterval = 40;
+let lockTimer = 0;
+let shakeTimer = 0, shakeIntensity = 0;
+let scanlineAlpha = 0;
+let frameCount = 0;
+let menuBtn = null, goBtns = null;
+let collapseQueue = [];
+let collapseInputLocked = false;
+let supportCheckPending = false;
+let afterCollapseCallback = null;
+
+try { highScore = parseInt(localStorage.getItem(HIGH_SCORE_KEY), 10) || 0; } catch(e) {}
+function saveHighScore(s) {
+  if (s > highScore) { highScore = s; try { localStorage.setItem(HIGH_SCORE_KEY, highScore); } catch(e) {} }
+}
+
+/* ---- Block type ---- */
+function rollBlockType() {
+  const r = Math.random();
+  if (r < 0.05) return 'adhesive';
+  if (r < 0.15) return 'foundation';
+  if (r < 0.30) return 'fragile';
+  return 'normal';
+}
+
+/* ---- Grid ---- */
+function createGrid() {
+  const g = [];
+  for (let y = 0; y < ROWS; y++) { g[y] = new Array(COLS).fill(0); }
+  return g;
+}
+function isOccupied(x, y) {
+  if (x < 0 || x >= COLS || y >= ROWS) return true;
+  if (y < 0) return false;
+  return grid[y][x] !== 0;
+}
+
+/* ---- 7-bag randomizer ---- */
+function popBag() {
+  if (bag.length === 0) {
+    bag = [...SHAPE_KEYS];
+    for (let i = bag.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [bag[i], bag[j]] = [bag[j], bag[i]];
+    }
+  }
+  return bag.pop();
+}
+
+/* ---- Piece ---- */
+function spawnPiece() {
+  const key = popBag();
+  const shape = SHAPES[key];
+  const blocks = shape.blocks.map(b => ({ x: b[0], y: b[1] }));
+  let minX = Infinity, maxX = -Infinity;
+  for (const b of blocks) { minX = Math.min(minX, b.x); maxX = Math.max(maxX, b.x); }
+  const w = maxX - minX + 1;
+  const ox = Math.floor((COLS - w) / 2) - minX;
+  const piece = {
+    key, color: shape.color,
+    blocks: blocks.map(b => ({ x: b.x + ox, y: b.y })),
+    blockTypes: blocks.map(() => rollBlockType()),
+    _touchedDown: false
+  };
+  for (const b of piece.blocks) {
+    if (isOccupied(b.x, b.y)) { triggerGameOver(); return; }
+  }
+  currentPiece = piece;
+  dropTimer = 0;
+  lockTimer = 0;
+  updateGhost();
+}
+
+function rotatePiece(dir) {
+  if (!currentPiece || currentPiece.key === 'O') return;
+  let cx = 0, cy = 0;
+  for (const b of currentPiece.blocks) { cx += b.x; cy += b.y; }
+  cx /= currentPiece.blocks.length; cy /= currentPiece.blocks.length;
+  const newBlocks = currentPiece.blocks.map(b => {
+    const dx = b.x - cx, dy = b.y - cy;
+    return { x: Math.round(cx + (dir > 0 ? -dy : dy)), y: Math.round(cy + (dir > 0 ? dx : -dx)) };
+  });
+  const kicks = [[0,0],[-1,0],[1,0],[0,-1],[-1,-1],[1,-1],[0,-2],[-2,0],[2,0]];
+  for (const [kx, ky] of kicks) {
+    const test = newBlocks.map(b => ({ x: b.x + kx, y: b.y + ky }));
+    if (test.every(b => !isOccupied(b.x, b.y))) { currentPiece.blocks = test; updateGhost(); return; }
+  }
+}
+
+function movePiece(dx, dy) {
+  if (!currentPiece) return false;
+  for (const b of currentPiece.blocks) { if (isOccupied(b.x + dx, b.y + dy)) return false; }
+  for (const b of currentPiece.blocks) { b.x += dx; b.y += dy; }
+  if (dy === 0) updateGhost();
+  return true;
+}
+
+function hardDrop() {
+  if (!currentPiece) return;
+  let dropped = 0;
+  while (movePiece(0, 1)) dropped++;
+  score += dropped * 2;
+  lockPiece();
+}
+
+function updateGhost() {
+  if (!currentPiece) { ghostBaseY = null; return; }
+  const baseY = Math.min(...currentPiece.blocks.map(b => b.y));
+  let fallDist = 0;
+  while (currentPiece.blocks.every(b => !isOccupied(b.x, b.y + fallDist + 1))) fallDist++;
+  ghostBaseY = baseY + fallDist;
+}
+
+/* ---- Support check ---- */
+function hasSupport(x, y, memo) {
+  const key = `${x},${y}`;
+  if (memo.has(key)) return memo.get(key);
+  const block = grid[y][x];
+  if (!block || block === 0) { memo.set(key, false); return false; }
+  if (block.type === 'foundation') { memo.set(key, true); return true; }
+  // Floor
+  if (y >= ROWS - 1) { memo.set(key, true); return true; }
+  // Block below with support
+  if (grid[y + 1][x] && grid[y + 1][x] !== 0) {
+    if (hasSupport(x, y + 1, memo)) { memo.set(key, true); return true; }
+  }
+  // Adhesive side support (needs locked adhesive neighbor)
+  if (x > 0 && grid[y][x - 1] && grid[y][x - 1] !== 0 &&
+      grid[y][x - 1].type === 'adhesive' && grid[y][x - 1].locked) {
+    memo.set(key, true); return true;
+  }
+  if (x < COLS - 1 && grid[y][x + 1] && grid[y][x + 1] !== 0 &&
+      grid[y][x + 1].type === 'adhesive' && grid[y][x + 1].locked) {
+    memo.set(key, true); return true;
+  }
+  // Bridge: both sides + those have support
+  if (x > 0 && x < COLS - 1 && grid[y][x - 1] && grid[y][x - 1] !== 0 &&
+      grid[y][x + 1] && grid[y][x + 1] !== 0) {
+    if (hasSupport(x - 1, y, memo) && hasSupport(x + 1, y, memo)) {
+      memo.set(key, true); return true;
+    }
+  }
+  memo.set(key, false);
+  return false;
+}
+
+function findUnstable() {
+  const unstable = [];
+  const memo = new Map();
+  for (let y = 0; y < ROWS; y++)
+    for (let x = 0; x < COLS; x++)
+      if (grid[y][x] && grid[y][x] !== 0 && !hasSupport(x, y, memo))
+        unstable.push({ x, y });
+  return unstable;
+}
+
+/* ---- Collapse ---- */
+function startCollapse(callback) {
+  const unstable = findUnstable();
+  if (unstable.length === 0) {
+    if (callback) callback();
+    return;
+  }
+  scanlineAlpha = 1;
+  Audio.supportCheck();
+  state = 'collapsing';
+  collapseInputLocked = true;
+
+  // Store block data before removing from grid
+  const blocks = unstable.map(u => ({ x: u.x, y: u.y, block: grid[u.y][u.x] }));
+  for (const u of unstable) grid[u.y][u.x] = 0;
+
+  // Eliminate fragile blocks in the path (they get crushed)
+  for (const b of blocks) {
+    for (let yy = b.y + 1; yy < ROWS; yy++) {
+      if (grid[yy][b.x] && grid[yy][b.x] !== 0 && grid[yy][b.x].type === 'fragile') {
+        spawnCollisionParticles(
+          b.x * CELL + BOARD_X + CELL / 2,
+          yy * CELL + BOARD_Y + CELL / 2,
+          grid[yy][b.x].color
+        );
+        grid[yy][b.x] = 0;
+      }
+    }
+  }
+
+  // Calculate fall distance
+  collapseQueue = [];
+  for (const b of blocks) {
+    let fallTo = ROWS - 1;
+    for (let yy = b.y + 1; yy < ROWS; yy++) {
+      if (grid[yy][b.x] && grid[yy][b.x] !== 0) { fallTo = yy - 1; break; }
+    }
+    let dist = fallTo - b.y;
+    if (dist < 0) dist = 0;
+    if (dist > MAX_FALL) dist = MAX_FALL;
+    collapseQueue.push({
+      x: b.x, y: b.y, dist, fallProgress: 0,
+      _block: b.block
+    });
+  }
+  collapseInputLocked = true;
+  collapseTimer = 0;
+  afterCollapseCallback = callback || null;
+}
+
+function updateCollapse() {
+  if (collapseQueue.length === 0) { finishCollapse(); return; }
+  collapseTimer++;
+  let allDone = true;
+  let lastTriggeredCell = -1;
+
+  for (const q of collapseQueue) {
+    if (q.fallProgress < q.dist) {
+      allDone = false;
+      const speed = Math.max(0.06, 0.25 - q.fallProgress * 0.025);
+      const prevCell = Math.floor(q.fallProgress);
+      q.fallProgress += speed;
+      const currCell = Math.floor(q.fallProgress);
+      if (currCell > prevCell && currCell <= q.dist) {
+        Audio.blockFall();
+      }
+    }
+  }
+
+  if (allDone) {
+    // Place blocks
+    for (const q of collapseQueue) {
+      const finalY = Math.min(ROWS - 1, q.y + q.dist);
+      if (finalY > q.y) {
+        // Hit something
+        Audio.collision();
+        spawnCollisionParticles(
+          q.x * CELL + BOARD_X + CELL / 2,
+          finalY * CELL + BOARD_Y + CELL / 2,
+          q._block.color
+        );
+      }
+      grid[finalY][q.x] = q._block;
+      q._block.locked = true;
+      q._block.graceTimer = 0;
+    }
+    collapseQueue = [];
+    finishCollapse();
+  }
+}
+
+function finishCollapse() {
+  collapseInputLocked = false;
+  const cb = afterCollapseCallback;
+  afterCollapseCallback = null;
+  state = 'playing';
+
+  // Check for line clears caused by collapse
+  const cleared = clearLines();
+  if (cleared > 0) {
+    // Line clear -> another support check
+    setTimeout(() => {
+      if (state === 'playing') startCollapse(() => {
+        if (state === 'playing') spawnAndContinue();
+      });
+    }, 150);
+  } else {
+    if (state === 'playing') spawnAndContinue();
+  }
+}
+
+function spawnAndContinue() {
+  // Support check already ran before this was called.
+  // Just spawn the next piece; the NEW piece's lock will set supportCheckPending.
+  spawnPiece();
+}
+
+/* ---- Lock piece ---- */
+function lockPiece() {
+  if (!currentPiece) return;
+  Audio.pieceLock();
+  const hasFoundation = currentPiece.blockTypes.includes('foundation');
+  if (hasFoundation) Audio.foundationPlace();
+
+  for (let i = 0; i < currentPiece.blocks.length; i++) {
+    const b = currentPiece.blocks[i];
+    if (b.y >= 0 && b.y < ROWS && b.x >= 0 && b.x < COLS) {
+      const bt = currentPiece.blockTypes[i];
+      grid[b.y][b.x] = {
+        color: currentPiece.color,
+        type: bt,
+        locked: false,
+        graceTimer: GRACE_FRAMES
+      };
+      spawnLockParticles(b.x * CELL + BOARD_X + CELL / 2, b.y * CELL + BOARD_Y + CELL / 2, currentPiece.color);
+    }
+  }
+  currentPiece = null;
+  dropTimer = 0;
+  lockTimer = 0;
+
+  // Game over check
+  for (let x = 0; x < COLS; x++) {
+    if (grid[0][x] && grid[0][x] !== 0) { triggerGameOver(); return; }
+  }
+
+  // Clear lines
+  clearLines();
+
+  // Schedule support check for after grace period
+  supportCheckPending = true;
+}
+
+/* ---- Line clear ---- */
+function clearLines() {
+  const fullRows = [];
+  for (let y = 0; y < ROWS; y++) {
+    if (grid[y].every(c => c && c !== 0)) fullRows.push(y);
+  }
+  if (fullRows.length === 0) return 0;
+  Audio.lineClear();
+  for (const ry of fullRows) {
+    for (let x = 0; x < COLS; x++) {
+      const c = grid[ry][x] ? (typeof grid[ry][x] === 'object' ? grid[ry][x].color : '#fff') : '#fff';
+      spawnClearParticles(x * CELL + BOARD_X + CELL / 2, ry * CELL + BOARD_Y + CELL / 2, c);
+    }
+    grid.splice(ry, 1);
+    grid.unshift(new Array(COLS).fill(0));
+  }
+  const pts = [0, 100, 300, 500, 800];
+  score += (pts[fullRows.length] || 800) * level;
+  lines += fullRows.length;
+  level = Math.floor(lines / LEVEL_LINES) + 1;
+  dropInterval = Math.max(4, 40 - (level - 1) * 3);
+  shakeTimer = 8;
+  shakeIntensity = 4 + fullRows.length * 2;
+  return fullRows.length;
+}
+
+/* ---- Particles ---- */
+function spawnLockParticles(x, y, color) {
+  for (let i = 0; i < 4; i++) particles.push({
+    x, y, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3,
+    life: 1, decay: 0.04 + Math.random() * 0.03, size: 2 + Math.random() * 2, color
+  });
+}
+function spawnCollisionParticles(x, y, color) {
+  for (let i = 0; i < 8; i++) {
+    const angle = Math.random() * Math.PI * 2, spd = 1 + Math.random() * 4;
+    particles.push({
+      x, y, vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd,
+      life: 1, decay: 0.02 + Math.random() * 0.02, size: 1.5 + Math.random() * 3,
+      color: Math.random() > 0.5 ? '#fff' : color
+    });
+  }
+}
+function spawnClearParticles(x, y, color) {
+  for (let i = 0; i < 6; i++) particles.push({
+    x: x + (Math.random() - 0.5) * CELL, y: y + (Math.random() - 0.5) * CELL,
+    vx: (Math.random() - 0.5) * 5, vy: -2 - Math.random() * 4,
+    life: 1, decay: 0.015 + Math.random() * 0.015, size: 2 + Math.random() * 4, color
+  });
+}
+
+/* ---- Background particles ---- */
+function initBgParticles() {
+  bgParticles = [];
+  for (let i = 0; i < 40; i++) bgParticles.push({
+    x: Math.random() * W, y: Math.random() * H,
+    size: 0.5 + Math.random() * 1.5, speed: 0.1 + Math.random() * 0.3,
+    alpha: 0.08 + Math.random() * 0.15, pulse: Math.random() * Math.PI * 2
+  });
+}
+initBgParticles();
+
+/* ---- Game over ---- */
+function triggerGameOver() {
+  state = 'gameover';
+  gameOverTime = Date.now();
+  saveHighScore(score);
+  Audio.stopBGM();
+  Audio.gameOver();
+  shakeTimer = 30;
+  shakeIntensity = 12;
+  currentPiece = null;
+}
+
+/* ---- Init game ---- */
+function initGame() {
+  grid = createGrid();
+  particles = [];
+  score = 0; lines = 0; level = 1;
+  bag = [];
+  currentPiece = null;
+  ghostBaseY = null;
+  dropTimer = 0; dropInterval = 40;
+  lockTimer = 0;
+  shakeTimer = 0; shakeIntensity = 0;
+  scanlineAlpha = 0;
+  collapseQueue = [];
+  collapseInputLocked = false;
+  supportCheckPending = false;
+  afterCollapseCallback = null;
+  spawnPiece();
+}
+
+/* ---- Draw helpers ---- */
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+/* ---- Color helpers ---- */
+function lightenColor(hex, amt) {
+  let r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  r = Math.min(255, r + amt); g = Math.min(255, g + amt); b = Math.min(255, b + amt);
+  return `rgb(${r},${g},${b})`;
+}
+function shadeColor(hex, amt) {
+  let r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  r = Math.max(0, r + amt); g = Math.max(0, g + amt); b = Math.max(0, b + amt);
+  return `rgb(${r},${g},${b})`;
+}
+
+/* ---- Draw block ---- */
+function drawBlock(x, y, w, h, color, type, alpha, jitter) {
+  const jx = jitter ? (Math.random() - 0.5) * 2 : 0;
+  const jy = jitter ? (Math.random() - 0.5) * 2 : 0;
+  const bx = x + jx, by = y + jy, pad = 1;
+  ctx.save();
+  ctx.globalAlpha = alpha || 1;
+
+  // Main fill
+  const grad = ctx.createLinearGradient(bx, by, bx, by + h);
+  if (type === 'foundation') {
+    grad.addColorStop(0, '#ffd740'); grad.addColorStop(0.5, '#ffab00'); grad.addColorStop(1, '#ff8f00');
+  } else if (type === 'adhesive') {
+    grad.addColorStop(0, '#ff80ab'); grad.addColorStop(1, '#f50057');
+  } else if (type === 'fragile') {
+    grad.addColorStop(0, color); grad.addColorStop(1, shadeColor(color, -30));
+  } else {
+    grad.addColorStop(0, lightenColor(color, 20)); grad.addColorStop(1, shadeColor(color, -20));
+  }
+  ctx.fillStyle = grad;
+  roundRect(bx + pad, by + pad, w - pad * 2, h - pad * 2, 3);
+  ctx.fill();
+
+  // Inner highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  roundRect(bx + pad + 2, by + pad + 1, w - pad * 2 - 4, h * 0.4, 2);
+  ctx.fill();
+
+  // Border
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 0.5;
+  roundRect(bx + pad, by + pad, w - pad * 2, h - pad * 2, 3);
+  ctx.stroke();
+
+  // Special effects
+  if (type === 'foundation') {
+    ctx.shadowColor = '#ffd740'; ctx.shadowBlur = 8;
+    ctx.strokeStyle = 'rgba(255, 215, 64, 0.6)'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(bx + pad + 4, by + h - pad);
+    ctx.lineTo(bx + w - pad - 4, by + h - pad);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath(); ctx.arc(bx + 6 + i * 8, by + h - 6, 1.5, 0, Math.PI * 2); ctx.fill();
+    }
+  } else if (type === 'fragile') {
+    ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(bx + w * 0.3, by + 2);
+    ctx.lineTo(bx + w * 0.5, by + h * 0.5);
+    ctx.lineTo(bx + w * 0.7, by + h - 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(bx + w * 0.5, by + h * 0.5);
+    ctx.lineTo(bx + w * 0.4, by + h * 0.8);
+    ctx.stroke();
+  } else if (type === 'adhesive') {
+    ctx.shadowColor = '#ff80ab'; ctx.shadowBlur = 10;
+    ctx.strokeStyle = 'rgba(255, 128, 171, 0.4)'; ctx.lineWidth = 1;
+    roundRect(bx + pad - 1, by + pad - 1, w - pad * 2 + 2, h - pad * 2 + 2, 4);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255, 128, 171, 0.5)';
+    ctx.beginPath(); ctx.arc(bx + w / 2, by + h - 1, 3, 0, Math.PI); ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+/* ---- Render ---- */
+function draw() {
+  ctx.save();
+
+  // Screen shake
+  if (shakeTimer > 0) {
+    ctx.translate((Math.random() - 0.5) * shakeIntensity * 2, (Math.random() - 0.5) * shakeIntensity * 2);
+  }
+
+  // Background
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+  bgGrad.addColorStop(0, '#0f0c29'); bgGrad.addColorStop(0.5, '#302b63'); bgGrad.addColorStop(1, '#24243e');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(-10, -10, W + 20, H + 20);
+
+  // Background particles
+  for (const p of bgParticles) {
+    p.y -= p.speed; p.pulse += 0.015;
+    if (p.y < -5) { p.y = H + 5; p.x = Math.random() * W; }
+    ctx.globalAlpha = p.alpha * (0.6 + 0.4 * Math.sin(p.pulse));
+    ctx.fillStyle = '#c8c8ff';
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Board
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+  roundRect(BOARD_X - 2, BOARD_Y - 2, BOARD_W + 4, BOARD_H + 4, 4);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(108, 92, 231, 0.3)'; ctx.lineWidth = 1;
+  roundRect(BOARD_X - 2, BOARD_Y - 2, BOARD_W + 4, BOARD_H + 4, 4);
+  ctx.stroke();
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 0.5;
+  for (let x = 0; x <= COLS; x++) {
+    ctx.beginPath(); ctx.moveTo(BOARD_X + x * CELL, BOARD_Y); ctx.lineTo(BOARD_X + x * CELL, BOARD_Y + BOARD_H); ctx.stroke();
+  }
+  for (let y = 0; y <= ROWS; y++) {
+    ctx.beginPath(); ctx.moveTo(BOARD_X, BOARD_Y + y * CELL); ctx.lineTo(BOARD_X + BOARD_W, BOARD_Y + y * CELL); ctx.stroke();
+  }
+
+  // Placed blocks
+  for (let y = 0; y < ROWS; y++)
+    for (let x = 0; x < COLS; x++)
+      if (grid[y][x] && grid[y][x] !== 0) {
+        const block = grid[y][x];
+        const jitter = !block.locked && block.graceTimer > 0;
+        const alpha = block.locked ? 1 : 0.55 + 0.45 * (1 - block.graceTimer / GRACE_FRAMES);
+        drawBlock(BOARD_X + x * CELL, BOARD_Y + y * CELL, CELL, CELL, block.color, block.type, alpha, jitter);
+      }
+
+  // Falling blocks (collapse)
+  for (const q of collapseQueue) {
+    const fallDist = Math.min(q.fallProgress, q.dist);
+    const block = q._block;
+    if (block) {
+      drawBlock(BOARD_X + q.x * CELL, BOARD_Y + (q.y + fallDist) * CELL, CELL, CELL, block.color, block.type, 0.8, true);
+      // Trail
+      if (Math.random() > 0.4) {
+        particles.push({
+          x: BOARD_X + q.x * CELL + CELL / 2 + (Math.random() - 0.5) * CELL * 0.5,
+          y: BOARD_Y + (q.y + fallDist) * CELL + CELL,
+          vx: (Math.random() - 0.5), vy: -0.5 - Math.random(),
+          life: 1, decay: 0.05, size: 1.5 + Math.random() * 2, color: block.color
+        });
+      }
+    }
+  }
+
+  // Ghost piece
+  if (currentPiece && ghostBaseY !== null && !collapseInputLocked) {
+    const curBaseY = Math.min(...currentPiece.blocks.map(b => b.y));
+    const ghostDY = ghostBaseY - curBaseY;
+    for (const b of currentPiece.blocks) {
+      const gx = BOARD_X + b.x * CELL, gy = BOARD_Y + (b.y + ghostDY) * CELL;
+      ctx.globalAlpha = 0.12;
+      ctx.fillStyle = currentPiece.color;
+      roundRect(gx + 1, gy + 1, CELL - 2, CELL - 2, 3);
+      ctx.fill();
+      ctx.globalAlpha = 0.25;
+      ctx.strokeStyle = currentPiece.color; ctx.lineWidth = 1;
+      roundRect(gx + 1, gy + 1, CELL - 2, CELL - 2, 3);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Current piece
+  if (currentPiece) {
+    for (let i = 0; i < currentPiece.blocks.length; i++) {
+      const b = currentPiece.blocks[i];
+      const bt = currentPiece.blockTypes[i];
+      const inGrace = currentPiece._touchedDown && lockTimer < GRACE_FRAMES;
+      drawBlock(BOARD_X + b.x * CELL, BOARD_Y + b.y * CELL, CELL, CELL, currentPiece.color, bt, inGrace ? 0.7 : 1, inGrace);
+    }
+  }
+
+  // Red scanline flash
+  if (scanlineAlpha > 0) {
+    ctx.globalAlpha = scanlineAlpha * 0.25;
+    ctx.fillStyle = '#ff1744';
+    ctx.fillRect(BOARD_X, BOARD_Y, BOARD_W, BOARD_H);
+    ctx.globalAlpha = 1;
+    scanlineAlpha = Math.max(0, scanlineAlpha - 0.06);
+  }
+
+  // Particles
+  for (const p of particles) {
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color; ctx.shadowBlur = 3;
+    ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(0, p.size * p.life), 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+
+  // Side panel
+  drawSidePanel();
+
+  // Overlays
+  if (state === 'menu') drawMenu();
+  if (state === 'paused') drawPause();
+  if (state === 'gameover') drawGameOver();
+
+  ctx.restore();
+}
+
+/* ---- Side Panel ---- */
+function drawSidePanel() {
+  const px = BOARD_X + BOARD_W + 24, py = BOARD_Y;
+
+  ctx.textAlign = 'left';
+
+  // Score
+  ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = '12px "Segoe UI", sans-serif';
+  ctx.fillText('分数', px, py + 16);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 24px "Segoe UI", sans-serif';
+  ctx.fillText(score.toString(), px, py + 42);
+
+  // High score
+  ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.font = '11px "Segoe UI", sans-serif';
+  ctx.fillText(`最高 ${highScore}`, px, py + 62);
+
+  // Level
+  ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = '12px "Segoe UI", sans-serif';
+  ctx.fillText('等级', px, py + 92);
+  ctx.fillStyle = '#b388ff'; ctx.font = 'bold 20px "Segoe UI", sans-serif';
+  ctx.fillText(level.toString(), px, py + 116);
+
+  // Lines
+  ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = '12px "Segoe UI", sans-serif';
+  ctx.fillText('消除行数', px, py + 148);
+  ctx.fillStyle = '#69f0ae'; ctx.font = 'bold 20px "Segoe UI", sans-serif';
+  ctx.fillText(lines.toString(), px, py + 172);
+
+  // Next piece
+  const nextKey = bag.length > 0 ? bag[bag.length - 1] : null;
+  if (nextKey) {
+    ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = '12px "Segoe UI", sans-serif';
+    ctx.fillText('下一个', px, py + 210);
+    const ns = SHAPES[nextKey];
+    let mnX = Infinity;
+    for (const b of ns.blocks) mnX = Math.min(mnX, b[0]);
+    for (let i = 0; i < ns.blocks.length; i++) {
+      const bx = px + 10 + (ns.blocks[i][0] - mnX) * 18;
+      const by = py + 220 + ns.blocks[i][1] * 18;
+      ctx.fillStyle = ns.color; ctx.globalAlpha = 0.8;
+      roundRect(bx, by, 17, 17, 3); ctx.fill(); ctx.globalAlpha = 1;
+    }
+  }
+
+  // Controls
+  const ctrlY = py + 340;
+  const controls = [['← →', '移动'], ['↑', '旋转'], ['↓', '加速'], ['空格', '硬降'], ['P', '暂停']];
+  controls.forEach(([key, desc], i) => {
+    const ly = ctrlY + i * 18;
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.font = '10px "Segoe UI", sans-serif';
+    ctx.textAlign = 'right'; ctx.fillText(key, px + 52, ly);
+    ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.textAlign = 'left'; ctx.fillText(desc, px + 58, ly);
+  });
+  ctx.textAlign = 'left';
+
+  // Block type legend
+  const legY = ctrlY + controls.length * 18 + 10;
+  ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.font = '10px "Segoe UI", sans-serif';
+  ctx.fillText('方块类型', px, legY);
+  const legend = [
+    { color: '#ffd740', label: '基石 - 永不坍塌' },
+    { color: '#ff80ab', label: '胶合 - 提供侧撑' },
+    { color: 'rgba(255,255,255,0.5)', label: '脆弱 - 碰撞即碎' },
+  ];
+  legend.forEach((l, i) => {
+    const ly = legY + 16 + i * 16;
+    ctx.fillStyle = l.color; roundRect(px, ly - 9, 10, 10, 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillText(l.label, px + 14, ly);
+  });
+
+  // Title below board
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.font = 'bold 14px "Segoe UI", sans-serif';
+  ctx.fillText('引力崩塌', BOARD_X + BOARD_W / 2, BOARD_Y + BOARD_H + 28);
+
+  if (collapseInputLocked) {
+    ctx.fillStyle = 'rgba(255, 82, 82, 0.6)'; ctx.font = 'bold 12px "Segoe UI", sans-serif';
+    ctx.fillText('崩塌中...', BOARD_X + BOARD_W / 2, BOARD_Y + BOARD_H + 46);
+  }
+}
+
+/* ---- Menu ---- */
+function drawMenu() {
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; ctx.fillRect(0, 0, W, H);
+
+  ctx.shadowColor = '#b388ff'; ctx.shadowBlur = 40;
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 52px "Segoe UI", sans-serif';
+  ctx.textAlign = 'center'; ctx.fillText('引力崩塌', W / 2, H / 2 - 100);
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '16px "Segoe UI", sans-serif';
+  ctx.fillText('方块不会立刻锁定——结构不稳就会倒塌', W / 2, H / 2 - 60);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.font = '13px "Segoe UI", sans-serif';
+  ctx.fillText('← → 移动   ↑ 旋转   ↓ 加速   空格 硬降   P 暂停', W / 2, H / 2 - 20);
+
+  const btnX = W / 2 - 90, btnY = H / 2 + 20, btnW = 180, btnH = 48;
+  const pulse = 0.6 + 0.4 * Math.sin(Date.now() * 0.003);
+  const btnGrad = ctx.createLinearGradient(btnX, btnY, btnX + btnW, btnY + btnH);
+  btnGrad.addColorStop(0, `rgba(108, 92, 231, ${0.7 * pulse})`);
+  btnGrad.addColorStop(1, `rgba(168, 85, 247, ${0.7 * pulse})`);
+  ctx.fillStyle = btnGrad; roundRect(btnX, btnY, btnW, btnH, 24); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
+  roundRect(btnX, btnY, btnW, btnH, 24); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 18px "Segoe UI", sans-serif';
+  ctx.fillText('开始游戏', W / 2, btnY + 31);
+
+  if (highScore > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.font = '13px "Segoe UI", sans-serif';
+    ctx.fillText(`最高分: ${highScore}`, W / 2, btnY + btnH + 28);
+  }
+  menuBtn = { x: btnX, y: btnY, w: btnW, h: btnH };
+}
+
+/* ---- Pause ---- */
+function drawPause() {
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'; ctx.fillRect(0, 0, W, H);
+  ctx.shadowColor = '#00e5ff'; ctx.shadowBlur = 20;
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 42px "Segoe UI", sans-serif';
+  ctx.textAlign = 'center'; ctx.fillText('暂停', W / 2, H / 2 - 20);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = '15px "Segoe UI", sans-serif';
+  ctx.fillText('按 P 继续', W / 2, H / 2 + 20);
+}
+
+/* ---- Game Over ---- */
+function drawGameOver() {
+  const elapsed = Math.min(1, (Date.now() - gameOverTime) / 600);
+  const eased = 1 - Math.pow(1 - elapsed, 3);
+  ctx.globalAlpha = 0.65 * eased;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 1;
+  if (elapsed < 0.2) return;
+  ctx.globalAlpha = Math.min(1, (elapsed - 0.2) / 0.4);
+
+  ctx.shadowColor = '#ff5252'; ctx.shadowBlur = 25;
+  ctx.fillStyle = '#ff5252'; ctx.font = 'bold 48px "Segoe UI", sans-serif';
+  ctx.textAlign = 'center'; ctx.fillText('游戏结束', W / 2, H / 2 - 80);
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 22px "Segoe UI", sans-serif';
+  ctx.fillText(`得分: ${score}`, W / 2, H / 2 - 30);
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '14px "Segoe UI", sans-serif';
+  ctx.fillText(`等级 ${level}  ·  消除 ${lines} 行`, W / 2, H / 2 - 5);
+
+  const isNew = score >= highScore && score > 0;
+  ctx.fillStyle = isNew ? '#ffd740' : 'rgba(255,255,255,0.4)';
+  ctx.font = isNew ? 'bold 15px "Segoe UI", sans-serif' : '13px "Segoe UI", sans-serif';
+  ctx.fillText(isNew ? '新记录！' : `最高分: ${highScore}`, W / 2, H / 2 + 22);
+  ctx.globalAlpha = 1;
+
+  const btnX = W / 2 - 80, btnY = H / 2 + 50, btnW = 160, btnH = 44;
+  const btnGrad = ctx.createLinearGradient(btnX, btnY, btnX + btnW, btnY + btnH);
+  btnGrad.addColorStop(0, '#6c5ce7'); btnGrad.addColorStop(1, '#a855f7');
+  ctx.fillStyle = btnGrad; roundRect(btnX, btnY, btnW, btnH, 22); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 16px "Segoe UI", sans-serif';
+  ctx.fillText('再来一局', W / 2, btnY + 28);
+  goBtns = { retry: { x: btnX, y: btnY, w: btnW, h: btnH } };
+}
+
+/* ---- Update ---- */
+function update() {
+  frameCount++;
+
+  if (state === 'playing' && currentPiece && !collapseInputLocked) {
+    dropTimer++;
+    if (dropTimer >= dropInterval) {
+      dropTimer = 0;
+      if (!movePiece(0, 1)) {
+        if (!currentPiece._touchedDown) { currentPiece._touchedDown = true; lockTimer = 0; }
+        lockTimer++;
+        if (lockTimer >= GRACE_FRAMES) { lockPiece(); return; }
+      } else {
+        currentPiece._touchedDown = false; lockTimer = 0;
+      }
+    }
+  }
+
+  // Grace timers on grid blocks -> when all expire, run support check
+  if (state === 'playing' && !currentPiece && supportCheckPending) {
+    let anyUnlocked = false;
+    for (let y = 0; y < ROWS; y++)
+      for (let x = 0; x < COLS; x++)
+        if (grid[y][x] && grid[y][x] !== 0 && !grid[y][x].locked) {
+          grid[y][x].graceTimer--;
+          if (grid[y][x].graceTimer <= 0) { grid[y][x].locked = true; }
+          else anyUnlocked = true;
+        }
+    if (!anyUnlocked) {
+      supportCheckPending = false;
+      // Run support check
+      const unstable = findUnstable();
+      if (unstable.length > 0) {
+        startCollapse(() => { if (state === 'playing') spawnAndContinue(); });
+      } else {
+        // Stable, spawn next piece
+        spawnAndContinue();
+      }
+    }
+  } else if (state === 'playing') {
+    // Still decrement grace timers even with current piece
+    for (let y = 0; y < ROWS; y++)
+      for (let x = 0; x < COLS; x++)
+        if (grid[y][x] && grid[y][x] !== 0 && !grid[y][x].locked) {
+          grid[y][x].graceTimer--;
+          if (grid[y][x].graceTimer <= 0) grid[y][x].locked = true;
+        }
+  }
+
+  // Collapse animation
+  if (state === 'collapsing' && collapseQueue.length > 0) {
+    updateCollapse();
+  }
+
+  // Particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.05;
+    p.life -= p.decay;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  // Shake
+  if (shakeTimer > 0) { shakeTimer--; shakeIntensity *= 0.92; }
+}
+
+/* ---- Input ---- */
+function getCanvasPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  const cy = e.touches ? e.touches[0].clientY : e.clientY;
+  return { x: (cx - rect.left) * (W / rect.width), y: (cy - rect.top) * (H / rect.height) };
+}
+
+function handleClick(e) {
+  e.preventDefault();
+  const pos = getCanvasPos(e);
+  if (state === 'menu') {
+    if (menuBtn && pos.x >= menuBtn.x && pos.x <= menuBtn.x + menuBtn.w &&
+        pos.y >= menuBtn.y && pos.y <= menuBtn.y + menuBtn.h) startGame();
+    return;
+  }
+  if (state === 'gameover' && Date.now() - gameOverTime > 800) {
+    if (goBtns && goBtns.retry && pos.x >= goBtns.retry.x && pos.x <= goBtns.retry.x + goBtns.retry.w &&
+        pos.y >= goBtns.retry.y && pos.y <= goBtns.retry.y + goBtns.retry.h) startGame();
+  }
+}
+canvas.addEventListener('click', handleClick);
+canvas.addEventListener('touchstart', handleClick, { passive: false });
+
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyP') {
+    if (state === 'playing') { state = 'paused'; Audio.stopBGM(); }
+    else if (state === 'paused') { state = 'playing'; Audio.startBGM(); }
+    return;
+  }
+  if (state !== 'playing' || collapseInputLocked || !currentPiece) return;
+  const inGrace = currentPiece._touchedDown && lockTimer < GRACE_FRAMES;
+  const canControl = inGrace || !currentPiece._touchedDown;
+  switch (e.code) {
+    case 'ArrowLeft':  e.preventDefault(); if (canControl) movePiece(-1, 0); break;
+    case 'ArrowRight': e.preventDefault(); if (canControl) movePiece(1, 0); break;
+    case 'ArrowUp':    e.preventDefault(); if (canControl) rotatePiece(1); break;
+    case 'ArrowDown':  e.preventDefault(); if (movePiece(0, 1)) { score += 1; dropTimer = 0; } break;
+    case 'Space':      e.preventDefault(); hardDrop(); break;
+  }
+});
+
+/* ---- Mute ---- */
+const muteBtn = document.getElementById('muteBtn');
+muteBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const muted = !Audio.isMuted(); Audio.setMuted(muted);
+  muteBtn.textContent = muted ? '🔇' : '🔊';
+});
+
+/* ---- Help ---- */
+const helpOverlay = document.getElementById('helpOverlay');
+document.getElementById('helpBtn').addEventListener('click', () => helpOverlay.classList.add('show'));
+helpOverlay.addEventListener('click', (e) => {
+  if (e.target === helpOverlay) helpOverlay.classList.remove('show');
+});
+document.addEventListener('keydown', (e) => {
+  if (helpOverlay.classList.contains('show') && e.code === 'Escape') helpOverlay.classList.remove('show');
+});
+
+/* ---- Start ---- */
+function startGame() {
+  initGame();
+  state = 'playing';
+  Audio.start();
+  Audio.startBGM();
+}
+
+/* ---- Main loop ---- */
+function loop() { update(); draw(); requestAnimationFrame(loop); }
+
+// Initial draw
+initGame();
+state = 'menu';
+draw();
+loop();
+</script>
+</body>
+</html>

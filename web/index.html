@@ -191,8 +191,14 @@
   .card-garden       { background: linear-gradient(145deg, #1a3a1a, #0d1f0d); }
   .card-garden .card-tag { background: #55efc433; color: #8fffd5; }
 
-  .card-eco          { background: linear-gradient(145deg, #2a3a2a, #171f17); }
+  .card-eco           { background: linear-gradient(145deg, #2a3a2a, #171f17); }
   .card-eco .card-tag { background: #81ecec33; color: #a8ffff; }
+
+  .card-gravity       { background: linear-gradient(145deg, #1a2a3a, #0d1720); }
+  .card-gravity .card-tag { background: #4b7bec33; color: #7aa2f7; }
+
+  .card-collapse      { background: linear-gradient(145deg, #3a2a1a, #1f170d); }
+  .card-collapse .card-tag { background: #f39c1233; color: #fdcb6e; }
 
   footer {
     margin-top: 60px;
@@ -290,7 +296,9 @@ const games = [
   { name: '时间导演',   icon: '⏱️', desc: '录制自己的操作，和过去的自己协作通关。站在自己肩上，跳得更高！',     tag: '平台', css: 'time',    file: '08-time-director',     mobile: true },
   { name: 'Bug猎人',    icon: '🐛', desc: '游戏故意出 Bug，你来修复——它知道自己是个游戏，并且会吐槽你。',      tag: 'Meta', css: 'bug',     file: '09-bug-hunter',        mobile: true },
   { name: '弦月',       icon: '🌙', desc: '充能轨道轻滑发射，让弹道穿过移动障碍——每一道轨迹都在夜空中累积成画。', tag: '物理', css: 'chord',   file: '10-chord-moon',        mobile: false },
-  { name: '色环',       icon: '🎨', desc: '旋转色环上等待目标颜色转过指示器，轻点捕获。等待本身就是一种玩法。',   tag: '休闲', css: 'color',   file: '11-color-ring',        mobile: false },
+  { name: '色环',          icon: '🎨', desc: '旋转色环上等待目标颜色转过指示器，轻点捕获。等待本身就是一种玩法。',     tag: '休闲', css: 'color',    file: '11-color-ring',        mobile: false },
+  { name: '重力翻转',      icon: '🌀', desc: '消行获得翻转权，改变重力方向（上下左右），让方块从新方向掉落。',       tag: '方块', css: 'gravity',  file: '12-gravity-flip',      mobile: false },
+  { name: '引力崩塌',       icon: '🌋', desc: '方块不会立刻锁定——结构不稳就会倒塌，连锁崩塌带来极致的视觉爽感。',    tag: '方块', css: 'collapse', file: '13-gravity-collapse',  mobile: false },
 ];
 
 const wipGames = [

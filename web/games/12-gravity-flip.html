@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>重力翻转</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a1a;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: 'Courier New', monospace;
+    color: #ccc;
+    overflow: hidden;
+  }
+  #game-wrapper {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  canvas { display: block; }
+  #main-canvas {
+    border: 2px solid #333;
+    border-radius: 4px;
+    box-shadow: 0 0 30px rgba(0,150,255,0.15);
+  }
+  #ui-canvas {
+    background: #0d0d20;
+    border: 2px solid #222;
+    border-radius: 4px;
+  }
+  .side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 140px;
+  }
+  .panel-box {
+    background: #0d0d20;
+    border: 2px solid #222;
+    border-radius: 4px;
+    padding: 10px;
+  }
+  .panel-box h3 {
+    font-size: 11px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+  .panel-box .value {
+    font-size: 20px;
+    color: #fff;
+    font-weight: bold;
+  }
+  .panel-box .sub {
+    font-size: 11px;
+    color: #555;
+    margin-top: 2px;
+  }
+  #gravity-indicator {
+    font-size: 36px;
+    text-align: center;
+    color: #4af;
+    line-height: 1;
+  }
+  #controls-help {
+    font-size: 10px;
+    color: #444;
+    line-height: 1.6;
+  }
+  #controls-help kbd {
+    background: #1a1a2e;
+    border: 1px solid #333;
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: #888;
+    font-family: inherit;
+  }
+  #overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    cursor: pointer;
+  }
+  #overlay.hidden { display: none; }
+  #overlay h1 {
+    font-size: 32px;
+    color: #4af;
+    margin-bottom: 8px;
+    text-shadow: 0 0 20px rgba(68,170,255,0.5);
+  }
+  #overlay .subtitle {
+    font-size: 14px;
+    color: #888;
+    margin-bottom: 24px;
+  }
+  #overlay .score-display {
+    font-size: 18px;
+    color: #fff;
+    margin-bottom: 16px;
+  }
+  #overlay .start-hint {
+    font-size: 13px;
+    color: #555;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+  .top-bar {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    display: flex;
+    gap: 8px;
+    z-index: 5;
+  }
+  .top-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid #333;
+    background: #0d0d20;
+    color: #888;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Courier New', monospace;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .top-btn:hover {
+    border-color: #4af;
+    color: #4af;
+  }
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 20;
+    cursor: default;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal-content {
+    background: #0d0d20;
+    border: 2px solid #333;
+    border-radius: 8px;
+    padding: 28px 32px;
+    max-width: 480px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    cursor: default;
+    color: #aaa;
+    line-height: 1.7;
+    font-size: 13px;
+  }
+  .modal-content h2 {
+    color: #4af;
+    font-size: 20px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .modal-content h3 {
+    color: #888;
+    font-size: 13px;
+    margin: 16px 0 6px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .modal-content p {
+    margin: 4px 0;
+  }
+  .modal-content .key-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin: 4px 0;
+    flex-wrap: wrap;
+  }
+  .modal-content kbd {
+    background: #1a1a2e;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 2px 8px;
+    color: #ddd;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    min-width: 24px;
+    text-align: center;
+  }
+  .modal-content .close-hint {
+    text-align: center;
+    color: #444;
+    font-size: 11px;
+    margin-top: 20px;
+  }
+</style>
+</head>
+<body>
+
+<div id="overlay">
+  <h1>重力翻转</h1>
+  <div class="subtitle">GRAVITY FLIP</div>
+  <div class="score-display" id="final-score"></div>
+  <div class="start-hint">点击开始</div>
+</div>
+
+<!-- Top bar: pause and help buttons -->
+<div class="top-bar" id="top-bar">
+  <button class="top-btn" id="pause-btn" title="暂停 (P / Esc)">II</button>
+  <button class="top-btn" id="help-btn" title="玩法说明">?</button>
+</div>
+
+<!-- Help modal -->
+<div class="modal-overlay hidden" id="help-modal">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <h2>重力翻转 · 玩法说明</h2>
+
+    <h3>基本规则</h3>
+    <p>方块从上方落下，填满一行或一列即可消除。消除的行/列越多，得分越高，同时获得翻转次数。</p>
+
+    <h3>重力翻转（核心玩法）</h3>
+    <p>按 <kbd>R</kbd> 消耗 1 次翻转次数，将重力方向切换为下一个方向：▼ → ▶ → ▲ → ◀。</p>
+    <p>翻转后所有已放置的方块会整体朝新方向偏移一格——靠近出口的方块会掉落，为你的入口腾出空间。</p>
+    <p><strong>策略</strong>：当棋盘在某个方向堆得很高时，翻转重力可以从另一个角度继续消行，甚至清空大片区域。</p>
+
+    <h3>操作</h3>
+    <div class="key-row"><kbd>←</kbd> <kbd>→</kbd> <span>左右移动</span></div>
+    <div class="key-row"><kbd>↓</kbd> <span>加速下降（+1分/格）</span></div>
+    <div class="key-row"><kbd>↑</kbd> <span>旋转方块</span></div>
+    <div class="key-row"><kbd>空格</kbd> <span>硬降（直接落到底部，+2分/格）</span></div>
+    <div class="key-row"><kbd>C</kbd> <span>暂存当前方块，取出上次暂存的方块</span></div>
+    <div class="key-row"><kbd>R</kbd> <span>翻转重力方向（消耗 1 次翻转次数）</span></div>
+    <div class="key-row"><kbd>P</kbd> / <kbd>Esc</kbd> <span>暂停 / 继续</span></div>
+
+    <h3>翻转次数</h3>
+    <p>每次消行获得与消除数量相等的翻转次数（最多存储 5 次）。游戏开始时没有翻转次数，需要先消行才能使用。</p>
+
+    <h3>方块预览</h3>
+    <p>右侧面板显示接下来将出现的 4 个方块，以及暂存槽中保存的方块。</p>
+
+    <h3>消行规则</h3>
+    <p>消除一整行或一整列都会计分。单消 100 分，双消 300 分，三消 500 分，四消 800 分（乘以当前等级）。</p>
+
+    <div class="close-hint">点击背景或按任意键关闭</div>
+  </div>
+</div>
+
+<div id="game-wrapper">
+  <canvas id="main-canvas"></canvas>
+  <div class="side-panel">
+    <canvas id="ui-canvas"></canvas>
+    <div class="panel-box">
+      <h3>分数</h3>
+      <div class="value" id="score-val">0</div>
+    </div>
+    <div class="panel-box">
+      <h3>等级</h3>
+      <div class="value" id="level-val">1</div>
+      <div class="sub" id="lines-val">0 行</div>
+    </div>
+    <div class="panel-box">
+      <h3>翻转</h3>
+      <div class="value" id="flips-val" style="color:#f4a;">0</div>
+      <div class="sub">消行获得</div>
+    </div>
+    <div class="panel-box">
+      <h3>重力</h3>
+      <div id="gravity-indicator">&#8595;</div>
+    </div>
+    <div class="panel-box" id="controls-help">
+      <h3>操作</h3>
+      <kbd>&larr;</kbd> <kbd>&rarr;</kbd> 移动<br>
+      <kbd>&darr;</kbd> 软降 <kbd>空格</kbd> 硬降<br>
+      <kbd>&uarr;</kbd> 旋转<br>
+      <kbd>C</kbd> 暂存 <kbd>R</kbd> 翻转<br>
+      <kbd>P</kbd> 暂停
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  CONSTANTS
+// ============================================================
+const COLS = 10;
+const ROWS = 20;
+const CELL = 30;
+const MAIN_W = COLS * CELL;
+const MAIN_H = ROWS * CELL;
+const UI_W = 140;
+const UI_H = 170;
+
+const mainCanvas = document.getElementById('main-canvas');
+const mainCtx = mainCanvas.getContext('2d');
+mainCanvas.width = MAIN_W;
+mainCanvas.height = MAIN_H;
+
+const uiCanvas = document.getElementById('ui-canvas');
+const uiCtx = uiCanvas.getContext('2d');
+uiCanvas.width = UI_W;
+uiCanvas.height = UI_H;
+
+// ============================================================
+//  PIECE DEFINITIONS
+//  cells: array of [row_offset, col_offset] relative to piece origin
+// ============================================================
+const PIECES = {
+  I: { color: '#00f0f0', shapes: [
+    [[0,0],[0,1],[0,2],[0,3]],
+    [[0,0],[1,0],[2,0],[3,0]],
+    [[0,0],[0,1],[0,2],[0,3]],
+    [[0,0],[1,0],[2,0],[3,0]]
+  ]},
+  O: { color: '#f0f000', shapes: [
+    [[0,0],[0,1],[1,0],[1,1]],
+    [[0,0],[0,1],[1,0],[1,1]],
+    [[0,0],[0,1],[1,0],[1,1]],
+    [[0,0],[0,1],[1,0],[1,1]]
+  ]},
+  T: { color: '#a000f0', shapes: [
+    [[0,1],[1,0],[1,1],[1,2]],
+    [[0,0],[1,0],[1,1],[2,0]],
+    [[1,0],[1,1],[1,2],[2,1]],
+    [[0,1],[1,0],[1,1],[2,1]]
+  ]},
+  S: { color: '#00f000', shapes: [
+    [[0,1],[0,2],[1,0],[1,1]],
+    [[0,0],[1,0],[1,1],[2,1]],
+    [[0,1],[0,2],[1,0],[1,1]],
+    [[0,0],[1,0],[1,1],[2,1]]
+  ]},
+  Z: { color: '#f00000', shapes: [
+    [[0,0],[0,1],[1,1],[1,2]],
+    [[0,1],[1,0],[1,1],[2,0]],
+    [[0,0],[0,1],[1,1],[1,2]],
+    [[0,1],[1,0],[1,1],[2,0]]
+  ]},
+  J: { color: '#0050f0', shapes: [
+    [[0,0],[1,0],[1,1],[1,2]],
+    [[0,0],[0,1],[1,0],[2,0]],
+    [[0,0],[0,1],[0,2],[1,2]],
+    [[0,1],[1,1],[2,0],[2,1]]
+  ]},
+  L: { color: '#f0a000', shapes: [
+    [[0,2],[1,0],[1,1],[1,2]],
+    [[0,0],[1,0],[2,0],[2,1]],
+    [[0,0],[0,1],[0,2],[1,0]],
+    [[0,0],[0,1],[1,1],[2,1]]
+  ]}
+};
+const PIECE_NAMES = Object.keys(PIECES);
+
+// ============================================================
+//  GRAVITY
+// ============================================================
+const GRAVITY = {
+  down:  { dx: 0,  dy: 1,  arrow: '▼' },
+  right: { dx: 1,  dy: 0,  arrow: '▶' },
+  up:    { dx: 0,  dy: -1, arrow: '▲' },
+  left:  { dx: -1, dy: 0,  arrow: '◀' }
+};
+const DIR_ORDER = ['down', 'right', 'up', 'left'];
+
+// ============================================================
+//  TRANSFORM: world (wx,wy) -> internal (row, col)
+//
+//  Invariant (holds for ALL 4 directions):
+//    - moveDown = (piece.x += dx, piece.y += dy) -> row increases by 1
+//    - row < 0      : entry side, skip collision in isValid
+//    - row >= ROWS  : exit side, reject in isValid
+//    - col: always lateral bounds [0, COLS)
+//
+//  Verified with Z piece [[0,0],[0,1],[1,1],[1,2]]:
+//    down  spawn (4,-1) -> rows [-1,-1,0,0]  (row=-1 = entry, valid)
+//    up    spawn (4,20) -> rows [0,0,1,1]
+//    left  spawn (-1,8) -> rows [0,0,1,1]
+//    right spawn (10,8) -> rows [0,0,1,1]
+// ============================================================
+const T = {
+  down:  (wx, wy) => [wy, wx],
+  up:    (wx, wy) => [-wy - 1 + ROWS, wx],
+  left:  (wx, wy) => [-wx - 1 + COLS, wy],
+  right: (wx, wy) => [wx - 1, ROWS - 1 - wy]
+};
+
+function getInternal(piece) {
+  const t = T[dirName];
+  return piece.cells.map(([dr, dc]) => t(piece.x + dc, piece.y + dr));
+}
+
+// World coords for each cell (render + lock)
+function getWorld(piece) {
+  return piece.cells.map(([dr, dc]) => [piece.y + dr, piece.x + dc]);
+}
+
+// ============================================================
+//  GAME STATE
+// ============================================================
+let state = 'menu';
+let board = [];
+let piece = null;
+let ghost = null;
+let nextQueue = [];
+let bag = [];
+let heldPiece = null;
+let canHold = true;
+let score = 0;
+let level = 1;
+let lines = 0;
+let flipPoints = 0;
+let dirName = 'down';
+let gDir = GRAVITY.down;
+let dropTimer = 0;
+let lastTime = 0;
+
+// ============================================================
+//  isValid
+//
+//  Standard Tetris rules via transform:
+//    - col out of [0,COLS): lateral wall, reject
+//    - row >= ROWS: past exit edge, reject
+//    - row < 0: entry side, no collision check
+//    - on-board cell hits occupied board cell: reject
+//    - at least one cell must be on-board
+// ============================================================
+function isValid(p) {
+  const cells = getInternal(p);
+  let onBoard = false;
+  for (const [r, c] of cells) {
+    if (c < 0 || c >= COLS) return false;
+    if (r >= ROWS) return false;       // exit side = hard wall
+    if (r < 0) continue;               // entry side = skip
+    onBoard = true;
+    if (board[r][c] !== 0) return false;
+  }
+  return onBoard;
+}
+
+function isValidLog(p, label) {
+  const result = isValid(p);
+  const cells = getInternal(p);
+  console.log('  isValid ' + label + ' (' + p.x + ',' + p.y + ') ' + dirName + ':', result, 'cells=', JSON.stringify(cells));
+  return result;
+}
+
+// ============================================================
+//  BOARD
+// ============================================================
+function createBoard() {
+  return Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+}
+
+// ============================================================
+//  7-BAG RANDOMIZER
+// ============================================================
+function fillBag() {
+  const names = [...PIECE_NAMES];
+  for (let i = names.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [names[i], names[j]] = [names[j], names[i]];
+  }
+  bag.push(...names);
+}
+
+function getNextName() {
+  if (bag.length < 7) fillBag();
+  return bag.shift();
+}
+
+function fillQueue() {
+  while (nextQueue.length < 4) nextQueue.push(getNextName());
+}
+
+// ============================================================
+//  SPAWN
+//
+//  Entry cell (the cell furthest toward the gravity source)
+//  is placed one step outside the entry edge.
+//
+//  For down:  entry cell has world_y = -1
+//  For up:    entry cell has world_y = ROWS
+//  For left:  entry cell has world_x = -1
+//  For right: entry cell has world_x = COLS
+// ============================================================
+function spawnPiece(name) {
+  const pName = name || getNextName();
+  const def = PIECES[pName];
+  const cells = def.shapes[0];
+
+  const minY = Math.min(...cells.map(c => c[0]));
+  const maxY = Math.max(...cells.map(c => c[0]));
+  const minX = Math.min(...cells.map(c => c[1]));
+  const maxX = Math.max(...cells.map(c => c[1]));
+
+  const pos = {
+    down:  { x: Math.floor(COLS / 2) - Math.floor((minX + maxX) / 2), y: -1 - minY },
+    up:    { x: Math.floor(COLS / 2) - Math.floor((minX + maxX) / 2), y: ROWS - 1 - maxY },
+    left:  { x: -1 - minX, y: Math.floor(ROWS / 2) - Math.floor((minY + maxY) / 2) },
+    right: { x: COLS - maxX, y: Math.floor(ROWS / 2) - 1 - Math.floor((minY + maxY) / 2) }
+  }[dirName];
+
+  const p = {
+    name: pName, rotation: 0,
+    x: pos.x, y: pos.y,
+    color: def.color, cells: cells
+  };
+
+  const abs = getInternal(p);
+  console.log('[SPAWN]', pName, 'dir=' + dirName, 'world(' + p.x + ',' + p.y + ')',
+    'minY=' + minY, 'maxY=' + maxY, 'minX=' + minX, 'maxX=' + maxX);
+  console.log('  internal cells:', JSON.stringify(abs), 'isValid:', isValid(p));
+
+  if (!isValid(p)) {
+    const p2 = { ...p, x: p.x + gDir.dx, y: p.y + gDir.dy };
+    console.log('  spawn invalid! try offset (' + p2.x + ',' + p2.y + ') isValid=' + isValid(p2));
+    if (!isValid(p2)) {
+      state = 'gameover';
+      showOverlay();
+      return null;
+    }
+    p.x = p2.x;
+    p.y = p2.y;
+  }
+
+  return p;
+}
+
+function doSpawn() {
+  fillQueue();
+  const name = nextQueue.shift();
+  fillQueue();
+  piece = spawnPiece(name);
+  if (!piece) return;
+  canHold = true;
+  calcGhost();
+}
+
+// ============================================================
+//  MOVE
+// ============================================================
+function moveDown() {
+  if (!piece) return false;
+  const nx = piece.x + gDir.dx;
+  const ny = piece.y + gDir.dy;
+  if (isValid({ ...piece, x: nx, y: ny })) {
+    piece.x = nx;
+    piece.y = ny;
+    calcGhost();
+    return true;
+  }
+  console.log('[moveDown] BLOCKED at (' + piece.x + ',' + piece.y + ') dir=' + dirName);
+  return false;
+}
+
+// Lateral: ← decreases world x, → increases world x
+// For L/R gravity, also move in world y (perpendicular)
+function moveLateral(dir) {
+  if (!piece) return;
+  const dx = dir;
+  const dy = dirName === 'left' ? -dir : dirName === 'right' ? dir : 0;
+  const nx = piece.x + dx;
+  const ny = piece.y + dy;
+  console.log('[LATERAL]', 'dir=' + dir, 'gravity=' + dirName, 'dx=' + dx, 'dy=' + dy,
+    'from(' + piece.x + ',' + piece.y + ')' + '->(' + nx + ',' + ny + ')', 'ok=' + isValid({ ...piece, x: nx, y: ny }));
+  if (isValid({ ...piece, x: nx, y: ny })) {
+    piece.x = nx;
+    piece.y = ny;
+    calcGhost();
+  }
+}
+
+// ============================================================
+//  ROTATE
+// ============================================================
+function rotate() {
+  if (!piece || piece.name === 'O') return;
+  const newRot = (piece.rotation + 1) % 4;
+  const newCells = PIECES[piece.name].shapes[newRot];
+  const oldCells = piece.cells;
+  const oldRot = piece.rotation;
+
+  piece.cells = newCells;
+  piece.rotation = newRot;
+
+  const kicks = [
+    [0,0],[-1,0],[1,0],[-2,0],[2,0],
+    [0,-1],[-1,-1],[1,-1],
+    [0,1],[-1,1],[1,1]
+  ];
+  let ok = false;
+  for (const [kx, ky] of kicks) {
+    if (isValid({ ...piece, x: piece.x + kx, y: piece.y + ky })) {
+      piece.x += kx;
+      piece.y += ky;
+      ok = true;
+      break;
+    }
+  }
+  if (!ok) {
+    piece.cells = oldCells;
+    piece.rotation = oldRot;
+  }
+  calcGhost();
+}
+
+// ============================================================
+//  HOLD
+// ============================================================
+function doHold() {
+  if (!canHold || !piece) return;
+  canHold = false;
+  const name = piece.name;
+  console.log('[HOLD]', 'current=' + name, 'held=' + heldPiece, 'canHold=' + canHold);
+  if (heldPiece) {
+    console.log('[HOLD]', 'swap: piece=' + heldPiece, 'held=' + name);
+    piece = spawnPiece(heldPiece);
+    heldPiece = name;
+    if (!piece) return;
+    calcGhost();
+  } else {
+    console.log('[HOLD]', 'store ' + name + ', spawn next');
+    heldPiece = name;
+    doSpawn();
+  }
+}
+
+// ============================================================
+//  GHOST
+//
+//  Walk piece in gravity direction until:
+//    (a) blocked by an on-board occupied cell, or
+//    (b) all cells are off-board (piece would fall out)
+//  Case (b) -> ghost = null, prevent hard drop
+// ============================================================
+function calcGhost() {
+  if (!piece) { ghost = null; return; }
+
+  let gx = piece.x, gy = piece.y;
+  const maxSteps = ROWS + COLS + 4;
+
+  for (let s = 0; s < maxSteps; s++) {
+    const nx = gx + gDir.dx;
+    const ny = gy + gDir.dy;
+    const cells = getInternal({ ...piece, x: nx, y: ny });
+
+    let anyOn = false;
+    let blocked = false;
+    let exitHit = false;
+    for (const [r, c] of cells) {
+      // Same boundary rules as isValid:
+      // - r >= ROWS: exit side hard wall -> stop ghost
+      if (r >= ROWS) { exitHit = true; break; }
+      if (r < 0) continue;       // entry side skip
+      if (c < 0 || c >= COLS) continue; // lateral skip
+      anyOn = true;
+      if (board[r][c] !== 0) { blocked = true; break; }
+    }
+    if (blocked || exitHit || !anyOn) break;
+    gx = nx;
+    gy = ny;
+  }
+
+  ghost = { x: gx, y: gy, cells: piece.cells, color: piece.color };
+  const steps = Math.abs(gx - piece.x) + Math.abs(gy - piece.y);
+  if (steps > 0) console.log('[GHOST]', 'from(' + piece.x + ',' + piece.y + ')' + '->(' + gx + ',' + gy + ') steps=' + steps);
+}
+
+// ============================================================
+//  HARD DROP
+// ============================================================
+function hardDrop() {
+  if (!piece || !ghost) return;
+  const dist = Math.abs(ghost.x - piece.x) + Math.abs(ghost.y - piece.y);
+  console.log('[HARD DROP]', 'dist=' + dist, 'from(' + piece.x + ',' + piece.y + ')' + '->(' + ghost.x + ',' + ghost.y + ')');
+  score += dist * 2;
+  piece.x = ghost.x;
+  piece.y = ghost.y;
+  ghost = null;
+  lockPiece();
+}
+
+// ============================================================
+//  LOCK
+//
+//  Write piece cells to board. Cells outside world bounds
+//  are simply not written. Game over only when a cell is
+//  past the EXIT edge (gravity direction's far side).
+//
+//  Exit edge per direction:
+//    down: wy >= ROWS  up: wy < 0  left: wx < 0  right: wx >= COLS
+//
+//  Note: since isValid now rejects row >= ROWS in internal coords,
+//  the piece should never land with exit-side overflow. The check
+//  here is a safety net.
+// ============================================================
+function lockPiece() {
+  if (!piece) return;
+  const cells = getWorld(piece);
+  const intCells = getInternal(piece);
+
+  console.log('[LOCK]', piece.name, 'world(' + piece.x + ',' + piece.y + ')', 'dir=' + dirName);
+  console.log('  world cells:', JSON.stringify(cells));
+  console.log('  internal cells:', JSON.stringify(intCells));
+
+  let gameOver = false;
+  let placed = 0;
+  for (const [wy, wx] of cells) {
+    if (dirName === 'down'  && wy >= ROWS) { gameOver = true; console.log('  EXIT [' + wx + ',' + wy + ']'); continue; }
+    if (dirName === 'up'    && wy < 0)     { gameOver = true; console.log('  EXIT [' + wx + ',' + wy + ']'); continue; }
+    if (dirName === 'left'  && wx < 0)     { gameOver = true; console.log('  EXIT [' + wx + ',' + wy + ']'); continue; }
+    if (dirName === 'right' && wx >= COLS) { gameOver = true; console.log('  EXIT [' + wx + ',' + wy + ']'); continue; }
+    if (wx < 0 || wx >= COLS || wy < 0 || wy >= ROWS) { console.log('  SKIP [' + wx + ',' + wy + ']'); continue; }
+    board[wy][wx] = piece.color;
+    placed++;
+  }
+  console.log('  placed=' + placed, 'gameOver=' + gameOver);
+
+  if (gameOver) {
+    piece = null;
+    ghost = null;
+    state = 'gameover';
+    showOverlay();
+    return;
+  }
+
+  clearLines();
+  updateUI();
+  doSpawn();
+}
+
+// ============================================================
+//  CLEAR LINES (rows and columns)
+// ============================================================
+function clearLines() {
+  let cleared = 0;
+
+  for (let r = ROWS - 1; r >= 0; r--) {
+    if (board[r].every(c => c !== 0)) {
+      board.splice(r, 1);
+      board.unshift(Array(COLS).fill(0));
+      cleared++;
+      r++;
+    }
+  }
+
+  for (let c = 0; c < COLS; c++) {
+    let full = true;
+    for (let r = 0; r < ROWS; r++) {
+      if (board[r][c] === 0) { full = false; break; }
+    }
+    if (full) {
+      for (let r = 0; r < ROWS; r++) board[r][c] = 0;
+      cleared++;
+    }
+  }
+
+  if (cleared > 0) {
+    const pts = [0, 100, 300, 500, 800];
+    score += (pts[Math.min(cleared, 4)] || 800) * level;
+    flipPoints = Math.min(flipPoints + cleared, 5);
+    lines += cleared;
+    level = Math.floor(lines / 10) + 1;
+  }
+}
+
+// ============================================================
+//  SHIFT BOARD (on gravity flip)
+// ============================================================
+function shiftBoard() {
+  const nb = createBoard();
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (board[r][c] === 0) continue;
+      const nr = r + gDir.dy;
+      const nc = c + gDir.dx;
+      if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
+        nb[nr][nc] = board[r][c];
+      }
+    }
+  }
+  board = nb;
+}
+
+// ============================================================
+//  FLIP GRAVITY
+// ============================================================
+function flipGravity() {
+  if (flipPoints <= 0 || state !== 'playing') return;
+  flipPoints--;
+
+  const idx = (DIR_ORDER.indexOf(dirName) + 1) % 4;
+  dirName = DIR_ORDER[idx];
+  gDir = GRAVITY[dirName];
+
+  shiftBoard();
+
+  if (piece) {
+    if (!isValid(piece)) {
+      piece = spawnPiece(piece.name);
+      if (!piece) return;
+    }
+    calcGhost();
+  }
+
+  updateUI();
+}
+
+// ============================================================
+//  RENDER
+// ============================================================
+function render() {
+  const ctx = mainCtx;
+  ctx.clearRect(0, 0, MAIN_W, MAIN_H);
+
+  ctx.fillStyle = '#0d0d1a';
+  ctx.fillRect(0, 0, MAIN_W, MAIN_H);
+
+  // Grid
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      ctx.strokeStyle = '#151525';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(c * CELL, r * CELL, CELL, CELL);
+    }
+  }
+
+  // Placed blocks
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (board[r][c]) drawCell(ctx, c, r, board[r][c]);
+    }
+  }
+
+  // Ghost piece
+  if (ghost && piece && state === 'playing') {
+    for (const [dr, dc] of ghost.cells) {
+      const wx = ghost.x + dc;
+      const wy = ghost.y + dr;
+      if (wy < 0 || wy >= ROWS || wx < 0 || wx >= COLS) continue;
+      ctx.strokeStyle = ghost.color;
+      ctx.globalAlpha = 0.35;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(wx * CELL + 2, wy * CELL + 2, CELL - 4, CELL - 4);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // Active piece
+  if (piece && state === 'playing') {
+    for (const [dr, dc] of piece.cells) {
+      const wx = piece.x + dc;
+      const wy = piece.y + dr;
+      if (wy < 0 || wy >= ROWS || wx < 0 || wx >= COLS) continue;
+      drawCell(ctx, wx, wy, piece.color);
+    }
+  }
+
+  // Gravity arrow
+  if (state === 'playing') {
+    ctx.fillStyle = 'rgba(68,170,255,0.5)';
+    ctx.font = '20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(gDir.arrow, MAIN_W / 2, MAIN_H - 8);
+  }
+}
+
+function drawCell(ctx, c, r, color) {
+  const x = c * CELL;
+  const y = r * CELL;
+  const m = 1;
+
+  ctx.fillStyle = color;
+  ctx.fillRect(x + m, y + m, CELL - m * 2, CELL - m * 2);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.fillRect(x + m, y + m, CELL - m * 2, 3);
+  ctx.fillRect(x + m, y + m, 3, CELL - m * 2);
+
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fillRect(x + m, y + CELL - m - 3, CELL - m * 2, 3);
+  ctx.fillRect(x + CELL - m - 3, y + m, 3, CELL - m * 2);
+}
+
+// ============================================================
+//  UI
+// ============================================================
+function renderUI() {
+  const ctx = uiCtx;
+  ctx.clearRect(0, 0, UI_W, UI_H);
+  ctx.fillStyle = '#0d0d20';
+  ctx.fillRect(0, 0, UI_W, UI_H);
+
+  ctx.fillStyle = '#444';
+  ctx.font = '10px Courier New';
+  ctx.textAlign = 'left';
+
+  // Divider line
+  ctx.strokeStyle = '#222';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(UI_W / 2, 0);
+  ctx.lineTo(UI_W / 2, UI_H);
+  ctx.stroke();
+
+  // NEXT column (left)
+  ctx.fillText('NEXT', 8, 16);
+  const s = 10;
+  const colW = Math.floor(UI_W / 2);
+
+  for (let i = 0; i < Math.min(4, nextQueue.length); i++) {
+    const def = PIECES[nextQueue[i]];
+    const cells = def.shapes[0];
+    const py = 24 + i * 36;
+
+    ctx.globalAlpha = 1 - i * 0.15;
+    for (const [dr, dc] of cells) {
+      ctx.fillStyle = def.color;
+      ctx.fillRect(8 + dc * s, py + dr * s, s - 1, s - 1);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // HOLD column (right)
+  ctx.fillStyle = '#444';
+  ctx.fillText('HOLD', colW + 8, 16);
+
+  if (heldPiece) {
+    const def = PIECES[heldPiece];
+    const cells = def.shapes[0];
+    for (const [dr, dc] of cells) {
+      ctx.fillStyle = def.color;
+      ctx.fillRect(colW + 8 + dc * s, 24 + dr * s, s - 1, s - 1);
+    }
+  }
+}
+
+function updateUI() {
+  document.getElementById('score-val').textContent = score;
+  document.getElementById('level-val').textContent = level;
+  document.getElementById('lines-val').textContent = lines + ' 行';
+  document.getElementById('flips-val').textContent = flipPoints;
+  document.getElementById('gravity-indicator').textContent = gDir.arrow;
+}
+
+// ============================================================
+//  OVERLAY
+// ============================================================
+function showOverlay() {
+  const ov = document.getElementById('overlay');
+  ov.classList.remove('hidden');
+  const title = document.querySelector('#overlay h1');
+  const sub = document.querySelector('#overlay .subtitle');
+  const scoreEl = document.getElementById('final-score');
+  const hint = document.querySelector('#overlay .start-hint');
+
+  if (state === 'gameover') {
+    scoreEl.textContent = '分数: ' + score;
+    title.textContent = '游戏结束';
+    sub.textContent = 'GAME OVER';
+    hint.textContent = '点击重新开始';
+  } else if (state === 'paused') {
+    scoreEl.textContent = '';
+    title.textContent = '暂停';
+    sub.textContent = 'PAUSED';
+    hint.textContent = '点击或按 P 继续';
+  } else {
+    scoreEl.textContent = '';
+    title.textContent = '重力翻转';
+    sub.textContent = 'GRAVITY FLIP';
+    hint.textContent = '点击开始';
+  }
+}
+
+function hideOverlay() {
+  document.getElementById('overlay').classList.add('hidden');
+}
+
+// ============================================================
+//  HELP MODAL
+// ============================================================
+let _helpWasPlaying = false;
+
+function showHelp() {
+  if (state === 'playing') {
+    _helpWasPlaying = true;
+    state = 'paused';
+  }
+  document.getElementById('help-modal').classList.remove('hidden');
+}
+function hideHelp() {
+  document.getElementById('help-modal').classList.add('hidden');
+  if (_helpWasPlaying && state === 'paused') {
+    state = 'playing';
+    _helpWasPlaying = false;
+  }
+}
+
+document.getElementById('help-btn').addEventListener('click', showHelp);
+document.getElementById('help-modal').addEventListener('click', hideHelp);
+
+// ============================================================
+//  PAUSE
+// ============================================================
+function togglePause() {
+  if (state === 'playing') {
+    state = 'paused';
+    showOverlay();
+  } else if (state === 'paused') {
+    state = 'playing';
+    hideOverlay();
+  }
+}
+
+document.getElementById('pause-btn').addEventListener('click', togglePause);
+
+// ============================================================
+//  INPUT
+// ============================================================
+const keyState = {};
+
+document.addEventListener('keydown', (e) => {
+  if (state === 'paused' && (e.code === 'KeyP' || e.code === 'Escape' || e.code === 'Space' || e.code === 'Enter')) {
+    e.preventDefault();
+    togglePause();
+    return;
+  }
+  if (state === 'menu' && (e.code === 'Space' || e.code === 'Enter')) {
+    e.preventDefault();
+    startGame();
+    return;
+  }
+  if (state === 'gameover' && (e.code === 'Space' || e.code === 'Enter')) {
+    e.preventDefault();
+    startGame();
+    return;
+  }
+  if (state !== 'playing') return;
+
+  if (keyState[e.code]) return;
+  keyState[e.code] = true;
+
+  switch (e.code) {
+    case 'ArrowLeft':
+      e.preventDefault();
+      moveLateral(-1);
+      break;
+    case 'ArrowRight':
+      e.preventDefault();
+      moveLateral(1);
+      break;
+    case 'ArrowDown':
+      e.preventDefault();
+      if (moveDown()) { score += 1; dropTimer = 0; }
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      rotate();
+      break;
+    case 'Space':
+      e.preventDefault();
+      hardDrop();
+      break;
+    case 'KeyC':
+      doHold();
+      break;
+    case 'KeyR':
+      flipGravity();
+      break;
+    case 'KeyP':
+    case 'Escape':
+      e.preventDefault();
+      togglePause();
+      break;
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  keyState[e.code] = false;
+});
+
+// ============================================================
+//  GAME LOOP
+// ============================================================
+function gameLoop(ts) {
+  const dt = ts - lastTime;
+  lastTime = ts;
+
+  if (state === 'playing' && piece) {
+    dropTimer += dt;
+    const interval = Math.max(100, 800 - (level - 1) * 50);
+    if (dropTimer >= interval) {
+      dropTimer = 0;
+      if (!moveDown()) {
+        console.log('[GAMELOOP] piece blocked, locking at (' + piece.x + ',' + piece.y + ')');
+        lockPiece();
+      }
+    }
+  }
+
+  render();
+  if (state === 'playing') {
+    renderUI();
+    updateUI();
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+
+// ============================================================
+//  INIT
+// ============================================================
+function startGame() {
+  board = createBoard();
+  score = 0;
+  level = 1;
+  lines = 0;
+  flipPoints = 0;
+  dirName = 'down';
+  gDir = GRAVITY.down;
+  dropTimer = 0;
+  piece = null;
+  ghost = null;
+  heldPiece = null;
+  canHold = true;
+  bag = [];
+  nextQueue = [];
+  fillBag();
+  state = 'playing';
+  hideOverlay();
+  updateUI();
+  doSpawn();
+}
+
+board = createBoard();
+render();
+document.getElementById('overlay').addEventListener('click', () => {
+  if (state === 'paused') {
+    togglePause();
+  } else if (state !== 'playing') {
+    startGame();
+  }
+});
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
