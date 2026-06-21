@@ -1,0 +1,123 @@
+const SKILLS = [
+  {
+    id: 'basic_attack',
+    name: '普通攻击',
+    icon: '⚔️',
+    desc: '对敌人造成基础伤害',
+    mpCost: 0,
+    cooldown: 0,
+    unlockLvl: 1,
+    type: 'dmg',
+    mult: 1.0
+  },
+  {
+    id: 'heavy_strike',
+    name: '重击',
+    icon: '💥',
+    desc: '造成高额伤害，冷却2回合',
+    mpCost: 8,
+    cooldown: 2,
+    unlockLvl: 1,
+    type: 'dmg',
+    mult: 1.8
+  },
+  {
+    id: 'slash_combo',
+    name: '连斩',
+    icon: '🗡️',
+    desc: '连续攻击2次，每次造成80%伤害，冷却3回合',
+    mpCost: 12,
+    cooldown: 3,
+    unlockLvl: 1,
+    type: 'multi_hit',
+    mult: 0.8,
+    hits: 2
+  },
+  {
+    id: 'defend',
+    name: '防御姿态',
+    icon: '🛡️',
+    desc: '本回合受到伤害减半',
+    mpCost: 0,
+    cooldown: 0,
+    unlockLvl: 1,
+    type: 'defend'
+  },
+  {
+    id: 'war_cry',
+    name: '战吼',
+    icon: '📯',
+    desc: '提升攻击力50%，持续2回合，冷却3回合',
+    mpCost: 6,
+    cooldown: 3,
+    unlockLvl: 3,
+    type: 'buff',
+    buffStat: 'atk',
+    buffMult: 1.5,
+    buffDuration: 2
+  },
+  {
+    id: 'whirlwind',
+    name: '旋风斩',
+    icon: '🌀',
+    desc: '造成150%伤害并回复10%已损失HP，冷却3回合',
+    mpCost: 15,
+    cooldown: 3,
+    unlockLvl: 4,
+    type: 'dmg_heal',
+    mult: 1.5,
+    healPct: 0.1
+  },
+  {
+    id: 'lifesteal',
+    name: '吸血之刃',
+    icon: '🩸',
+    desc: '造成130%伤害并吸取20%造成伤害的生命值，冷却2回合',
+    mpCost: 10,
+    cooldown: 2,
+    unlockLvl: 5,
+    type: 'dmg_drain',
+    mult: 1.3,
+    drainPct: 0.2
+  },
+  {
+    id: 'armor_break',
+    name: '破甲',
+    icon: '🔨',
+    desc: '造成100%伤害并降低敌人30%防御力，持续2回合，冷却4回合',
+    mpCost: 12,
+    cooldown: 4,
+    unlockLvl: 6,
+    type: 'dmg_debuff',
+    mult: 1.0,
+    debuffStat: 'def',
+    debuffMult: 0.7,
+    debuffDuration: 2
+  },
+  {
+    id: 'berserk',
+    name: '战狂模式',
+    icon: '🔥',
+    desc: '攻击力翻倍持续2回合，每回合损失5%最大HP，冷却5回合',
+    mpCost: 18,
+    cooldown: 5,
+    unlockLvl: 7,
+    type: 'buff_self_dmg',
+    buffStat: 'atk',
+    buffMult: 2.0,
+    buffDuration: 2,
+    selfDmgPct: 0.05
+  },
+  {
+    id: 'death_dance',
+    name: '死亡之舞',
+    icon: '💀',
+    desc: '造成300%伤害并损失30%当前HP，冷却6回合',
+    mpCost: 25,
+    cooldown: 6,
+    unlockLvl: 8,
+    type: 'dmg_self',
+    mult: 3.0,
+    selfDmgPct: 0.3
+  }
+];

@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>RPG Buff 探险者</title>
+<style>
+/* === Pixel Font Import === */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+/* === Reset & Base === */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0d0d1a;
+  color: #d4c4a0;
+  font-family: 'Press Start 2P', monospace;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* === Dungeon Stone Texture Overlay === */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 9998;
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(40, 30, 20, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(20, 30, 40, 0.06) 0%, transparent 50%);
+}
+
+/* === CRT Scanline Overlay === */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+}
+
+/* === Game Container === */
+#game-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  position: relative;
+  align-items: flex-start;
+}
+
+/* === Canvas === */
+#game-canvas-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+#game-canvas {
+  border: 4px solid #5a4a3a;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #0d0d1a;
+  box-shadow:
+    0 0 0 1px #0d0d1a,
+    inset 0 0 20px rgba(0, 0, 0, 0.6),
+    0 0 16px rgba(90, 74, 58, 0.3);
+  /* Fit within viewport alongside 320px sidebar */
+  width: 960px;
+  height: 540px;
+  max-width: calc(100vw - 340px);
+  max-height: 100vh;
+  aspect-ratio: 16 / 9;
+}
+
+/* === Combat Overlay (crisp HTML text over canvas) === */
+#combat-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  display: none;
+  font-family: 'Press Start 2P', monospace;
+}
+
+#combat-overlay>* {
+  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+}
+
+/* Override inline font-size from JS — match sidebar text size */
+#combat-overlay .enemy-name { font-size: 10px !important; }
+#combat-overlay .player-name { font-size: 9px !important; }
+#combat-overlay .action-log   { font-size: 10px !important; }
+
+#combat-overlay .bar-fill {
+  -webkit-font-smoothing: auto;
+}
+
+/* === Sidebar === */
+#sidebar {
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 540px;
+  max-height: 100vh;
+}
+
+/* === Shared Panel Base === */
+#player-panel,
+#log-container,
+#dungeon-actions,
+#combat-actions {
+  border: 4px solid #5a4a3a;
+  border-radius: 0;
+}
+
+/* === Player Panel === */
+#player-panel {
+  background: rgba(13, 13, 26, 0.92);
+  padding: 8px;
+  font-size: 8px;
+  flex-shrink: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  box-shadow:
+    inset 0 0 16px rgba(0, 0, 0, 0.6),
+    inset 0 0 30px rgba(90, 74, 58, 0.08),
+    0 0 10px rgba(90, 74, 58, 0.2);
+}
+
+#player-panel::-webkit-scrollbar { width: 4px; }
+#player-panel::-webkit-scrollbar-track { background: #0d0d1a; }
+#player-panel::-webkit-scrollbar-thumb { background: #5a4a3a; }
+
+.panel-header {
+  font-weight: bold;
+  color: #d4a855;
+  margin-bottom: 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-shadow: 0 0 8px rgba(212, 168, 85, 0.35);
+}
+
+/* === Progress Bars === */
+.bar-container {
+  position: relative;
+  height: 14px;
+  background: #0d0d1a;
+  border: 2px solid #3a3a4a;
+  border-radius: 0;
+  margin: 3px 0;
+  overflow: hidden;
+  image-rendering: pixelated;
+}
+
+.bar {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.bar.hp {
+  background: linear-gradient(180deg, #e74c3c, #c0392b);
+}
+
+.bar.mp {
+  background: linear-gradient(180deg, #3498db, #2980b9);
+}
+
+.bar.exp {
+  background: linear-gradient(180deg, #f1c40f, #e67e22);
+}
+
+.bar-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 7px;
+  font-family: 'Press Start 2P', monospace;
+  color: #fff;
+  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+  z-index: 2;
+}
+
+.stat-row {
+  display: flex;
+  gap: 8px;
+  margin: 3px 0;
+  font-size: 8px;
+}
+
+/* === Buff Chips === */
+.buff-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin: 3px 0;
+}
+
+.buff-chip {
+  font-size: 7px;
+  padding: 3px 5px;
+  border-radius: 0;
+  border: 2px solid;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: 'Press Start 2P', monospace;
+  line-height: 1.4;
+}
+
+.buff-chip.common {
+  background: rgba(40, 40, 55, 0.8);
+  color: #8a8a9a;
+  border-color: #4a4a5a;
+}
+
+.buff-chip.rare {
+  background: rgba(20, 35, 60, 0.85);
+  color: #5dade2;
+  border-color: #2e86c1;
+}
+
+.buff-chip.legendary {
+  background: rgba(50, 35, 15, 0.85);
+  color: #f0c040;
+  border-color: #c4a77d;
+  box-shadow: 0 0 6px rgba(240, 192, 64, 0.25);
+}
+
+.buff-chip.mythic {
+  background: rgba(55, 15, 15, 0.85);
+  color: #ff5555;
+  border-color: #d43;
+  box-shadow: 0 0 6px rgba(221, 68, 51, 0.3);
+}
+
+/* === Equipment Slots === */
+.equip-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 3px 0;
+}
+
+.equip-slot {
+  border: 2px solid #3a3a4a;
+  border-radius: 0;
+  padding: 3px 6px;
+  font-size: 7px;
+  background: rgba(20, 20, 35, 0.6);
+  color: #d4a855;
+  line-height: 1.4;
+  min-height: 24px;
+}
+
+/* === Inventory === */
+.inventory {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin: 3px 0;
+}
+
+.inv-btn {
+  font-size: 7px;
+  padding: 3px 6px;
+  background: rgba(20, 20, 35, 0.8);
+  color: #d4c4a0;
+  border: 2px solid #3a3a4a;
+  border-radius: 0;
+  cursor: pointer;
+  font-family: 'Press Start 2P', monospace;
+  transition: all 0.1s;
+}
+
+.inv-btn:hover {
+  background: rgba(90, 74, 58, 0.35);
+  border-color: #d4a855;
+  color: #d4a855;
+}
+
+/* === Combat Log === */
+#log-container {
+  background: rgba(13, 13, 26, 0.9);
+  padding: 6px;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 60px;
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.5);
+}
+
+/* Custom Scrollbar */
+#log-container::-webkit-scrollbar {
+  width: 5px;
+}
+
+#log-container::-webkit-scrollbar-track {
+  background: #0d0d1a;
+  border-left: 1px solid #3a3a4a;
+}
+
+#log-container::-webkit-scrollbar-thumb {
+  background: #5a4a3a;
+  border-radius: 0;
+}
+
+#log-container::-webkit-scrollbar-thumb:hover {
+  background: #8a7a5a;
+}
+
+#log-container {
+  scrollbar-width: thin;
+  scrollbar-color: #5a4a3a #0d0d1a;
+}
+
+#log {
+  font-size: 8px;
+  font-family: 'Press Start 2P', monospace;
+  line-height: 1.6;
+}
+
+.log-entry { padding: 1px 0; }
+.log-loot { color: #f0c040; }
+.log-dmg { color: #e74c3c; }
+.log-heal { color: #2ecc71; }
+.log-info { color: #5b9bd5; }
+
+/* === Dungeon Actions === */
+#dungeon-actions {
+  background: rgba(13, 13, 26, 0.92);
+  border: 3px solid #5a4a3a;
+  padding: 6px;
+  font-size: 10px;
+  box-shadow:
+    inset 0 0 12px rgba(0, 0, 0, 0.5),
+    0 0 8px rgba(90, 74, 58, 0.15);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.action-hint {
+  color: #5a5a7a;
+  margin: 2px 0;
+  font-size: 8px;
+  grid-column: span 2;
+}
+
+/* === Combat Actions === */
+#combat-actions {
+  background: rgba(13, 13, 26, 0.95);
+  border: 3px solid #5a4a3a;
+  padding: 6px;
+  display: none;
+  box-shadow:
+    inset 0 0 14px rgba(0, 0, 0, 0.5),
+    0 0 10px rgba(90, 74, 58, 0.2);
+}
+
+#combat-screen.active #combat-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.combat-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+/* === Pixel Button Base === */
+.btn {
+  padding: 5px 6px;
+  color: #fff;
+  border: 3px solid;
+  border-radius: 0;
+  cursor: pointer;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  transition: all 0.1s;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+}
+
+.btn:hover:not(:disabled) {
+  filter: brightness(1.2);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.4);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+.btn:disabled {
+  filter: grayscale(0.8);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Attack + Defend span full width */
+.combat-btns .btn-atk,
+.combat-btns .btn-def {
+  grid-column: span 2;
+}
+
+/* Attack Button */
+.btn-atk {
+  background: #c0392b;
+  border-color: #e74c3c;
+}
+
+.btn-atk:hover:not(:disabled) {
+  background: #d44637;
+  border-color: #ff7060;
+}
+
+/* Defend Button */
+.btn-def {
+  background: #2471a3;
+  border-color: #3498db;
+}
+
+.btn-def:hover:not(:disabled) {
+  background: #2e8bc8;
+  border-color: #5ab8f5;
+}
+
+/* Skill Button */
+.btn-skill {
+  background: #6c3483;
+  border-color: #8e44ad;
+}
+
+.btn-skill:hover:not(:disabled) {
+  background: #8242a0;
+  border-color: #a965c0;
+}
+
+/* Item Button */
+.btn-item {
+  background: #1e8449;
+  border-color: #27ae60;
+}
+
+.btn-item:hover:not(:disabled) {
+  background: #229b55;
+  border-color: #40d080;
+}
+
+/* Flee Button */
+.btn-flee {
+  background: #2c2c3a;
+  border-color: #5a5a7a;
+  color: #9a9aba;
+}
+
+.btn-flee:hover:not(:disabled) {
+  background: #3c3c4e;
+  border-color: #7a7a9a;
+}
+
+.skill-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  width: 100%;
+  margin: 4px 0;
+  grid-column: span 2;
+}
+
+/* === Screen Transitions === */
+.screen {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: #0d0d1a;
+  z-index: 100;
+  animation: fadeIn 0.2s ease;
+}
+
+.screen.active { display: flex; }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* === Title Screen === */
+#title-screen { flex-direction: column; gap: 20px; }
+
+#title-screen h1 {
+  font-size: 22px;
+  font-family: 'Press Start 2P', monospace;
+  color: #d4a855;
+  text-shadow:
+    0 0 24px rgba(212, 168, 85, 0.5),
+    3px 3px 0 #2a1a0a,
+    0 0 48px rgba(212, 168, 85, 0.2);
+  line-height: 1.8;
+}
+
+#title-screen p {
+  color: #7a7a9a;
+  font-size: 12px;
+  line-height: 2;
+}
+
+#title-screen .start-btn {
+  padding: 18px 40px;
+  background: #1a1a2e;
+  color: #d4a855;
+  border: 3px solid #d4a855;
+  border-radius: 0;
+  cursor: pointer;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 14px;
+  transition: all 0.1s;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+}
+
+#title-screen .start-btn:hover {
+  background: #2a2a3e;
+  filter: brightness(1.2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.4), 0 0 12px rgba(212, 168, 85, 0.3);
+  border-color: #e8c070;
+}
+
+#title-screen .start-btn:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+/* === Floor Overlay === */
+#floor-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(13, 13, 26, 0.95);
+  z-index: 50;
+}
+
+.floor-banner { text-align: center; }
+
+.floor-banner h2 {
+  font-size: 26px;
+  font-family: 'Press Start 2P', monospace;
+  color: #d4a855;
+  text-shadow:
+    0 0 18px rgba(212, 168, 85, 0.4),
+    3px 3px 0 #1a0a00;
+  line-height: 1.8;
+}
+
+.floor-banner p {
+  font-size: 12px;
+  color: #7a7a9a;
+  margin-top: 14px;
+  line-height: 2;
+}
+
+/* === Modal Overlay === */
+#modal-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 200;
+}
+
+.modal {
+  background: #0d0d1a;
+  border: 4px solid #5a4a3a;
+  border-radius: 0;
+  padding: 28px;
+  max-width: 520px;
+  width: 90%;
+  box-shadow:
+    0 0 32px rgba(90, 74, 58, 0.25),
+    inset 0 0 24px rgba(0, 0, 0, 0.5);
+  animation: modalIn 0.2s ease;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.modal h3 {
+  margin-bottom: 16px;
+  color: #d4a855;
+  font-size: 14px;
+  font-family: 'Press Start 2P', monospace;
+  text-shadow: 0 0 10px rgba(212, 168, 85, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.modal-btn {
+  display: inline-block;
+  margin: 6px;
+  padding: 10px 20px;
+  background: #1a1a2e;
+  color: #d4c4a0;
+  border: 3px solid #5a4a3a;
+  border-radius: 0;
+  cursor: pointer;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  transition: all 0.1s;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
+}
+
+.modal-btn:hover {
+  background: #2a2a3e;
+  border-color: #8a7a5a;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.3);
+}
+
+.modal-btn:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+/* === Buff Selection Cards === */
+.buff-choices { display: flex; gap: 14px; flex-wrap: wrap; }
+
+.buff-card {
+  flex: 1;
+  min-width: 120px;
+  padding: 18px 14px;
+  border: 3px solid #5a5a7a;
+  border-radius: 0;
+  background: #0d0d1a;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.12s;
+}
+
+.buff-card:hover {
+  transform: scale(1.03);
+  box-shadow: 0 0 12px rgba(90, 90, 122, 0.3);
+}
+
+/* Rarity-based card borders */
+.buff-card[data-rarity="common"] {
+  border-color: #5a5a6a;
+}
+.buff-card[data-rarity="common"]:hover {
+  border-color: #8a8a9a;
+  box-shadow: 0 0 10px rgba(90, 90, 106, 0.35);
+}
+
+.buff-card[data-rarity="rare"] {
+  border-color: #2e86c1;
+}
+.buff-card[data-rarity="rare"]:hover {
+  border-color: #5dade2;
+  box-shadow: 0 0 14px rgba(46, 134, 193, 0.45);
+}
+
+.buff-card[data-rarity="epic"] {
+  border-color: #8e44ad;
+}
+.buff-card[data-rarity="epic"]:hover {
+  border-color: #bb8fce;
+  box-shadow: 0 0 16px rgba(142, 68, 173, 0.5);
+}
+
+.buff-card[data-rarity="legendary"] {
+  border-color: #c4a77d;
+  background: #1a1508;
+}
+.buff-card[data-rarity="legendary"]:hover {
+  border-color: #f0c040;
+  box-shadow: 0 0 20px rgba(240, 192, 64, 0.5);
+}
+
+.buff-card[data-rarity="mythic"] {
+  border-color: #e74c3c;
+}
+.buff-card[data-rarity="mythic"]:hover {
+  border-color: #ff6b5a;
+  box-shadow: 0 0 16px rgba(231, 76, 60, 0.5);
+}
+
+/* Fallback: general hover for cards without data-rarity */
+.buff-card:hover {
+  background: #14142a;
+}
+
+.buff-card .icon { font-size: 32px; }
+.buff-card .name {
+  font-size: 10px;
+  font-family: 'Press Start 2P', monospace;
+  font-weight: bold;
+  margin: 10px 0;
+  color: #d4c4a0;
+}
+.buff-card .desc {
+  font-size: 9px;
+  font-family: 'Press Start 2P', monospace;
+  color: #7a7a9a;
+  line-height: 1.8;
+}
+
+/* === Game Over Screen === */
+.game-over { text-align: center; }
+
+.game-over h2 {
+  font-size: 22px;
+  font-family: 'Press Start 2P', monospace;
+  color: #e74c3c;
+  text-shadow:
+    0 0 18px rgba(231, 76, 60, 0.35),
+    3px 3px 0 #2a0a0a;
+  line-height: 1.8;
+}
+
+.game-over .stats {
+  margin: 18px 0;
+  font-size: 10px;
+  color: #7a7a9a;
+  line-height: 2.2;
+}
+
+.game-over .restart-btn {
+  padding: 16px 32px;
+  background: #1e8449;
+  color: #fff;
+  border: 3px solid #27ae60;
+  border-radius: 0;
+  cursor: pointer;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 12px;
+  transition: all 0.1s;
+  text-transform: uppercase;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+}
+
+.game-over .restart-btn:hover {
+  background: #229b55;
+  filter: brightness(1.2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.4), 0 0 10px rgba(46, 204, 113, 0.3);
+}
+
+.game-over .restart-btn:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+/* === Victory Screen === */
+.victory h2 {
+  font-size: 22px;
+  font-family: 'Press Start 2P', monospace;
+  color: #f0c040;
+  text-shadow:
+    0 0 18px rgba(240, 192, 64, 0.4),
+    3px 3px 0 #2a1a0a;
+  line-height: 1.8;
+}
+
+/* === Responsive: narrow screens === */
+@media (max-width: 1150px) {
+  #game-container {
+    flex-wrap: nowrap;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  #sidebar {
+    width: 100%;
+    max-width: 960px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    height: auto;
+    max-height: none;
+  }
+
+  #player-panel { flex: 1; min-width: 200px; }
+  #log-container { flex: 1; min-width: 200px; min-height: 80px; max-height: 200px; }
+  #dungeon-actions, #combat-actions {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+  #combat-screen.active #combat-actions {
+    grid-template-columns: 1fr;
+    max-height: none;
+    overflow-y: visible;
+  }
+  #combat-actions {
+    max-height: none;
+    overflow-y: visible;
+  }
+  .combat-btns .btn-atk,
+  .combat-btns .btn-def {
+    grid-column: span 1;
+  }
+  .skill-btns {
+    grid-column: span 1;
+  }
+  .action-hint {
+    grid-column: span 1;
+  }
+
+  #game-canvas {
+    max-width: 100%;
+    max-height: 55vh;
+  }
+}
+
+/* === Mobile Responsive === */
+@media (max-width: 768px) {
+  body { font-size: 10px; }
+
+  #game-container {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  #sidebar {
+    width: 100%;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  #player-panel {
+    min-width: unset;
+    padding: 12px;
+  }
+
+  #log-container {
+    min-height: 80px;
+    max-height: 120px;
+  }
+
+  #game-canvas {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .combat-btns {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .btn {
+    min-height: 44px;
+    font-size: 8px;
+    padding: 10px 8px;
+  }
+
+  #title-screen h1 {
+    font-size: 14px;
+  }
+
+  #title-screen .start-btn {
+    font-size: 10px;
+    padding: 14px 28px;
+  }
+
+  .floor-banner h2 {
+    font-size: 16px;
+  }
+
+  .buff-card {
+    min-width: 100px;
+    padding: 12px 10px;
+  }
+
+  .modal {
+    padding: 16px;
+    max-width: 95%;
+  }
+}
+
+@media (max-width: 480px) {
+  .combat-btns {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  #title-screen h1 {
+    font-size: 11px;
+  }
+
+  .btn {
+    min-height: 44px;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- Screens -->
+<div id="title-screen" class="screen active">
+  <h1>⚔️ RPG Buff 探险者</h1>
+  <p>像素风地城探险 Roguelite</p>
+  <div id="title-buttons"></div>
+  <p style="font-size:11px; color:#6a6a8a;">WASD 移动 · Enter 使用药水 · 踩到敌人进入战斗</p>
+</div>
+
+<div id="floor-overlay">
+  <div class="floor-banner" id="floor-banner"></div>
+</div>
+
+<div id="modal-overlay" onclick="if(event.target===this)closeModal()"></div>
+
+<div id="gameover-screen" class="screen"></div>
+<div id="victory-screen" class="screen"></div>
+<div id="combat-screen" class="screen" style="pointer-events:none;"></div>
+<div id="game-screen" class="screen"></div>
+
+<!-- Main game UI -->
+<div id="game-container">
+  <div id="game-canvas-wrapper">
+    <canvas id="game-canvas" width="480" height="270"></canvas>
+    <div id="combat-overlay"></div>
+  </div>
+
+  <div id="sidebar">
+    <div id="player-panel">
+      <div class="panel-header">准备中...</div>
+    </div>
+
+    <div id="log-container">
+      <div id="log"></div>
+    </div>
+
+    <div id="dungeon-actions">
+      <div class="action-hint">WASD / 方向键 移动</div>
+    </div>
+
+    <div id="combat-actions">
+      <div class="combat-btns">
+        <button class="btn btn-atk" onclick="doAttack()">⚔️ 攻击</button>
+        <button class="btn btn-def" onclick="doDefend()">\u{1F6E1}️ 防御</button>
+        <button class="btn btn-item" onclick="toggleInventoryModal()">\u{1F392} 物品</button>
+        <button class="btn btn-flee" onclick="tryFlee()">\u{1F6C0} 逃跑</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Script imports in dependency order -->
+<!-- DATA -->
+<script src="js/data/constants.js"></script>
+<script src="js/data/palette.js"></script>
+<script src="js/data/floors.js"></script>
+<script src="js/data/enemies.js"></script>
+<script src="js/data/skills.js"></script>
+<script src="js/data/items.js"></script>
+<script src="js/data/buffs.js"></script>
+<script src="js/data/traps.js"></script>
+<script src="js/data/events.js"></script>
+
+<!-- CORE -->
+<script src="js/core/state.js"></script>
+<script src="js/core/utils.js"></script>
+<script src="js/core/sprite.js"></script>
+<script src="js/core/fog.js"></script>
+<script src="js/core/generator.js"></script>
+<script src="js/core/buff.js"></script>
+<script src="js/core/equip.js"></script>
+<script src="js/core/audio.js"></script>
+<script src="js/core/movement.js"></script>
+<script src="js/core/event.js"></script>
+<script src="js/core/combat.js"></script>
+<script src="js/core/boss.js"></script>
+<script src="js/core/persistence.js"></script>
+<script src="js/core/economy.js"></script>
+
+<!-- VIEW -->
+<script src="js/view/fx.js"></script>
+<script src="js/view/sprites.js"></script>
+<script src="js/view/render.js"></script>
+<script src="js/view/ui.js"></script>
+
+<!-- CORE (late: shop depends on UI) -->
+<script src="js/core/shop.js"></script>
+
+<!-- MAIN -->
+<script src="js/main.js"></script>
+
+<!-- Boot -->
+<script>
+window.addEventListener('DOMContentLoaded', initGame);
+</script>
+
+</body>
+</html>
