@@ -52,11 +52,23 @@ function generateFloorInner(floorNum, retry) {
   // 7. Set start/stairs
   const playerStart = { x: rooms[0].cx, y: rooms[0].cy };
   const lastRoom = rooms[rooms.length - 1];
-  const stairsPos = { x: lastRoom.cx, y: lastRoom.cy };
+  // Offset stairs from room center so boss doesn't block the exit
+  var stairsX = lastRoom.cx;
+  var stairsY = lastRoom.cy;
+  // Try offset horizontally first, then vertically if room too narrow
+  if (lastRoom.w >= 4) {
+    stairsX = Math.min(lastRoom.cx + 1, lastRoom.x + lastRoom.w - 2);
+  } else {
+    stairsY = Math.min(lastRoom.cy + 1, lastRoom.y + lastRoom.h - 2);
+  }
+  // Clamp to room bounds
+  stairsX = Math.max(lastRoom.x + 1, Math.min(stairsX, lastRoom.x + lastRoom.w - 2));
+  stairsY = Math.max(lastRoom.y + 1, Math.min(stairsY, lastRoom.y + lastRoom.h - 2));
+  const stairsPos = { x: stairsX, y: stairsY };
 
   // 8. Place boss in last room on floor bosses
   if (floorNum >= 1) {
-    const bossKey = floorNum === 1 ? 'moss_giant' : floorNum === 2 ? 'shadow_mage' : 'greed_king';
+    const bossKey = floorNum === 1 ? 'moss_giant' : floorNum === 2 ? 'shadow_mage' : floorNum === 3 ? 'greed_king' : floorNum === 4 ? 'inferno_beast' : 'lord_endings';
     const bossData = BOSS_DATA[bossKey];
     if (bossData) {
       enemies.push({
@@ -309,6 +321,10 @@ function placeEnemies(rooms, grid, floorNum, theme) {
 
       if (!inBounds(ex, ey) || grid[ey][ex] === TILE.WALL) continue;
 
+      var defScaled = Math.floor(data.def * (1 + 0.15 * floorScale));
+      if (theme.envBuff && theme.envBuff.id === 'final') {
+        defScaled = Math.floor(defScaled * 1.15);
+      }
       enemies.push({
         x: ex,
         y: ey,
@@ -317,7 +333,7 @@ function placeEnemies(rooms, grid, floorNum, theme) {
         hp: Math.floor(data.hp * (1 + 0.2 * floorScale)),
         maxHp: Math.floor(data.hp * (1 + 0.2 * floorScale)),
         atk: Math.floor(data.atk * (1 + 0.25 * floorScale)),
-        def: Math.floor(data.def * (1 + 0.15 * floorScale)),
+        def: defScaled,
         spd: data.spd,
         exp: Math.floor(data.exp * (1 + 0.5 * floorScale)),
         gold: Array.isArray(data.gold) ? rng(data.gold[0], data.gold[1]) : data.gold,

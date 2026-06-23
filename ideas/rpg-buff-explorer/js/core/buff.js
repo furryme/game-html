@@ -1,5 +1,15 @@
 // buff.js — Buff aggregation, synergy check, selection UI
 
+// Equipment-Buff Synergy Bonuses
+// Since equipment uses random affixes, we check: purple rarity + relevant stat = bonus
+var EQUIP_BONUS = {
+  flame_aura:  { slot: 'weapon', rarity: 'purple', statCheck: 'atk', bonus: { dotDmg: 4 } },
+  iron_skin:   { slot: 'armor', rarity: 'purple', statCheck: 'def', bonus: { dmgReduction: 0.15 } },
+  shadow_step: { slot: 'weapon', rarity: 'purple', statCheck: 'spd', bonus: { dodgeChance: 0.1 } },
+  lifesteal:   { slot: 'weapon', rarity: 'purple', statCheck: 'atk', bonus: { lifestealPct: 0.1 } },
+  mana_flow:   { slot: 'weapon', rarity: 'purple', statCheck: 'mp', bonus: { mpRestore: 3 } },
+};
+
 /**
  * Aggregate player.activeBuffs into player.buffStats.
  * activeBuffs is expected to be an array of { id, ... } objects or plain id strings.
@@ -40,7 +50,7 @@ function recalcBuffStats() {
     if (!def || !def.passive) continue;
 
     var p = def.passive;
-    if (p.atkMult) s.atkMult *= p.atkMult;
+    if (p.atkMult && !(def.tags && def.tags.indexOf("boss") !== -1)) s.atkMult *= p.atkMult;
     if (p.defMult) s.defMult *= p.defMult;
     if (p.hpMult) s.hpMult *= p.hpMult;
     if (p.spdMult) s.spdMult *= p.spdMult;
@@ -57,6 +67,40 @@ function recalcBuffStats() {
     if (p.dotDmg) s.dotDmg += p.dotDmg;
     if (p.dotTurns) s.dotTurns = Math.max(s.dotTurns, p.dotTurns);
     if (p.onAttack && !s.onAttack) s.onAttack = p.onAttack;
+
+    // Class bonus: apply extra multipliers for class-specific bonuses
+    if (def.classBonus && player.cls && def.classBonus[player.cls]) {
+      var cb = def.classBonus[player.cls];
+      if (cb.atkMult) s.atkMult *= cb.atkMult;
+      if (cb.defMult) s.defMult *= cb.defMult;
+      if (cb.hpMult) s.hpMult *= cb.hpMult;
+      if (cb.dotDmg) s.dotDmg += cb.dotDmg;
+      if (cb.dodgeChance) s.dodgeChance += cb.dodgeChance;
+      if (cb.firstStrike) s.firstStrike += cb.firstStrike;
+      if (cb.dmgReduction) s.dmgReduction += cb.dmgReduction;
+      if (cb.critBonus) s.critBonus += cb.critBonus;
+      if (cb.expBonus) s.expBonus += cb.expBonus;
+      console.log('[buff] classBonus for ' + def.id + ' on class ' + player.cls);
+    }
+
+    // Equipment-buff synergy check
+    if (EQUIP_BONUS[id] && player.equip && player.equip[EQUIP_BONUS[id].slot]) {
+      var eq = player.equip[EQUIP_BONUS[id].slot];
+      var eb = EQUIP_BONUS[id];
+      // Check: equipment must be at least specified rarity (purple = best)
+      var rarityOrder = { white: 1, blue: 2, purple: 3 };
+      var eqRarity = rarityOrder[eq.rarity] || 0;
+      var reqRarity = rarityOrder[eb.rarity] || 0;
+      if (eqRarity >= reqRarity && eq.identified) {
+        // Equipment qualifies - apply bonus
+        if (eb.bonus.dotDmg) s.dotDmg += eb.bonus.dotDmg;
+        if (eb.bonus.dmgReduction) s.dmgReduction += eb.bonus.dmgReduction;
+        if (eb.bonus.dodgeChance) s.dodgeChance += eb.bonus.dodgeChance;
+        if (eb.bonus.lifestealPct) s.lifestealPct += eb.bonus.lifestealPct;
+        if (eb.bonus.mpRestore) s.mpRestore += eb.bonus.mpRestore;
+        console.log('[buff] equipBonus for ' + id + ' with ' + (eq.name || eb.slot));
+      }
+    }
   }
 
   // Check boss-only tag
@@ -73,20 +117,24 @@ function recalcBuffStats() {
   }
 
   // Clamp percentage fields
-  s.dmgReduction = Math.min(s.dmgReduction, 0.95);
-  s.dodgeChance = Math.min(s.dodgeChance, 0.8);
+  s.dmgReduction = Math.min(s.dmgReduction, 0.8);
+  s.dodgeChance = Math.min(s.dodgeChance, 0.5);
   s.lifestealPct = Math.min(s.lifestealPct, 1.0);
   s.reflectPct = Math.min(s.reflectPct, 1.0);
 
   player.buffStats = s;
+
+  // Apply synergy effects on top of buffStats
+  checkSynergies();
+  applySynergyToStats();
 }
 
 /**
- * Check which synergies are active based on tags from activeBuffs.
+ * Check which synergies are active based on tag counts from activeBuffs.
  * Writes result to player.activeSynergies array.
  */
 function checkSynergies() {
-  var tagSet = {};
+  var tagCount = {};
   var ids = player.activeBuffs || [];
 
   for (var i = 0; i < ids.length; i++) {
@@ -95,7 +143,8 @@ function checkSynergies() {
     for (var d = 0; d < BUFF_DEFS.length; d++) {
       if (BUFF_DEFS[d].id === id && BUFF_DEFS[d].tags) {
         for (var t = 0; t < BUFF_DEFS[d].tags.length; t++) {
-          tagSet[BUFF_DEFS[d].tags[t]] = true;
+          var tag = BUFF_DEFS[d].tags[t];
+          tagCount[tag] = (tagCount[tag] || 0) + 1;
         }
         break;
       }
@@ -107,7 +156,7 @@ function checkSynergies() {
     var syn = SYNERGY_DEFS[i];
     var count = 0;
     for (var t = 0; t < syn.tags.length; t++) {
-      if (tagSet[syn.tags[t]]) count++;
+      if (tagCount[syn.tags[t]] && tagCount[syn.tags[t]] >= 1) count++;
     }
     if (count >= syn.minTags) {
       active.push({
@@ -120,10 +169,31 @@ function checkSynergies() {
   }
 
   player.activeSynergies = active;
+}
 
-  if (active.length > 0) {
-    for (var i = 0; i < active.length; i++) {
-      addLog('组合生效：' + active[i].name + ' — ' + active[i].desc, 'loot');
+/**
+ * Apply synergy effects onto player.buffStats.
+ */
+function applySynergyToStats() {
+  var s = player.buffStats;
+  if (!s || !player.activeSynergies) return;
+
+  for (var i = 0; i < player.activeSynergies.length; i++) {
+    var e = player.activeSynergies[i].effect;
+    if (!e) continue;
+    switch (e.type) {
+      case 'multiply_dot':
+        s.dotDmg = Math.floor(s.dotDmg * e.mult);
+        break;
+      case 'reflect_pct':
+        s.reflectPct = Math.max(s.reflectPct, e.pct);
+        break;
+      case 'add_lifesteal':
+        s.lifestealPct = Math.min(1.0, s.lifestealPct + e.pct);
+        break;
+      case 'add_gold':
+        s.goldBonus += e.pct;
+        break;
     }
   }
 }
@@ -178,6 +248,7 @@ function weightedBuffPick(floorNum) {
  * @param {number} floorNum
  */
 function showBuffSelection(floorNum) {
+  floorNum = floorNum || (player ? player.lvl : 1);
   var choices = [];
   var attempts = 0;
   while (choices.length < 3 && attempts < 30) {
@@ -212,6 +283,31 @@ function showBuffSelection(floorNum) {
     if (choices[i]) {
       var c = choices[i];
       var color = rarityColor[c.rarity] || '#ccc';
+
+      // Equipment synergy hint
+      var synergyHint = '';
+      if (typeof EQUIP_BONUS !== 'undefined' && EQUIP_BONUS[c.id] && player && player.equip) {
+        var eb = EQUIP_BONUS[c.id];
+        if (player.equip[eb.slot] && player.equip[eb.slot].identified) {
+          var eq = player.equip[eb.slot];
+          var eqName = eq.name || eb.slot;
+          var rarityOrder = { white: 1, blue: 2, purple: 3 };
+          var eqRarity = rarityOrder[eq.rarity] || 0;
+          var reqRarity = rarityOrder[eb.rarity] || 0;
+          if (eqRarity >= reqRarity) {
+            var bonusText = '';
+            if (eb.bonus.dotDmg) bonusText = '灼伤伤害+' + eb.bonus.dotDmg;
+            if (eb.bonus.dmgReduction) bonusText = '减伤+' + Math.floor(eb.bonus.dmgReduction * 100) + '%';
+            if (eb.bonus.dodgeChance) bonusText = '闪避+' + Math.floor(eb.bonus.dodgeChance * 100) + '%';
+            if (eb.bonus.lifestealPct) bonusText = '吸血+' + Math.floor(eb.bonus.lifestealPct * 100) + '%';
+            if (eb.bonus.mpRestore) bonusText = '回蓝+' + eb.bonus.mpRestore;
+            if (bonusText) {
+              synergyHint = '<div style="font-size:9px;color:#f0c040;margin-top:4px;">' + eqName + '：' + bonusText + '</div>';
+            }
+          }
+        }
+      }
+
       html += '<div class="buff-card" style="' +
         'flex:1;min-width:140px;max-width:200px;cursor:pointer;user-select:none;' +
         'background:#1a1a2e;border:2px solid ' + color + ';border-radius:8px;' +
@@ -222,6 +318,7 @@ function showBuffSelection(floorNum) {
         '<div style="color:' + color + ';font-weight:bold;margin:4px 0">' + c.name + '</div>' +
         '<div style="font-size:11px;color:#888;text-transform:uppercase">' + c.rarity + '</div>' +
         '<div style="font-size:12px;color:#ccc;margin-top:6px">' + c.desc + '</div>' +
+        synergyHint +
         (c.unlockCondition ? '<div style="font-size:10px;color:#666;margin-top:4px">\u{1F513} ' + c.unlockCondition.label + '</div>' : '') +
         '</div>';
     } else {
@@ -268,13 +365,20 @@ function selectBuff(buffId) {
   if (!def) return;
 
   player.activeBuffs.push({ id: buffId });
-  recalcBuffStats();
-  checkSynergies();
+  recalcPlayerStats();
+  player.hp = player.maxHp;
+  player.mp = player.maxMp;
   closeModal();
   addLog('获得增益：' + def.icon + ' ' + def.name, 'loot');
+  renderPlayerPanel();
 
   // Clean up temp storage
   window._buffChoices = null;
+
+  // Show gem enhancement if player has gems
+  if (player.gems > 0 && typeof showGemEnhancement === 'function') {
+    setTimeout(showGemEnhancement, 200);
+  }
 }
 
 // Expose to global scope for inline onclick handlers
@@ -282,6 +386,7 @@ window.showBuffSelection = showBuffSelection;
 window.selectBuff = selectBuff;
 window.recalcBuffStats = recalcBuffStats;
 window.checkSynergies = checkSynergies;
+window.applySynergyToStats = applySynergyToStats;
 
 // =================== Relic Selection ===================
 
@@ -321,6 +426,22 @@ function showRelicSelection(buffs, keptGold) {
   }
 
   html += '</div>';
+
+  // Equipment relic option
+  if (player && player.equip) {
+    var hasEquip = false;
+    var equipSlots = ['weapon', 'armor', 'accessory'];
+    for (var ei = 0; ei < equipSlots.length; ei++) {
+      if (player.equip[equipSlots[ei]]) { hasEquip = true; break; }
+    }
+    if (hasEquip) {
+      html += '<div style="margin-top:12px; padding-top:12px; border-top:1px solid #333;">';
+      html += '<p style="font-size:11px; color:#9a9aba; margin-bottom:8px;">或者保留当前装备作为遗物</p>';
+      html += '<button class="modal-btn" onclick="selectEquipRelic()" style="border-color:#f0c040; color:#f0c040;">保留装备</button>';
+      html += '</div>';
+    }
+  }
+
   html += '<div style="text-align:center; margin-top:12px;">' +
     '<button class="modal-btn" onclick="selectRelic(null)">跳过（不选择遗物）</button>' +
     '</div>';
@@ -382,4 +503,40 @@ function selectRelic(buffId) {
 
 window.showRelicSelection = showRelicSelection;
 window.selectRelic = selectRelic;
-window.finishGameOver = finishGameOver;
+
+/**
+ * Player selects to keep current equipment as a relic.
+ */
+function selectEquipRelic() {
+  console.log('[relic] selectEquipRelic');
+  window._relicChoices = null;
+  window._relicModalActive = false;
+  var overlay = document.getElementById('modal-overlay');
+  if (overlay) {
+    overlay.onclick = function(e) { if (e.target === this) closeModal(); };
+  }
+  closeModal();
+
+  if (typeof permanent !== 'undefined' && permanent) {
+    var equipCopy = {};
+    if (player.equip) {
+      for (var slot in player.equip) {
+        if (player.equip[slot]) {
+          equipCopy[slot] = JSON.parse(JSON.stringify(player.equip[slot]));
+        }
+      }
+    }
+    permanent.equipRelic = equipCopy;
+    savePermanent(permanent);
+    var slotNames = Object.keys(equipCopy);
+    var names = [];
+    for (var i = 0; i < slotNames.length; i++) {
+      if (equipCopy[slotNames[i]]) names.push(equipCopy[slotNames[i]].name || slotNames[i]);
+    }
+    addLog('保留装备遗物：' + names.join(', '), 'loot');
+  }
+
+  finishGameOver(window._relicKeptGold || 0);
+}
+
+window.selectEquipRelic = selectEquipRelic;

@@ -2,6 +2,84 @@
 
 var audioCtx = null;
 var _stepCounter = 0;
+var audioFilterNode = null;
+var currentAudioTheme = null;
+
+/**
+ * Refresh audio theme from the active theme config.
+ * Called by ThemeManager when theme changes.
+ */
+function refreshAudioTheme() {
+  var theme = window.themeManager ? window.themeManager.getActive() : null;
+  if (!theme || !theme.audio) return;
+
+  if (audioFilterNode) {
+    try { audioFilterNode.disconnect(); } catch (e) {}
+    audioFilterNode = null;
+  }
+
+  currentAudioTheme = theme.audio;
+
+  if (theme.audio.filterType === 'lowpass' && audioCtx) {
+    audioFilterNode = audioCtx.createBiquadFilter();
+    audioFilterNode.type = 'lowpass';
+    audioFilterNode.frequency.value = theme.audio.filterFreq || 3000;
+  }
+}
+
+/** Get current audio theme or null */
+function _getAT() {
+  return currentAudioTheme || (window.themeManager ? window.themeManager.getActive().audio : null) || null;
+}
+
+/** Get waveform type, respecting theme override */
+function _getWaveform() {
+  var at = _getAT();
+  return at && at.waveformOverride ? at.waveformOverride : null;
+}
+
+/** Get tone volume multiplier: bright=1.2, dark=0.8, hollow=1.0 */
+function _getToneVol() {
+  var at = _getAT();
+  if (!at || !at.tone) return 1;
+  if (at.tone === 'bright') return 1.2;
+  if (at.tone === 'dark') return 0.8;
+  return 1;
+}
+
+/** Get tone name or empty string */
+function _getTone() {
+  var at = _getAT();
+  return at && at.tone ? at.tone : '';
+}
+
+/**
+ * Connect osc -> [filter if theme has filterType] -> gain -> destination.
+ * Returns nothing (connection already made).
+ */
+function _connectOsc(osc, gain) {
+  var at = _getAT();
+  if (at && at.filterType) {
+    var f = audioCtx.createBiquadFilter();
+    f.type = at.filterType;
+    f.frequency.value = at.filterFreq || 3000;
+    osc.connect(f).connect(gain).connect(audioCtx.destination);
+  } else {
+    osc.connect(gain).connect(audioCtx.destination);
+  }
+}
+
+/**
+ * For 'hollow' tone: add a parallel bandpass 500-2000Hz path.
+ * osc = source oscillator, gain = gain node already connected to destination.
+ */
+function _addHollowPath(osc, gain) {
+  var f = audioCtx.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = 1250;
+  f.Q.value = 0.7;
+  osc.connect(f).connect(gain);
+}
 
 /**
  * Create AudioContext on first user gesture (autoplay policy).
@@ -107,30 +185,38 @@ function _crit(ctx) {
 
 function _defend(ctx) {
   var t = ctx.currentTime;
+  var wf = _getWaveform();
+  var tv = _getToneVol();
+  var tone = _getTone();
   var osc = ctx.createOscillator();
-  osc.type = 'sine';
+  osc.type = wf || 'sine';
   osc.frequency.setValueAtTime(800, t);
   osc.frequency.exponentialRampToValueAtTime(400, t + 0.08);
   var g = ctx.createGain();
-  g.gain.setValueAtTime(0.3, t);
+  g.gain.setValueAtTime(0.3 * tv, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
-  osc.connect(g).connect(ctx.destination);
+  _connectOsc(osc, g);
+  if (tone === 'hollow') _addHollowPath(osc, g);
   osc.start(t);
   osc.stop(t + 0.08);
 }
 
 function _heal(ctx) {
   var t = ctx.currentTime;
+  var wf = _getWaveform();
+  var tv = _getToneVol();
+  var tone = _getTone();
   var notes = [440, 660];
   notes.forEach(function (freq, i) {
     var osc = ctx.createOscillator();
-    osc.type = 'sine';
+    osc.type = wf || 'sine';
     osc.frequency.setValueAtTime(freq, t + i * 0.08);
     var g = ctx.createGain();
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.2, t + i * 0.08);
+    g.gain.linearRampToValueAtTime(0.2 * tv, t + i * 0.08);
     g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.08 + 0.12);
-    osc.connect(g).connect(ctx.destination);
+    _connectOsc(osc, g);
+    if (tone === 'hollow') _addHollowPath(osc, g);
     osc.start(t + i * 0.08);
     osc.stop(t + i * 0.08 + 0.12);
   });
@@ -138,16 +224,20 @@ function _heal(ctx) {
 
 function _levelUp(ctx) {
   var t = ctx.currentTime;
+  var wf = _getWaveform();
+  var tv = _getToneVol();
+  var tone = _getTone();
   var notes = [330, 440, 660];
   notes.forEach(function (freq, i) {
     var osc = ctx.createOscillator();
-    osc.type = 'square';
+    osc.type = wf || 'square';
     osc.frequency.setValueAtTime(freq, t + i * 0.12);
     var g = ctx.createGain();
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.15, t + i * 0.12);
+    g.gain.linearRampToValueAtTime(0.15 * tv, t + i * 0.12);
     g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + 0.15);
-    osc.connect(g).connect(ctx.destination);
+    _connectOsc(osc, g);
+    if (tone === 'hollow') _addHollowPath(osc, g);
     osc.start(t + i * 0.12);
     osc.stop(t + i * 0.12 + 0.15);
   });
@@ -155,16 +245,20 @@ function _levelUp(ctx) {
 
 function _death(ctx) {
   var t = ctx.currentTime;
+  var wf = _getWaveform();
+  var tv = _getToneVol();
+  var tone = _getTone();
   var notes = [400, 350, 280, 200];
   notes.forEach(function (freq, i) {
     var osc = ctx.createOscillator();
-    osc.type = 'sawtooth';
+    osc.type = wf || 'sawtooth';
     osc.frequency.setValueAtTime(freq, t + i * 0.15);
     var g = ctx.createGain();
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.18, t + i * 0.15);
+    g.gain.linearRampToValueAtTime(0.18 * tv, t + i * 0.15);
     g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.15 + 0.18);
-    osc.connect(g).connect(ctx.destination);
+    _connectOsc(osc, g);
+    if (tone === 'hollow') _addHollowPath(osc, g);
     osc.start(t + i * 0.15);
     osc.stop(t + i * 0.15 + 0.18);
   });
@@ -172,39 +266,47 @@ function _death(ctx) {
 
 function _pickup(ctx) {
   var t = ctx.currentTime;
+  var wf = _getWaveform();
+  var tv = _getToneVol();
+  var tone = _getTone();
   var osc = ctx.createOscillator();
-  osc.type = 'sine';
+  osc.type = wf || 'sine';
   osc.frequency.setValueAtTime(1400, t);
   osc.frequency.setValueAtTime(1800, t + 0.04);
   var g = ctx.createGain();
-  g.gain.setValueAtTime(0.2, t);
+  g.gain.setValueAtTime(0.2 * tv, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
-  osc.connect(g).connect(ctx.destination);
+  _connectOsc(osc, g);
+  if (tone === 'hollow') _addHollowPath(osc, g);
   osc.start(t);
   osc.stop(t + 0.1);
 }
 
 function _bossPhase(ctx) {
   var t = ctx.currentTime;
-  // Deep rumble
+  var tv = _getToneVol();
+  var wf = _getWaveform();
+  var tone = _getTone();
+  // Deep rumble — always sine to preserve sub-bass
   var osc = ctx.createOscillator();
   osc.type = 'sine';
   osc.frequency.setValueAtTime(40, t);
   var g = ctx.createGain();
-  g.gain.setValueAtTime(0.35, t);
+  g.gain.setValueAtTime(0.35 * tv, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
   osc.connect(g).connect(ctx.destination);
   osc.start(t);
   osc.stop(t + 0.5);
-  // Rising tension
+  // Rising tension — uses waveform override
   var osc2 = ctx.createOscillator();
-  osc2.type = 'sawtooth';
+  osc2.type = wf || 'sawtooth';
   osc2.frequency.setValueAtTime(80, t);
   osc2.frequency.exponentialRampToValueAtTime(300, t + 0.5);
   var g2 = ctx.createGain();
-  g2.gain.setValueAtTime(0.15, t);
+  g2.gain.setValueAtTime(0.15 * tv, t);
   g2.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
-  osc2.connect(g2).connect(ctx.destination);
+  _connectOsc(osc2, g2);
+  if (tone === 'hollow') _addHollowPath(osc2, g2);
   osc2.start(t);
   osc2.stop(t + 0.5);
 }
@@ -231,25 +333,30 @@ function _step(ctx) {
 
 function _shop(ctx) {
   var t = ctx.currentTime;
+  var wf = _getWaveform();
+  var tv = _getToneVol();
+  var tone = _getTone();
   // "cha" — low metallic ping
   var osc1 = ctx.createOscillator();
-  osc1.type = 'sine';
+  osc1.type = wf || 'sine';
   osc1.frequency.setValueAtTime(600, t);
   var g1 = ctx.createGain();
-  g1.gain.setValueAtTime(0.2, t);
+  g1.gain.setValueAtTime(0.2 * tv, t);
   g1.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
-  osc1.connect(g1).connect(ctx.destination);
+  _connectOsc(osc1, g1);
+  if (tone === 'hollow') _addHollowPath(osc1, g1);
   osc1.start(t);
   osc1.stop(t + 0.06);
   // "ching" — high bright ping
   var osc2 = ctx.createOscillator();
-  osc2.type = 'sine';
+  osc2.type = wf || 'sine';
   osc2.frequency.setValueAtTime(1600, t + 0.08);
   var g2 = ctx.createGain();
   g2.gain.setValueAtTime(0, t);
-  g2.gain.linearRampToValueAtTime(0.25, t + 0.08);
+  g2.gain.linearRampToValueAtTime(0.25 * tv, t + 0.08);
   g2.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
-  osc2.connect(g2).connect(ctx.destination);
+  _connectOsc(osc2, g2);
+  if (tone === 'hollow') _addHollowPath(osc2, g2);
   osc2.start(t + 0.08);
   osc2.stop(t + 0.2);
 }
@@ -272,3 +379,4 @@ var SOUND_MAP = {
 // Expose globally
 window.initAudio = initAudio;
 window.playSound = playSound;
+window.refreshAudioTheme = refreshAudioTheme;

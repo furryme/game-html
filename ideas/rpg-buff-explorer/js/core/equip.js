@@ -272,6 +272,32 @@ function identifyEquipment(eq) {
 }
 
 /**
+ * Enhance the currently equipped weapon: +2 ATK for 3 gems.
+ * @returns {boolean}
+ */
+function enhanceEquippedWeapon() {
+  if (!player.equip.weapon) return false;
+  if (!player.gems || player.gems < 3) return false;
+  player.gems -= 3;
+  player.equip.weapon.stats.atk = (player.equip.weapon.stats.atk || 0) + 2;
+  recalcPlayerStats();
+  return true;
+}
+
+/**
+ * Enhance the currently equipped armor: +2 DEF for 3 gems.
+ * @returns {boolean}
+ */
+function enhanceEquippedArmor() {
+  if (!player.equip.armor) return false;
+  if (!player.gems || player.gems < 3) return false;
+  player.gems -= 3;
+  player.equip.armor.stats.def = (player.equip.armor.stats.def || 0) + 2;
+  recalcPlayerStats();
+  return true;
+}
+
+/**
  * Find the first unidentified equipment (equipped slots first, then inventory).
  * @returns {{}|null}
  */

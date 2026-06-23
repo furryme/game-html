@@ -153,9 +153,16 @@ function collectFloorReward(floorNum) {
 }
 
 // Expose to global scope
+function spendRunGems(amount) {
+  if (!player || !player.gems || player.gems < amount) return false;
+  player.gems -= amount;
+  return true;
+}
+
 window.addGold = addGold;
 window.addGems = addGems;
 window.getShopPriceMultiplier = getShopPriceMultiplier;
 window.onGameOver = onGameOver;
 window.spendGems = spendGems;
 window.collectFloorReward = collectFloorReward;
+window.spendRunGems = spendRunGems;

@@ -58,6 +58,7 @@ function movePlayer(dx, dy) {
         var heal = Math.floor(player.maxHp * 0.3);
         player.hp = Math.min(player.maxHp, player.hp + heal);
         addLog('在篝火旁休息，恢复 ' + heal + ' HP', 'heal');
+        dungeon.items.splice(ii, 1);
       } else {
         player.inventory[item.type] = (player.inventory[item.type] || 0) + 1;
         var itemData = ITEMS_DATA[item.type];
@@ -195,7 +196,7 @@ function movePlayer(dx, dy) {
       addLog('必须先击败Boss才能离开！', 'info');
       return;
     }
-    nextFloor();
+    showFloorBreak();
     return;
   }
 
@@ -206,6 +207,11 @@ function movePlayer(dx, dy) {
       var loss = Math.floor(player.maxHp * 0.03);
       player.hp -= loss;
       addLog('腐朽侵蚀了你，-' + loss + 'HP', 'dmg');
+    }
+    if (env.id === 'inferno' && gameState.turnCount % 4 === 0) {
+      var burnLoss = Math.floor(player.maxHp * 0.05);
+      player.hp -= burnLoss;
+      addLog('熔火灼烧了你，-' + burnLoss + 'HP', 'dmg');
     }
   }
 
@@ -248,6 +254,11 @@ function movePlayer(dx, dy) {
   renderPlayerPanel();
 }
 
+/** Proceed to next floor (called from floor break). */
+function proceedToNextFloor() {
+  if (typeof nextFloor === 'function') nextFloor();
+}
+
 /** Advance to the next dungeon floor. */
 function nextFloor() {
   if (dungeon.floor >= MAX_FLOORS) {
@@ -255,6 +266,11 @@ function nextFloor() {
     if (permanent) onVictory(permanent);
     showVictoryScreen();
     return;
+  }
+
+  // Collect floor completion reward before advancing
+  if (typeof collectFloorReward === 'function') {
+    collectFloorReward(dungeon.floor);
   }
 
   var nextFloorNum = dungeon.floor + 1;
@@ -269,15 +285,19 @@ function nextFloor() {
   if (overlay) {
     overlay.innerHTML =
       '<div class="floor-banner"><h2>第 ' + nextFloorNum + ' 层</h2><p>' + theme.name + '</p></div>';
+    overlay.style.display = 'flex';
   }
 
   setTimeout(function () {
-    if (overlay) overlay.innerHTML = '';
+    if (overlay) { overlay.innerHTML = ''; overlay.style.display = 'none'; }
     dungeon = generateFloor(nextFloorNum);
     player.x = dungeon.playerStart.x;
     player.y = dungeon.playerStart.y;
     var envLabel = dungeon.theme.envBuff ? '(' + dungeon.theme.envBuff.desc + ')' : '';
     addLog('进入 ' + theme.name + ' ' + envLabel, 'info');
+
+    // Apply dungeon layer theme override for this floor
+    if (window.themeManager) window.themeManager.applyLayerOverride(dungeon.floor);
 
     // Track floor progress
     if (permanent) {
@@ -285,17 +305,21 @@ function nextFloor() {
       checkBuffUnlocks(permanent);
     }
 
-    // Free identification at floor transition
-    if (typeof findFirstUnidentified === 'function' && typeof identifyEquipment === 'function') {
-      var eqIdentified = null;
-      while ((eqIdentified = findFirstUnidentified())) {
-        identifyEquipment(eqIdentified);
-        addLog('免费鉴定：' + eqIdentified.icon + ' ' + eqIdentified.name, 'loot');
-      }
-    }
+    // Theme unlock check
+    if (typeof checkThemeUnlocks === 'function') checkThemeUnlocks(nextFloorNum);
 
-    // Show buff selection
-    showBuffSelection();
+    // Theme progress: deepest floor
+    if (typeof trackThemeProgress === 'function') trackThemeProgress('deepestFloor', nextFloorNum);
+
+    // Save progress on floor transition
+    saveGame();
+
+    // Show buff selection AFTER any unlock modal (checkBuffUnlocks uses setTimeout 300ms).
+    // Delay 500ms so showBuffSelection is the final modal shown, not overwritten.
+    setTimeout(function () {
+      showBuffSelection(nextFloorNum);
+      gameState.paused = false;
+    }, 500);
   }, 1200);
 }
 
@@ -358,6 +382,7 @@ function useItem(itemId) {
     }
   }
   renderPlayerPanel();
+  saveGame();
 }
 
 /** Show the victory screen after clearing all floors. */

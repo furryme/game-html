@@ -49,7 +49,10 @@ function generateShopItems(floorNum) {
     var def = ITEMS_DATA[key];
     if (!def) continue;
 
-    var price = Math.round(def.price * shopPriceMultiplier(floorNum));
+    var priceMult = key === 'identify_scroll'
+      ? (1 + 0.4 * (floorNum - 1))
+      : shopPriceMultiplier(floorNum);
+    var price = Math.round(def.price * priceMult);
     items.push({
       id: 'shop_' + items.length,
       itemId: key,

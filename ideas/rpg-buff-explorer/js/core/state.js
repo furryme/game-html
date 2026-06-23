@@ -39,6 +39,8 @@ function initPlayer(cls) {
     gems: 0,
     activeBuffs: [],
     buffStats: null,
+    activeSynergies: [],
+    synergyReviveUsed: false,
     skillCooldowns: {},
     statuses: [],
     weaponBoost: 0,
@@ -71,11 +73,24 @@ function calcExpNext(lvl) {
 /** Base stats at a given level (for level-up recalc). */
 function calcStatsFromLevel(lvl) {
   return {
-    maxHp: 100 + lvl * 20,
-    maxMp: 20 + lvl * 3,
-    baseAtk: 10 + lvl * 3,
-    baseDef: 5 + lvl * 2,
-    baseSpd: 8 + lvl * 1,
+    maxHp: 120 + (lvl - 1) * 20,
+    maxMp: 20 + (lvl - 1) * 3,
+    baseAtk: 10 + (lvl - 1) * 3,
+    baseDef: 5 + (lvl - 1) * 2,
+    baseSpd: 8 + (lvl - 1) * 1,
+  };
+}
+
+/** Class-aware base stats. Uses CLASS_DATA growth if available, falls back to warrior formula. */
+function calcClassStats(lvl, cls) {
+  var cd = CLASS_DATA[cls];
+  if (!cd) return calcStatsFromLevel(lvl);
+  return {
+    maxHp: cd.hp + (lvl - 1) * (cd.hpGrowth || 20),
+    maxMp: cd.mp + (lvl - 1) * (cd.mpGrowth || 3),
+    baseAtk: cd.atk + (lvl - 1) * (cd.atkGrowth || 3),
+    baseDef: cd.def + (lvl - 1) * (cd.defGrowth || 2),
+    baseSpd: cd.spd + (lvl - 1) * (cd.spdGrowth || 1),
   };
 }
 
@@ -84,16 +99,18 @@ function calcStatsFromLevel(lvl) {
  * Also applies permanent talent bonuses.
  */
 function recalcPlayerStats() {
-  const lvlStats = calcStatsFromLevel(player.lvl);
-  const cls = CLASS_DATA[player.cls] || {};
+  const lvlStats = calcClassStats(player.lvl, player.cls);
+  player.maxHp = lvlStats.maxHp;
+  player.maxMp = lvlStats.maxMp;
+  player.baseAtk = lvlStats.baseAtk;
+  player.baseDef = lvlStats.baseDef;
+  player.baseSpd = lvlStats.baseSpd;
 
-  // Use level stats as base (level formula already accounts for growth)
-  // Class only provides diffs from default warrior baseline
-  player.maxHp = lvlStats.maxHp + ((cls.hp || 0) - 100);
-  player.maxMp = lvlStats.maxMp + ((cls.mp || 0) - 20);
-  player.baseAtk = lvlStats.baseAtk + ((cls.atk || 0) - 10);
-  player.baseDef = lvlStats.baseDef + ((cls.def || 0) - 5);
-  player.baseSpd = lvlStats.baseSpd + ((cls.spd || 0) - 8);
+  // Update crit from class data (rogue has high crit)
+  var cd = CLASS_DATA[player.cls];
+  if (cd) {
+    player.crit = cd.crit + (player.lvl - 1) * (cd.critGrowth || 0);
+  }
 
   // Apply permanent talent bonuses
   if (typeof permanent !== 'undefined' && permanent && permanent.talents && typeof TALENT_DEFS !== 'undefined') {
@@ -140,6 +157,11 @@ function recalcPlayerStats() {
   // Also recalc buff multipliers (atkMult, defMult, etc.)
   if (typeof recalcBuffStats === 'function') recalcBuffStats();
 
+  // Apply hpMult from buffStats so HP penalty scales with level
+  if (player.buffStats && player.buffStats.hpMult !== 1) {
+    player.maxHp = Math.floor(player.maxHp * player.buffStats.hpMult);
+  }
+
   // Ensure current hp/mp don't exceed new max
   if (player.hp > player.maxHp) player.hp = player.maxHp;
   if (player.mp > player.maxMp) player.mp = player.maxMp;
@@ -159,22 +181,8 @@ function resetForNewRun(perm) {
   gameState.paused = false;
   combatState = null;
 
-  // Give player default unlocked buffs as passive stat sources
-  if (perm && perm.unlockedBuffs) {
-    player.activeBuffs = [];
-    for (var i = 0; i < perm.unlockedBuffs.length; i++) {
-      // Skip relic buff — it gets added below with isRelic tag
-      if (perm.relic && perm.unlockedBuffs[i] === perm.relic) continue;
-      var def = findBuffDef(perm.unlockedBuffs[i]);
-      if (def) {
-        player.activeBuffs.push({
-          id: def.id,
-          stats: buffDefToStats(def),
-          combatDot: def.passive && def.passive.dotDmg ? def.passive.dotDmg : 0,
-        });
-      }
-    }
-  }
+  // Start with no buffs — player earns them via showBuffSelection at floor breaks
+  player.activeBuffs = [];
 
   // Add relic buff from previous run
   if (perm && perm.relic) {
@@ -194,6 +202,12 @@ function resetForNewRun(perm) {
       console.log('[relic] Cleared invalid relic ID:', perm.relic);
     }
   }
+
+  // Load equipment relic from previous run
+  if (perm && perm.equipRelic && perm.equipRelic instanceof Object) {
+    player.equip = JSON.parse(JSON.stringify(perm.equipRelic));
+    console.log('[relic] Loaded equipment relic:', Object.keys(perm.equipRelic).join(', '));
+  }
 }
 
 /**
@@ -208,7 +222,7 @@ function buffDefToStats(def) {
   if (p.atkMult)   stats.baseAtk = Math.floor(14 * (p.atkMult - 1));
   if (p.spdMult)   stats.baseSpd = Math.floor(8 * (p.spdMult - 1));
   if (p.critBonus) stats.crit = p.critBonus;
-  if (p.hpMult)    stats.maxHp = Math.floor(120 * (p.hpMult - 1));
+  // hpMult handled in recalcPlayerStats via buffStats so it scales with level
   // passive-only effects (dmgReduction, mpRestore, etc.) are handled in combat/movement
   if (Object.keys(stats).length === 0) return null;
   return stats;
@@ -229,7 +243,26 @@ function savePermanents() {
   }
 }
 
+function getClassLabel(cls) {
+  var cd = CLASS_DATA[cls];
+  return cd ? cd.label : (cls || '战士');
+}
+
+function getClassIcon(cls) {
+  var cd = CLASS_DATA[cls];
+  return cd ? cd.icon : '⚔️';
+}
+
+function getClassColor(cls) {
+  var cd = CLASS_DATA[cls];
+  return cd ? cd.color : '#d4a855';
+}
+
 Object.defineProperty(window, "gameState", { get: function() { return gameState; }, configurable: true });
 Object.defineProperty(window, "player", { get: function() { return player; }, configurable: true });
 Object.defineProperty(window, "dungeon", { get: function() { return dungeon; }, configurable: true });
 Object.defineProperty(window, "combatState", { get: function() { return combatState; }, configurable: true });
+window.calcClassStats = calcClassStats;
+window.getClassLabel = getClassLabel;
+window.getClassIcon = getClassIcon;
+window.getClassColor = getClassColor;

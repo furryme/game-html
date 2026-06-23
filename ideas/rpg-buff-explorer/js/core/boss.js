@@ -67,12 +67,15 @@ function equip_corrupt(enemy, player) {
 function gold_tempt(enemy) {
   if (Math.random() > 0.3) return;
   var gold = enemy.gold ? enemy.gold[1] || 50 : 50;
+  // Prevent clicking outside from closing — combat stays paused until player chooses.
+  var overlay = document.getElementById('modal-overlay');
+  if (overlay) overlay.onclick = null;
   showModal(
     '<div class="modal-title">' + enemy.icon + ' ' + enemy.name + ' 低语</div>' +
     '<p>投降吧，这些金币都是你的……（' + gold + ' 金币）</p>' +
     '<div class="modal-actions">' +
-    '<button onclick="this.closest(\'.modal-overlay\').style.display=\'none\';addLog(\'你拒绝了诱惑\',\'info\')">拒绝</button>' +
-    '<button onclick="bossSurrender(' + gold + ')" style="color:#f80">投降</button>' +
+    '<button class="modal-btn" onclick="declineSurrender()">拒绝</button>' +
+    '<button class="modal-btn" onclick="bossSurrender(' + gold + ')" style="border-color:#f80; color:#f80;">投降</button>' +
     '</div>'
   );
   addLog('[BOSS] ' + enemy.name + ' 用金币诱惑你投降', 'info');
@@ -114,9 +117,10 @@ function heal_over_time(enemy) {
   FX.floatText('+' + heal, 'enemy-sprite');
 }
 
-/** 召唤小怪: 每 3 回合召唤一个 */
+/** 召唤小怪: 每 N 回合召唤一个 (默认 3, 可通过 enemy._summonInterval 配置) */
 function summon_minion(enemy, dungeon) {
-  if ((combatState.turn % 3) !== 0) return;
+  var interval = enemy._summonInterval || 3;
+  if ((combatState.turn % interval) !== 0) return;
   if (!dungeon) return;
   var floor = enemy.floor || gameState.floor;
   var candidates = Object.keys(ENEMY_DATA).filter(function (k) {
@@ -235,7 +239,7 @@ function tickBossRules() {
       addLog('[BOSS] 阶段 ' + combatState.bossPhase + ' — ' + rule.desc, 'dmg');
       FX.floatText('阶段 ' + combatState.bossPhase, 'center');
       bossPhaseTransition(combatState.bossPhase);
-      executeBossRule(rule.effect);
+      executeBossRule(rule.effect, rule);
     }
   }
 
@@ -254,11 +258,16 @@ function tickBossRules() {
 /**
  * Execute a one-shot rule effect (for initial activation).
  * @param {string} effect — rule effect id
+ * @param {Object} rule — rule config from boss rules array
  */
-function executeBossRule(effect) {
+function executeBossRule(effect, rule) {
   var fn = RULE_REGISTRY[effect];
   if (!fn) return;
-  fn(combatState.enemy, player, combatState._bossDungeon);
+  var enemy = combatState.enemy;
+  if (effect === 'summon_minion' && rule && rule.interval) {
+    enemy._summonInterval = rule.interval;
+  }
+  fn(enemy, player, combatState._bossDungeon);
 }
 
 /**
@@ -313,6 +322,12 @@ function bossSurrender(gold) {
   if (typeof renderPlayerPanel === 'function') renderPlayerPanel();
 }
 
+/** Called from gold_tempt modal if player declines surrender. Combat continues. */
+function declineSurrender() {
+  closeModal();
+  addLog('你拒绝了 ' + (combatState && combatState.enemy ? combatState.enemy.name : '敌人') + ' 的诱惑', 'info');
+}
+
 /** Register of all rule effect functions. */
 var RULE_REGISTRY = {
   berserk: berserk,
@@ -329,4 +344,5 @@ var RULE_REGISTRY = {
 
 // Global exports for onclick handlers
 window.bossSurrender = bossSurrender;
+window.declineSurrender = declineSurrender;
 window.initBossCombat = initBossCombat;
