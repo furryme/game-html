@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>RPG Buff 探险者</title>
+<!-- CSS Modules (split from monolithic inline style for theme system) -->
+<link rel="stylesheet" href="css/vars.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+
+<!-- Screens -->
+<div id="title-screen" class="screen active">
+  <h1>⚔️ RPG Buff 探险者</h1>
+  <p>像素风地城探险 Roguelite</p>
+  <div id="title-buttons"></div>
+  <div style="display:flex; gap:8px; justify-content:center; margin-top:8px;">
+    <button class="start-btn" style="border-color:#7a7a9a;font-size:11px;padding:10px 20px;" onclick="cycleTheme()">切换主题</button>
+    <button class="start-btn" style="border-color:#c8a040;font-size:11px;padding:10px 20px;" onclick="showThemeShop()">主题商城</button>
+  </div>
+  <p style="font-size:11px; color:#6a6a8a;">WASD 移动 · Enter 使用药水 · 踩到敌人进入战斗</p>
+</div>
+
+<div id="floor-overlay">
+  <div class="floor-banner" id="floor-banner"></div>
+</div>
+
+<div id="modal-overlay" onclick="if(event.target===this)closeModal()"></div>
+
+<div id="gameover-screen" class="screen"></div>
+<div id="victory-screen" class="screen"></div>
+<div id="combat-screen" class="screen" style="pointer-events:none;"></div>
+<div id="game-screen" class="screen"></div>
+
+<!-- Main game UI -->
+<div id="game-container">
+  <div id="game-canvas-wrapper">
+    <canvas id="game-canvas" width="480" height="270"></canvas>
+    <div id="combat-overlay"></div>
+  </div>
+
+  <div id="sidebar">
+    <div id="player-panel">
+      <div class="panel-header">准备中...</div>
+    </div>
+
+    <div id="log-container">
+      <div id="log"></div>
+    </div>
+
+    <div id="dungeon-actions">
+      <div class="action-hint">WASD / 方向键 移动</div>
+    </div>
+
+    <div id="combat-actions">
+      <div class="combat-btns">
+        <button class="btn btn-atk" onclick="doAttack()">⚔️ 攻击</button>
+        <button class="btn btn-def" onclick="doDefend()">\u{1F6E1}️ 防御</button>
+        <button class="btn btn-item" onclick="toggleInventoryModal()">\u{1F392} 物品</button>
+        <button class="btn btn-flee" onclick="tryFlee()">\u{1F6C0} 逃跑</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Script imports in dependency order -->
+<!-- DATA -->
+<script src="js/data/constants.js"></script>
+<script src="js/data/palette.js"></script>
+<script src="js/data/floors.js"></script>
+<script src="js/data/enemies.js"></script>
+<script src="js/data/skills.js"></script>
+<script src="js/data/items.js"></script>
+<script src="js/data/buffs.js"></script>
+<script src="js/data/traps.js"></script>
+<script src="js/data/events.js"></script>
+
+<!-- CORE -->
+<script src="js/core/state.js"></script>
+<script src="js/core/utils.js"></script>
+<script src="js/core/sprite.js"></script>
+<script src="js/core/fog.js"></script>
+<script src="js/core/generator.js"></script>
+<script src="js/core/buff.js"></script>
+<script src="js/core/equip.js"></script>
+<script src="js/core/audio.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/movement.js"></script>
+<script src="js/core/event.js"></script>
+<script src="js/core/combat.js"></script>
+<script src="js/core/boss.js"></script>
+<script src="js/core/persistence.js"></script>
+<script src="js/core/economy.js"></script>
+
+<!-- VIEW -->
+<script src="js/view/fx.js"></script>
+<script src="js/view/sprites.js"></script>
+<script src="js/view/render.js"></script>
+<script src="js/view/ui.js"></script>
+
+<!-- CORE (late: shop depends on UI) -->
+<script src="js/core/shop.js"></script>
+
+<!-- MAIN -->
+<script src="js/main.js"></script>
+
+<!-- Boot -->
+<script>
+window.addEventListener('DOMContentLoaded', initGame);
+</script>
+
+</body>
+</html>

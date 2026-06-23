@@ -1,0 +1,130 @@
+/* === CSS Custom Properties: Theme Palette === */
+/* Defaults = classic/default theme. Overwritten by JS on theme switch. */
+
+:root {
+  /* --- Theme Palette (tp-) --- */
+
+  /* Background */
+  --tp-bg-deep:        #0a0a14;
+  --tp-bg-game:        #10101c;
+  --tp-bg-surface:     #1a1a2e;
+
+  /* Map tiles */
+  --tp-wall-dark:      #2a2a3e;
+  --tp-wall-light:     #333349;
+  --tp-floor-dark:     #1e1e30;
+  --tp-floor-light:    #222238;
+  --tp-corridor:       #1c1c2e;
+
+  /* Text */
+  --tp-text-primary:   #e0e0e0;
+  --tp-text-secondary: #8888aa;
+  --tp-text-muted:     #555566;
+
+  /* Semantics */
+  --tp-gold:           #ffd700;
+  --tp-danger:         #e53935;
+  --tp-heal:           #66bb6a;
+  --tp-magic:          #7c4dff;
+  --tp-info:           #64b5f6;
+
+  /* Functional */
+  --tp-overlay-bg:     rgba(10, 10, 20, 0.88);
+  --tp-border-subtle:  rgba(255, 255, 255, 0.08);
+  --tp-border-active:  rgba(255, 255, 255, 0.2);
+
+  /* Panel / body */
+  --tp-panel-bg:       rgba(13, 13, 26, 0.92);
+  --tp-body-bg:        #0d0d1a;
+  --tp-header-gold:    #d4a855;
+
+  /* Full color palette (backward-compatible) */
+  --tp-void:           #0a0a1a;
+  --tp-dark:           #1a1a2e;
+  --tp-midDark:        #2a2a4a;
+  --tp-grayDk:         #3a3a5a;
+  --tp-gray:           #6a6a8a;
+  --tp-grayLt:         #9a9aba;
+  --tp-light:          #cadabd;
+  --tp-white:          #e8e8e8;
+
+  /* Character / materials */
+  --tp-skin:           #e8b890;
+  --tp-skinShd:        #c89060;
+  --tp-red:            #dd4433;
+  --tp-redDk:          #992222;
+  --tp-blue:           #3355cc;
+  --tp-blueDk:         #223388;
+  --tp-green:          #44aa44;
+  --tp-greenDk:        #337733;
+  --tp-steel:          #a0b0c0;
+  --tp-brown:          #8b5a3b;
+  --tp-brownDk:        #5a3a1f;
+
+  /* Extended palette */
+  --tp-stone:          #5a5a6a;
+  --tp-stoneLt:        #7a7a8a;
+  --tp-bone:           #c8c0b0;
+  --tp-crimson:        #ff4444;
+  --tp-cyan:           #00e5ff;
+  --tp-magenta:        #d500f9;
+  --tp-orange:         #f7971e;
+  --tp-emerald:        #2ecc71;
+  --tp-violet:         #6c5ce7;
+  --tp-eye:            #202030;
+
+  /* Minimap */
+  --tp-minimap-border: #5a4a3a;
+  --tp-minimap-bg:     #0a0a14;
+  --tp-player-dot-a:   #ffffff;
+  --tp-player-dot-b:   #aaccff;
+
+  /* Fog / exploration */
+  --tp-fog-overlay:    #000000;
+  --tp-unseen-fill:    #000000;
+
+  /* Game log */
+  --tp-log-dmg:        #e74c3c;
+  --tp-log-heal:       #2ecc71;
+  --tp-log-info:       #5b9bd5;
+  --tp-log-loot:       #f0c040;
+
+  /* Class colors */
+  --tp-class-warrior:  #e53935;
+  --tp-class-mage:     #7c4dff;
+  --tp-class-rogue:    #66bb6a;
+
+  /* --- Theme UI (tu-) --- */
+
+  /* Buttons */
+  --tu-button-gradient:   linear-gradient(135deg, #ffd700, #f0a500);
+  --tu-button-text:       #1a1a1a;
+
+  /* Progress bars */
+  --tu-hp-grad:           linear-gradient(180deg, #e74c3c, #c0392b);
+  --tu-mp-grad:           linear-gradient(180deg, #3498db, #2980b9);
+  --tu-exp-grad:          linear-gradient(180deg, #f1c40f, #e67e22);
+  --tu-bar-bg:            #0d0d1a;
+
+  /* Log colors (UI module) */
+  --tu-log-dmg:           #ef5350;
+  --tu-log-heal:          #66bb6a;
+  --tu-log-info:          #64b5f6;
+  --tu-log-loot:          #ffd740;
+  --tu-log-skill:         #ce93d8;
+
+  /* Border radius */
+  --tu-radius-sm:         4px;
+  --tu-radius-md:         8px;
+  --tu-radius-lg:         12px;
+
+  /* Backward-compatible single radius (overrides with theme value) */
+  --tu-radius:            0;
+
+  /* Rarity colors */
+  --tu-rarity-common:    #aaaaaa;
+  --tu-rarity-uncommon:  #66bb6a;
+  --tu-rarity-rare:      #64b5f6;
+  --tu-rarity-epic:      #ce93d8;
+  --tu-rarity-legend:    #ffd700;
+}

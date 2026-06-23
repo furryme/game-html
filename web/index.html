@@ -200,6 +200,98 @@
   .card-collapse      { background: linear-gradient(145deg, #3a2a1a, #1f170d); }
   .card-collapse .card-tag { background: #f39c1233; color: #fdcb6e; }
 
+  .card-rpg           { background: linear-gradient(145deg, #2a1a3a, #170d1f); }
+  .card-rpg .card-tag { background: #e8439333; color: #fd79a8; }
+
+  /* ── Featured card ── */
+  .featured {
+    position: relative;
+    border-radius: 22px;
+    padding: 44px 36px 36px;
+    text-decoration: none;
+    color: #fff;
+    transition: transform 0.3s, box-shadow 0.3s;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    background: linear-gradient(145deg, #2a1a3a, #0f0a20, #1a0d2a);
+    border: 1px solid rgba(232, 67, 147, 0.25);
+  }
+
+  .featured::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 80% 20%, rgba(253, 121, 168, 0.1), transparent 60%),
+                radial-gradient(ellipse at 20% 80%, rgba(108, 92, 231, 0.08), transparent 60%);
+    pointer-events: none;
+  }
+
+  .featured:hover {
+    transform: translateY(-4px) scale(1.01);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(232, 67, 147, 0.15);
+  }
+
+  .featured:active { transform: translateY(-1px) scale(1.0); }
+
+  .featured-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, #e84393, #fd79a8);
+    color: #fff;
+    width: fit-content;
+    position: relative;
+    z-index: 1;
+  }
+
+  .featured-icon {
+    font-size: 3.2rem;
+    line-height: 1;
+    position: relative;
+    z-index: 1;
+  }
+
+  .featured-title {
+    font-size: 1.8rem;
+    font-weight: 800;
+    letter-spacing: 2px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .featured-desc {
+    font-size: 1rem;
+    color: #c0b0e0;
+    line-height: 1.7;
+    max-width: 600px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .featured-tags {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    position: relative;
+    z-index: 1;
+  }
+
+  .featured-tag {
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.08);
+    color: #b0b0cc;
+    letter-spacing: 0.5px;
+  }
+
   footer {
     margin-top: 60px;
     color: #555;
@@ -216,6 +308,12 @@
     .section-title { font-size: 1rem; }
     .section-dot { width: 8px; height: 8px; }
     .section-subtitle { font-size: 0.78rem; margin-top: -8px; margin-bottom: 12px; }
+
+    .featured { padding: 24px 18px; }
+    .featured-icon { font-size: 2.2rem; }
+    .featured-title { font-size: 1.3rem; }
+    .featured-desc { font-size: 0.85rem; -webkit-line-clamp: 3; }
+    .featured-tag { font-size: 0.68rem; padding: 2px 8px; }
 
     .grid {
       grid-template-columns: 1fr;
@@ -250,6 +348,13 @@
 
 <h1>GAME HUB</h1>
 <p class="subtitle" id="subtitle">选一个游戏，立即开始</p>
+
+<!-- Featured Game -->
+<div class="section">
+  <a class="featured" id="featured-card">
+    <!-- Injected by JS -->
+  </a>
+</div>
 
 <!-- Completed Games -->
 <div class="section">
@@ -336,6 +441,28 @@ function createCard(game, path) {
 
 const prefix = isMobile ? 'mobile' : '.';
 
+// Featured game
+const featured = {
+  name: 'RPG Buff 探险者',
+  icon: '⚔️',
+  desc: '像素风地城 Roguelite。探索多层地牢，击败怪物 Boss，在每层结束时从海量 Buff 中选择搭配——吸血、反伤、暴击协同、职业加成、主动技能。5 个存档位，深度 build 构筑，无限重玩。',
+  tags: ['Roguelite', 'Build 构筑', '多主题', '深度战斗'],
+  file: 'rpg-buff-explorer/index',
+  mobile: false,
+};
+
+const featuredCard = document.getElementById('featured-card');
+featuredCard.href = prefix + '/games/' + featured.file + '.html';
+featuredCard.innerHTML = `
+  <span class="featured-badge">🔥 重点推荐</span>
+  <span class="featured-icon">${featured.icon}</span>
+  <span class="featured-title">${featured.name}</span>
+  <span class="featured-desc">${featured.desc}</span>
+  <div class="featured-tags">
+    ${featured.tags.map(t => `<span class="featured-tag">${t}</span>`).join('')}
+  </div>
+`;
+
 if (isMobile) {
   document.getElementById('subtitle').textContent = '选一个游戏，立即开始（移动端）';
   document.getElementById('done-subtitle').textContent = '已适配移动端';
@@ -346,12 +473,15 @@ if (isMobile) {
 
   document.getElementById('footer').textContent =
     `共 ${mobileGames.length} 款小游戏（移动端） &mdash; 全部免费，即点即玩`;
+
+  // Hide featured on mobile since it's not mobile-ready yet
+  featuredCard.parentElement.style.display = 'none';
 } else {
   games.forEach(g => doneGrid.appendChild(createCard(g, prefix)));
   wipGames.forEach(g => wipGrid.appendChild(createCard(g, prefix)));
 
   document.getElementById('footer').textContent =
-    `共 ${games.length + wipGames.length} 款小游戏 &mdash; 全部免费，即点即玩`;
+    `共 ${games.length + wipGames.length + 1} 款小游戏 &mdash; 全部免费，即点即玩`;
 }
 </script>
 

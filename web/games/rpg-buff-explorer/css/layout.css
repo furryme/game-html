@@ -1,0 +1,510 @@
+/* === layout.css === */
+/* Structure, positioning, flex/grid layout, screen management, responsive breakpoints */
+
+/* === Pixel Font Import === */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+/* === CSS Custom Properties (Classic Dungeon default theme) === */
+:root {
+  /* --tp-*  Theme Palette (backgrounds, borders, text, rarity) */
+  --tp-bg-deep: #0a0a14;
+  --tp-bg-game: #0d0d1a;
+  --tp-bg-surface: #1a1a2e;
+  --tp-panel-bg: rgba(13, 13, 26, 0.92);
+  --tp-panel-bg-heavy: rgba(13, 13, 26, 0.95);
+  --tp-border: #5a4a3a;
+  --tp-border-subtle: #3a3a4a;
+  --tp-text: #d4c4a0;
+  --tp-text-muted: #7a7a9a;
+  --tp-header: #d4a855;
+  --tp-header-glow: rgba(212, 168, 85, 0.35);
+  --tp-white: #ffffff;
+  --tp-danger: #e74c3c;
+  --tp-danger-dk: #c0392b;
+  --tp-heal: #2ecc71;
+  --tp-gold: #f0c040;
+  --tp-info: #5b9bd5;
+
+  /* Rarity: common */
+  --tp-rarity-common-bg: rgba(40, 40, 55, 0.8);
+  --tp-rarity-common-text: #8a8a9a;
+  --tp-rarity-common-border: #4a4a5a;
+  --tp-rarity-common-hover-border: #8a8a9a;
+
+  /* Rarity: rare */
+  --tp-rarity-rare-bg: rgba(20, 35, 60, 0.85);
+  --tp-rarity-rare-text: #5dade2;
+  --tp-rarity-rare-border: #2e86c1;
+
+  /* Rarity: epic */
+  --tp-rarity-epic-border: #8e44ad;
+  --tp-rarity-epic-hover-border: #bb8fce;
+
+  /* Rarity: legendary */
+  --tp-rarity-legendary-bg: rgba(50, 35, 15, 0.85);
+  --tp-rarity-legendary-bg-dark: #1a1508;
+  --tp-rarity-legendary-text: #f0c040;
+  --tp-rarity-legendary-border: #c4a77d;
+  --tp-rarity-legendary-hover-border: #f0c040;
+
+  /* Rarity: mythic */
+  --tp-rarity-mythic-bg: rgba(55, 15, 15, 0.85);
+  --tp-rarity-mythic-text: #ff5555;
+  --tp-rarity-mythic-border: #e74c3c;
+  --tp-rarity-mythic-hover-border: #ff6b5a;
+  --tp-rarity-mythic-accent: #d43;
+
+  /* --tu-*  Theme UI (button states, bars, log, scrollbar, glass) */
+  --tu-atk-bg: #c0392b;
+  --tu-atk-border: #e74c3c;
+  --tu-atk-hover-bg: #d44637;
+  --tu-atk-hover-border: #ff7060;
+
+  --tu-def-bg: #2471a3;
+  --tu-def-border: #3498db;
+  --tu-def-hover-bg: #2e8bc8;
+  --tu-def-hover-border: #5ab8f5;
+
+  --tu-skill-bg: #6c3483;
+  --tu-skill-border: #8e44ad;
+  --tu-skill-hover-bg: #8242a0;
+  --tu-skill-hover-border: #a965c0;
+
+  --tu-item-bg: #1e8449;
+  --tu-item-border: #27ae60;
+  --tu-item-hover-bg: #229b55;
+  --tu-item-hover-border: #40d080;
+
+  --tu-flee-bg: #2c2c3a;
+  --tu-flee-border: #5a5a7a;
+  --tu-flee-text: #9a9aba;
+  --tu-flee-hover-bg: #3c3c4e;
+  --tu-flee-hover-border: #7a7a9a;
+
+  --tu-log-loot: #f0c040;
+  --tu-log-dmg: #e74c3c;
+  --tu-log-heal: #2ecc71;
+  --tu-log-info: #5b9bd5;
+
+  --tu-bar-hp: linear-gradient(180deg, #e74c3c, #c0392b);
+  --tu-bar-mp: linear-gradient(180deg, #3498db, #2980b9);
+  --tu-bar-exp: linear-gradient(180deg, #f1c40f, #e67e22);
+  --tu-bar-bg: #0d0d1a;
+  --tu-bar-border: #3a3a4a;
+
+  --tu-scroll-track: #0d0d1a;
+  --tu-scroll-thumb: #5a4a3a;
+  --tu-scroll-thumb-hover: #8a7a5a;
+
+  --tu-glass-dark: rgba(20, 20, 35, 0.6);
+  --tu-glass-heavy: rgba(20, 20, 35, 0.8);
+
+  --tu-shadow-inset: rgba(0, 0, 0, 0.6);
+  --tu-shadow-border: rgba(90, 74, 58, 0.3);
+  --tu-shadow-border-inset: rgba(90, 74, 58, 0.08);
+  --tu-overlay-bg: rgba(0, 0, 0, 0.7);
+  --tu-floor-bg: rgba(13, 13, 26, 0.95);
+
+  /* UI knobs — pixel_retro overrides borderRadius to 0, cyber_dungeon adds neon glows */
+  --tu-radius: 0;
+  --tu-glow-spread: 0;
+}
+
+/* === Reset & Base === */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--tp-bg-game);
+  color: var(--tp-text);
+  font-family: 'Press Start 2P', monospace;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* === Dungeon Stone Texture Overlay === */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 9998;
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(40, 30, 20, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(20, 30, 40, 0.06) 0%, transparent 50%);
+}
+
+/* === CRT Scanline Overlay === */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+}
+
+/* === Game Container === */
+#game-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  position: relative;
+  align-items: flex-start;
+}
+
+/* === Canvas Container === */
+#game-canvas-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+#game-canvas {
+  border: 4px solid var(--tp-border);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: var(--tp-bg-game);
+  box-shadow:
+    0 0 0 1px var(--tp-bg-game),
+    inset 0 0 20px var(--tu-shadow-inset),
+    0 0 16px var(--tu-shadow-border);
+  width: 960px;
+  height: 540px;
+  max-width: calc(100vw - 340px);
+  max-height: 100vh;
+  aspect-ratio: 16 / 9;
+}
+
+/* === Combat Overlay (HTML text over canvas) === */
+#combat-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  display: none;
+  font-family: 'Press Start 2P', monospace;
+}
+
+#combat-overlay>* {
+  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+}
+
+#combat-overlay .enemy-name { font-size: 10px !important; }
+#combat-overlay .player-name { font-size: 9px !important; }
+#combat-overlay .action-log   { font-size: 10px !important; }
+#combat-overlay .bar-fill { -webkit-font-smoothing: auto; }
+
+/* === Screen Management === */
+.screen {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: var(--tp-bg-game);
+  z-index: 100;
+  animation: fadeIn 0.2s ease;
+}
+
+.screen.active { display: flex; }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Title screen layout */
+#title-screen { flex-direction: column; gap: 20px; }
+
+/* Floor overlay layout */
+#floor-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: var(--tu-floor-bg);
+  z-index: 50;
+}
+
+.floor-banner { text-align: center; }
+
+/* === Sidebar === */
+#sidebar {
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 540px;
+  max-height: 100vh;
+}
+
+/* === Shared Panel Base (structure only) === */
+#player-panel,
+#log-container,
+#dungeon-actions,
+#combat-actions {
+  border: 4px solid var(--tp-border);
+  border-radius: var(--tu-radius);
+}
+
+/* Player panel layout */
+#player-panel {
+  background: var(--tp-panel-bg);
+  padding: 8px;
+  font-size: 8px;
+  flex-shrink: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  box-shadow:
+    inset 0 0 16px var(--tu-shadow-inset),
+    inset 0 0 30px var(--tu-shadow-border-inset),
+    0 0 10px var(--tu-shadow-border);
+}
+
+/* Combat log layout */
+#log-container {
+  background: rgba(13, 13, 26, 0.9);
+  padding: 6px;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 60px;
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.5);
+}
+
+#log {
+  font-size: 8px;
+  font-family: 'Press Start 2P', monospace;
+  line-height: 1.6;
+}
+
+.log-entry { padding: 1px 0; }
+
+/* Dungeon actions grid layout */
+#dungeon-actions {
+  background: var(--tp-panel-bg);
+  border: 3px solid var(--tp-border);
+  padding: 6px;
+  font-size: 10px;
+  box-shadow:
+    inset 0 0 12px rgba(0, 0, 0, 0.5),
+    0 0 8px rgba(90, 74, 58, 0.15);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+/* Combat actions grid layout */
+#combat-actions {
+  background: var(--tp-panel-bg-heavy);
+  border: 3px solid var(--tp-border);
+  padding: 6px;
+  display: none;
+  box-shadow:
+    inset 0 0 14px rgba(0, 0, 0, 0.5),
+    0 0 10px rgba(90, 74, 58, 0.2);
+}
+
+#combat-screen.active #combat-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.combat-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.skill-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  width: 100%;
+  margin: 4px 0;
+  grid-column: span 2;
+}
+
+/* === Modal Overlay (structure) === */
+#modal-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: var(--tu-overlay-bg);
+  z-index: 200;
+}
+
+.modal {
+  background: var(--tp-bg-game);
+  border: 4px solid var(--tp-border);
+  border-radius: var(--tu-radius);
+  padding: 28px;
+  max-width: 520px;
+  width: 90%;
+  box-shadow:
+    0 0 32px rgba(90, 74, 58, 0.25),
+    inset 0 0 24px rgba(0, 0, 0, 0.5);
+  animation: modalIn 0.2s ease;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* === Responsive: narrow screens === */
+@media (max-width: 1150px) {
+  #game-container {
+    flex-wrap: nowrap;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  #sidebar {
+    width: 100%;
+    max-width: 960px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    height: auto;
+    max-height: none;
+  }
+
+  #player-panel { flex: 1; min-width: 200px; }
+  #log-container { flex: 1; min-width: 200px; min-height: 80px; max-height: 200px; }
+  #dungeon-actions, #combat-actions {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+  #combat-screen.active #combat-actions {
+    grid-template-columns: 1fr;
+    max-height: none;
+    overflow-y: visible;
+  }
+  #combat-actions {
+    max-height: none;
+    overflow-y: visible;
+  }
+  .combat-btns .btn-atk,
+  .combat-btns .btn-def {
+    grid-column: span 1;
+  }
+  .skill-btns {
+    grid-column: span 1;
+  }
+  .action-hint {
+    grid-column: span 1;
+  }
+
+  #game-canvas {
+    max-width: 100%;
+    max-height: 55vh;
+  }
+}
+
+/* === Mobile Responsive === */
+@media (max-width: 768px) {
+  body { font-size: 10px; }
+
+  #game-container {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  #sidebar {
+    width: 100%;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  #player-panel {
+    min-width: unset;
+    padding: 12px;
+  }
+
+  #log-container {
+    min-height: 80px;
+    max-height: 120px;
+  }
+
+  #game-canvas {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .combat-btns {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .btn {
+    min-height: 44px;
+    font-size: 8px;
+    padding: 10px 8px;
+  }
+
+  #title-screen h1 {
+    font-size: 14px;
+  }
+
+  #title-screen .start-btn {
+    font-size: 10px;
+    padding: 14px 28px;
+  }
+
+  .floor-banner h2 {
+    font-size: 16px;
+  }
+
+  .buff-card {
+    min-width: 100px;
+    padding: 12px 10px;
+  }
+
+  .modal {
+    padding: 16px;
+    max-width: 95%;
+  }
+}
+
+@media (max-width: 480px) {
+  .combat-btns {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  #title-screen h1 {
+    font-size: 11px;
+  }
+
+  .btn {
+    min-height: 44px;
+  }
+}

@@ -1,0 +1,727 @@
+/* === components.css === */
+/* Buttons, progress bars, cards, modal content, log entries, buff chips, equipment, scrollbar */
+/* All colors via CSS variables: var(--tp-*) theme palette, var(--tu-*) theme UI */
+
+/* === Panel Header === */
+.panel-header {
+  font-weight: bold;
+  color: var(--tp-header);
+  margin-bottom: 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-shadow: 0 0 8px var(--tp-header-glow);
+}
+
+/* === Progress Bars === */
+.bar-container {
+  position: relative;
+  height: 14px;
+  background: var(--tu-bar-bg);
+  border: 2px solid var(--tu-bar-border);
+  border-radius: var(--tu-radius);
+  margin: 3px 0;
+  overflow: hidden;
+  image-rendering: pixelated;
+}
+
+.bar {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.bar-hp,
+.bar.hp {
+  background: var(--tu-bar-hp);
+}
+
+.bar-mp,
+.bar.mp {
+  background: var(--tu-bar-mp);
+}
+
+.bar-exp,
+.bar.exp {
+  background: var(--tu-bar-exp);
+}
+
+.bar-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 7px;
+  font-family: 'Press Start 2P', monospace;
+  color: var(--tp-white);
+  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+  z-index: 2;
+}
+
+.stat-row {
+  display: flex;
+  gap: 8px;
+  margin: 3px 0;
+  font-size: 8px;
+}
+
+/* === Buff Chips === */
+.buff-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin: 3px 0;
+}
+
+.buff-chip {
+  position: relative;
+  cursor: help;
+  font-size: 7px;
+  padding: 3px 5px;
+  border-radius: var(--tu-radius);
+  border: 2px solid;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: 'Press Start 2P', monospace;
+  line-height: 1.4;
+}
+
+.buff-chip.common {
+  background: var(--tu-glass-dark);
+  color: var(--tu-rarity-common);
+  border-color: var(--tu-rarity-common);
+}
+
+.buff-chip.rare {
+  background: var(--tu-glass-dark);
+  color: var(--tu-rarity-rare);
+  border-color: var(--tu-rarity-rare);
+}
+
+.buff-chip.legendary {
+  background: var(--tu-glass-dark);
+  color: var(--tu-rarity-legend);
+  border-color: var(--tu-rarity-legend);
+  box-shadow: 0 0 6px rgba(240, 192, 64, 0.25);
+}
+
+.buff-chip.mythic {
+  background: var(--tu-glass-dark);
+  color: var(--tp-danger);
+  border-color: var(--tp-danger);
+  box-shadow: 0 0 6px rgba(221, 68, 51, 0.3);
+}
+
+/* === Equipment Slots === */
+.equip-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 3px 0;
+}
+
+.equip-slot {
+  border: 2px solid var(--tu-bar-border);
+  border-radius: var(--tu-radius);
+  padding: 3px 6px;
+  font-size: 7px;
+  background: var(--tu-glass-dark);
+  color: var(--tp-header);
+  line-height: 1.4;
+  min-height: 24px;
+}
+
+/* === Inventory === */
+.inventory {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin: 3px 0;
+}
+
+.inv-btn {
+  font-size: 7px;
+  padding: 3px 6px;
+  background: var(--tu-glass-heavy);
+  color: var(--tp-text);
+  border: 2px solid var(--tu-bar-border);
+  border-radius: var(--tu-radius);
+  cursor: pointer;
+  font-family: 'Press Start 2P', monospace;
+  transition: all 0.1s;
+}
+
+.inv-btn:hover {
+  background: var(--tp-bg-surface);
+  border-color: var(--tp-header);
+  color: var(--tp-header);
+}
+
+/* === Equipment Modal Buttons === */
+.equip-modal-btn {
+  font-size: 8px;
+  padding: 2px 8px;
+  background: transparent;
+  color: var(--tp-header);
+  border: 1.5px solid var(--tp-header);
+  border-radius: var(--tu-radius);
+  cursor: pointer;
+  font-family: 'Press Start 2P', monospace;
+  transition: all 0.1s;
+  white-space: nowrap;
+  min-width: 48px;
+}
+
+.equip-modal-btn:hover {
+  background: var(--tp-bg-surface);
+}
+
+.equip-modal-btn:active {
+  transform: scale(0.95);
+}
+
+/* === Scrollbar Styling === */
+#player-panel::-webkit-scrollbar { width: 4px; }
+#player-panel::-webkit-scrollbar-track { background: var(--tu-scroll-track); }
+#player-panel::-webkit-scrollbar-thumb { background: var(--tu-scroll-thumb); }
+
+#log-container::-webkit-scrollbar { width: 5px; }
+#log-container::-webkit-scrollbar-track {
+  background: var(--tu-scroll-track);
+  border-left: 1px solid var(--tu-bar-border);
+}
+#log-container::-webkit-scrollbar-thumb {
+  background: var(--tu-scroll-thumb);
+  border-radius: var(--tu-radius);
+}
+#log-container::-webkit-scrollbar-thumb:hover {
+  background: var(--tu-scroll-thumb-hover);
+}
+
+#log-container {
+  scrollbar-width: thin;
+  scrollbar-color: var(--tu-scroll-thumb) var(--tu-scroll-track);
+}
+
+/* === Log Entry Colors === */
+.log-loot { color: var(--tu-log-loot); }
+.log-dmg { color: var(--tu-log-dmg); }
+.log-heal { color: var(--tu-log-heal); }
+.log-info { color: var(--tu-log-info); }
+
+/* === Action Hint === */
+.action-hint {
+  color: var(--tu-flee-border);
+  margin: 2px 0;
+  font-size: 8px;
+  grid-column: span 2;
+}
+
+/* === Pixel Button Base === */
+.btn {
+  padding: 5px 6px;
+  color: var(--tp-white);
+  border: 3px solid;
+  border-radius: var(--tu-radius);
+  cursor: pointer;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  transition: all 0.1s;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+}
+
+.btn:hover:not(:disabled) {
+  filter: brightness(1.2);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.4);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+.btn:disabled {
+  filter: grayscale(0.8);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Attack + Defend span full width in combat grid */
+.combat-btns .btn-atk,
+.combat-btns .btn-def {
+  grid-column: span 2;
+}
+
+/* Attack Button */
+.btn-atk {
+  background: var(--tu-atk-bg);
+  border-color: var(--tu-atk-border);
+}
+
+.btn-atk:hover:not(:disabled) {
+  background: var(--tu-atk-hover-bg);
+  border-color: var(--tu-atk-hover-border);
+}
+
+/* Defend Button */
+.btn-def {
+  background: var(--tu-def-bg);
+  border-color: var(--tu-def-border);
+}
+
+.btn-def:hover:not(:disabled) {
+  background: var(--tu-def-hover-bg);
+  border-color: var(--tu-def-hover-border);
+}
+
+/* Skill Button */
+.btn-skill {
+  background: var(--tu-skill-bg);
+  border-color: var(--tu-skill-border);
+}
+
+.btn-skill:hover:not(:disabled) {
+  background: var(--tu-skill-hover-bg);
+  border-color: var(--tu-skill-hover-border);
+}
+
+/* Item Button */
+.btn-item {
+  background: var(--tu-item-bg);
+  border-color: var(--tu-item-border);
+}
+
+.btn-item:hover:not(:disabled) {
+  background: var(--tu-item-hover-bg);
+  border-color: var(--tu-item-hover-border);
+}
+
+/* Flee Button */
+.btn-flee {
+  background: var(--tu-flee-bg);
+  border-color: var(--tu-flee-border);
+  color: var(--tu-flee-text);
+}
+
+.btn-flee:hover:not(:disabled) {
+  background: var(--tu-flee-hover-bg);
+  border-color: var(--tu-flee-hover-border);
+}
+
+/* === Start Button (Title Screen) === */
+#title-screen .start-btn {
+  padding: 18px 40px;
+  background: var(--tp-bg-surface);
+  color: var(--tp-header);
+  border: 3px solid var(--tp-header);
+  border-radius: var(--tu-radius);
+  cursor: pointer;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 14px;
+  transition: all 0.1s;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+}
+
+#title-screen .start-btn:hover {
+  background: var(--tp-wall-dark);
+  filter: brightness(1.2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.4), 0 0 12px var(--tp-header-glow);
+  border-color: var(--tp-gold);
+}
+
+#title-screen .start-btn:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+/* === Title Screen Typography === */
+#title-screen h1 {
+  font-size: 22px;
+  font-family: 'Press Start 2P', monospace;
+  color: var(--tp-header);
+  text-shadow:
+    0 0 24px rgba(212, 168, 85, 0.5),
+    3px 3px 0 #2a1a0a,
+    0 0 48px rgba(212, 168, 85, 0.2);
+  line-height: 1.8;
+}
+
+#title-screen p {
+  color: var(--tu-flee-border);
+  font-size: 12px;
+  line-height: 2;
+}
+
+/* === Floor Banner Typography === */
+.floor-banner h2 {
+  font-size: 26px;
+  font-family: 'Press Start 2P', monospace;
+  color: var(--tp-header);
+  text-shadow:
+    0 0 18px rgba(212, 168, 85, 0.4),
+    3px 3px 0 #1a0a00;
+  line-height: 1.8;
+}
+
+.floor-banner p {
+  font-size: 12px;
+  color: var(--tu-flee-border);
+  margin-top: 14px;
+  line-height: 2;
+}
+
+/* === Modal Content === */
+.modal h3 {
+  margin-bottom: 16px;
+  color: var(--tp-header);
+  font-size: 14px;
+  font-family: 'Press Start 2P', monospace;
+  text-shadow: 0 0 10px var(--tp-header-glow);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.modal-btn {
+  display: inline-block;
+  margin: 6px;
+  padding: 10px 20px;
+  background: var(--tp-bg-surface);
+  color: var(--tp-text);
+  border: 3px solid var(--tp-border);
+  border-radius: var(--tu-radius);
+  cursor: pointer;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  transition: all 0.1s;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
+}
+
+.modal-btn:hover {
+  background: var(--tp-wall-dark);
+  border-color: var(--tp-stone);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.3);
+}
+
+.modal-btn:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+/* === Save Button (HUD) === */
+.save-btn {
+  display: inline-block;
+  margin: 4px 0 0;
+  padding: 6px 14px;
+  background: var(--tp-bg-surface);
+  border: 2px solid var(--tp-border);
+  border-radius: var(--tu-radius);
+  cursor: pointer;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  transition: all 0.1s;
+  letter-spacing: 0.5px;
+}
+
+.save-btn:hover {
+  background: var(--tp-wall-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.save-btn:active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+/* === Class Selection Cards === */
+.class-card .icon { font-size: 28px; }
+
+.class-card .name {
+  font-size: 12px;
+  font-family: 'Press Start 2P', monospace;
+  font-weight: bold;
+  margin: 6px 0;
+}
+
+.class-card .stats {
+  font-size: 8px;
+  font-family: 'Press Start 2P', monospace;
+  color: var(--tu-flee-text);
+  line-height: 1.8;
+}
+
+.class-card .passive {
+  font-size: 7px;
+  font-family: 'Press Start 2P', monospace;
+  color: var(--tu-flee-border);
+  margin-top: 6px;
+  line-height: 1.6;
+}
+
+/* === Buff Selection Cards === */
+.buff-choices {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.buff-card {
+  flex: 1;
+  min-width: 120px;
+  padding: 18px 14px;
+  border: 3px solid var(--tu-flee-border);
+  border-radius: var(--tu-radius);
+  background: var(--tp-bg-game);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.12s;
+}
+
+.buff-card:hover {
+  transform: scale(1.03);
+  box-shadow: 0 0 12px rgba(90, 90, 122, 0.3);
+}
+
+/* Rarity-based card borders */
+.buff-card[data-rarity="common"] {
+  border-color: var(--tu-rarity-common);
+}
+
+.buff-card[data-rarity="common"]:hover {
+  border-color: var(--tu-rarity-common);
+  box-shadow: 0 0 10px rgba(170, 170, 170, 0.35);
+}
+
+.buff-card[data-rarity="rare"] {
+  border-color: var(--tu-rarity-rare);
+}
+
+.buff-card[data-rarity="rare"]:hover {
+  border-color: var(--tu-rarity-rare);
+  box-shadow: 0 0 14px rgba(100, 181, 246, 0.45);
+}
+
+.buff-card[data-rarity="epic"] {
+  border-color: var(--tu-rarity-epic);
+}
+
+.buff-card[data-rarity="epic"]:hover {
+  border-color: var(--tu-rarity-epic);
+  box-shadow: 0 0 16px rgba(142, 68, 173, 0.5);
+}
+
+.buff-card[data-rarity="legendary"] {
+  border-color: var(--tu-rarity-legend);
+  background: var(--tp-bg-deep);
+}
+
+.buff-card[data-rarity="legendary"]:hover {
+  border-color: var(--tu-rarity-legend);
+  box-shadow: 0 0 20px rgba(240, 192, 64, 0.5);
+}
+
+.buff-card[data-rarity="mythic"] {
+  border-color: var(--tp-danger);
+}
+
+.buff-card[data-rarity="mythic"]:hover {
+  border-color: var(--tp-danger);
+  box-shadow: 0 0 16px rgba(231, 76, 60, 0.5);
+}
+
+/* Fallback hover for cards without data-rarity */
+.buff-card:hover {
+  background: var(--tp-bg-game);
+}
+
+.buff-card .icon { font-size: 32px; }
+
+.buff-card .name {
+  font-size: 10px;
+  font-family: 'Press Start 2P', monospace;
+  font-weight: bold;
+  margin: 10px 0;
+  color: var(--tp-text);
+}
+
+.buff-card .desc {
+  font-size: 9px;
+  font-family: 'Press Start 2P', monospace;
+  color: var(--tu-flee-border);
+  line-height: 1.8;
+}
+
+/* === Game Over Screen === */
+.game-over { text-align: center; }
+
+.game-over h2 {
+  font-size: 22px;
+  font-family: 'Press Start 2P', monospace;
+  color: var(--tp-danger);
+  text-shadow:
+    0 0 18px rgba(231, 76, 60, 0.35),
+    3px 3px 0 #2a0a0a;
+  line-height: 1.8;
+}
+
+.game-over .stats {
+  margin: 18px 0;
+  font-size: 10px;
+  color: var(--tu-flee-border);
+  line-height: 2.2;
+}
+
+.game-over .restart-btn {
+  padding: 16px 32px;
+  background: var(--tu-item-bg);
+  color: var(--tp-white);
+  border: 3px solid var(--tu-item-border);
+  border-radius: var(--tu-radius);
+  cursor: pointer;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 12px;
+  transition: all 0.1s;
+  text-transform: uppercase;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+}
+
+.game-over .restart-btn:hover {
+  background: var(--tu-item-hover-bg);
+  filter: brightness(1.2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.4), 0 0 10px rgba(46, 204, 113, 0.3);
+}
+
+.game-over .restart-btn:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+/* === Victory Screen === */
+.victory h2 {
+  font-size: 22px;
+  font-family: 'Press Start 2P', monospace;
+  color: var(--tp-gold);
+  text-shadow:
+    0 0 18px rgba(240, 192, 64, 0.4),
+    3px 3px 0 #2a1a0a;
+  line-height: 1.8;
+}
+
+/* === Buff Tooltip === */
+.buff-tooltip {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  z-index: 1000;
+  min-width: 160px;
+  max-width: 200px;
+  background: rgba(10, 10, 20, 0.95);
+  border: 2px solid var(--tp-border);
+  border-radius: var(--tu-radius);
+  padding: 8px;
+  font-size: 8px;
+  line-height: 1.6;
+  color: var(--tp-text);
+  box-shadow: 0 0 12px rgba(0,0,0,0.5);
+  pointer-events: none;
+}
+
+.buff-chip:hover .buff-tooltip {
+  display: block;
+}
+
+.buff-tooltip-title {
+  font-weight: bold;
+  color: var(--tp-header);
+  margin-bottom: 4px;
+  font-size: 9px;
+}
+
+.buff-tooltip-desc {
+  color: var(--tp-text);
+  margin-bottom: 4px;
+}
+
+.buff-tooltip-source,
+.buff-tooltip-type {
+  color: var(--tp-text-muted);
+  font-size: 7px;
+}
+
+/* === Save Slot System === */
+.save-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.save-slot-card {
+  background: var(--tp-panel-bg, #1a1a2e);
+  border: 2px solid var(--tu-border, #333);
+  border-radius: 8px;
+  padding: 12px;
+  color: var(--tp-text, #ccc);
+}
+
+.save-slot-card.empty {
+  opacity: 0.4;
+  border-style: dashed;
+}
+
+.save-slot-card.dead {
+  border-color: #f44;
+}
+
+.save-slot-card .slot-title {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.save-slot-card .slot-info {
+  font-size: 12px;
+  margin: 4px 0;
+}
+
+.save-slot-card .slot-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.save-slot-card .slot-actions button {
+  flex: 1;
+}
+
+.save-slot-type {
+  font-size: 10px;
+  color: #888;
+  padding: 2px 6px;
+  background: #333;
+  border-radius: 4px;
+}
+
+.save-slot-type.manual {
+  background: #2a4a2a;
+}
+
+.save-slot-type.auto {
+  background: #4a2a2a;
+}

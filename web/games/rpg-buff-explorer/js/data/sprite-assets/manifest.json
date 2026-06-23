@@ -1,0 +1,247 @@
+{
+  "player-warrior": {
+    "src": "player-warrior.png",
+    "frameW": 32,
+    "frameH": 48,
+    "animations": {
+      "idle":   { "frames": [0, 1],       "speed": 30 },
+      "walk":   { "frames": [2, 3, 4, 5], "speed": 15 },
+      "attack": { "frames": [6, 7, 8],    "speed": 8 },
+      "hurt":   { "frames": [9],          "speed": 12 }
+    },
+    "combatFrameW": 64,
+    "combatFrameH": 64,
+    "combatAnimations": {
+      "idle":   { "frames": [0, 1],       "speed": 30 },
+      "walk":   { "frames": [2, 3],       "speed": 20 },
+      "attack": { "frames": [4, 5, 6],    "speed": 8 },
+      "hurt":   { "frames": [7],          "speed": 12 }
+    }
+  },
+  "player-mage": {
+    "src": "player-mage.png",
+    "frameW": 32,
+    "frameH": 48,
+    "animations": {
+      "idle":   { "frames": [0, 1],       "speed": 30 },
+      "walk":   { "frames": [2, 3, 4, 5], "speed": 15 },
+      "attack": { "frames": [6, 7, 8],    "speed": 8 },
+      "cast":   { "frames": [9, 10, 11, 12], "speed": 10 },
+      "hurt":   { "frames": [13],         "speed": 12 }
+    },
+    "combatFrameW": 64,
+    "combatFrameH": 64,
+    "combatAnimations": {
+      "idle":   { "frames": [0, 1],       "speed": 30 },
+      "walk":   { "frames": [2, 3],       "speed": 20 },
+      "attack": { "frames": [4, 5, 6],    "speed": 8 },
+      "cast":   { "frames": [7, 8, 9, 10], "speed": 10 },
+      "hurt":   { "frames": [11],         "speed": 12 }
+    }
+  },
+  "player-rogue": {
+    "src": "player-rogue.png",
+    "frameW": 32,
+    "frameH": 48,
+    "animations": {
+      "idle":   { "frames": [0, 1],       "speed": 30 },
+      "walk":   { "frames": [2, 3, 4, 5], "speed": 15 },
+      "attack": { "frames": [6, 7, 8],    "speed": 8 },
+      "dodge":  { "frames": [9, 10, 11],  "speed": 6 },
+      "hurt":   { "frames": [12],         "speed": 12 }
+    },
+    "combatFrameW": 64,
+    "combatFrameH": 64,
+    "combatAnimations": {
+      "idle":   { "frames": [0, 1],       "speed": 30 },
+      "walk":   { "frames": [2, 3],       "speed": 20 },
+      "attack": { "frames": [4, 5, 6],    "speed": 8 },
+      "dodge":  { "frames": [7, 8, 9],    "speed": 6 },
+      "hurt":   { "frames": [10],         "speed": 12 }
+    }
+  },
+  "enemy-slime": {
+    "src": "enemy-slime.png",
+    "frameW": 32,
+    "frameH": 32,
+    "animations": {
+      "idle":   { "frames": [0, 1],       "speed": 20 },
+      "walk":   { "frames": [2, 3],       "speed": 15 },
+      "hurt":   { "frames": [4],          "speed": 12 }
+    },
+    "combatFrameW": 64,
+    "combatFrameH": 64,
+    "combatAnimations": {
+      "idle":   { "frames": [0, 1],       "speed": 20 },
+      "walk":   { "frames": [2, 3],       "speed": 15 },
+      "hurt":   { "frames": [4],          "speed": 12 }
+    }
+  },
+  "enemy-skeleton": {
+    "src": "enemy-skeleton.png",
+    "frameW": 32,
+    "frameH": 32,
+    "animations": {
+      "idle":   { "frames": [0, 1],       "speed": 20 },
+      "walk":   { "frames": [2, 3, 4, 5], "speed": 12 },
+      "attack": { "frames": [6, 7, 8],    "speed": 8 },
+      "hurt":   { "frames": [9],          "speed": 12 }
+    },
+    "combatFrameW": 64,
+    "combatFrameH": 64,
+    "combatAnimations": {
+      "idle":   { "frames": [0, 1],       "speed": 20 },
+      "walk":   { "frames": [2, 3, 4, 5], "speed": 12 },
+      "attack": { "frames": [6, 7, 8],    "speed": 8 },
+      "hurt":   { "frames": [9],          "speed": 12 }
+    }
+  },
+  "enemy-spider": {
+    "src": "enemy-spider.png",
+    "frameW": 32,
+    "frameH": 32,
+    "animations": {
+      "idle":   { "frames": [0, 1],       "speed": 18 },
+      "walk":   { "frames": [2, 3, 4, 5], "speed": 10 },
+      "attack": { "frames": [6, 7],       "speed": 6 },
+      "hurt":   { "frames": [8],          "speed": 12 }
+    },
+    "combatFrameW": 64,
+    "combatFrameH": 64,
+    "combatAnimations": {
+      "idle":   { "frames": [0, 1],       "speed": 18 },
+      "walk":   { "frames": [2, 3, 4, 5], "speed": 10 },
+      "attack": { "frames": [6, 7],       "speed": 6 },
+      "hurt":   { "frames": [8],          "speed": 12 }
+    }
+  },
+  "enemy-ghost": {
+    "src": "enemy-ghost.png",
+    "frameW": 32,
+    "frameH": 32,
+    "animations": {
+      "idle":   { "frames": [0, 1, 2, 3], "speed": 20 },
+      "walk":   { "frames": [4, 5, 6, 7], "speed": 12 },
+      "attack": { "frames": [8, 9],       "speed": 8 },
+      "hurt":   { "frames": [10],         "speed": 12 }
+    },
+    "combatFrameW": 64,
+    "combatFrameH": 64,
+    "combatAnimations": {
+      "idle":   { "frames": [0, 1, 2, 3], "speed": 20 },
+      "walk":   { "frames": [4, 5, 6, 7], "speed": 12 },
+      "attack": { "frames": [8, 9],       "speed": 8 },
+      "hurt":   { "frames": [10],         "speed": 12 }
+    }
+  },
+  "enemy-demon": {
+    "src": "enemy-demon.png",
+    "frameW": 32,
+    "frameH": 32,
+    "animations": {
+      "idle":   { "frames": [0, 1],       "speed": 20 },
+      "walk":   { "frames": [2, 3, 4, 5], "speed": 12 },
+      "attack": { "frames": [6, 7, 8],    "speed": 8 },
+      "hurt":   { "frames": [9],          "speed": 12 }
+    },
+    "combatFrameW": 64,
+    "combatFrameH": 64,
+    "combatAnimations": {
+      "idle":   { "frames": [0, 1],       "speed": 20 },
+      "walk":   { "frames": [2, 3, 4, 5], "speed": 12 },
+      "attack": { "frames": [6, 7, 8],    "speed": 8 },
+      "hurt":   { "frames": [9],          "speed": 12 }
+    }
+  },
+  "boss-greedy-king": {
+    "src": "boss-greedy-king.png",
+    "frameW": 64,
+    "frameH": 64,
+    "animations": {
+      "idle":   { "frames": [0, 1, 2, 3],   "speed": 25 },
+      "walk":   { "frames": [4, 5, 6, 7],   "speed": 15 },
+      "attack": { "frames": [8, 9, 10, 11], "speed": 8 },
+      "hurt":   { "frames": [12, 13],        "speed": 10 },
+      "die":    { "frames": [14, 15, 16, 17],"speed": 15 }
+    },
+    "combatFrameW": 120,
+    "combatFrameH": 120,
+    "combatAnimations": {
+      "idle":   { "frames": [0, 1, 2, 3],   "speed": 25 },
+      "walk":   { "frames": [4, 5, 6, 7],   "speed": 15 },
+      "attack": { "frames": [8, 9, 10, 11], "speed": 8 },
+      "special":{ "frames": [12, 13, 14, 15, 16], "speed": 10 },
+      "hurt":   { "frames": [17, 18],        "speed": 10 },
+      "die":    { "frames": [19, 20, 21, 22], "speed": 15 }
+    }
+  },
+  "boss-ice-dragon": {
+    "src": "boss-ice-dragon.png",
+    "frameW": 64,
+    "frameH": 64,
+    "animations": {
+      "idle":     { "frames": [0, 1, 2, 3],      "speed": 30 },
+      "walk":     { "frames": [4, 5, 6, 7],      "speed": 12 },
+      "attack":   { "frames": [8, 9, 10, 11],    "speed": 8 },
+      "breathe":  { "frames": [12, 13, 14, 15, 16, 17], "speed": 10 },
+      "hurt":     { "frames": [18, 19],           "speed": 10 },
+      "die":      { "frames": [20, 21, 22, 23],   "speed": 15 }
+    },
+    "combatFrameW": 120,
+    "combatFrameH": 120,
+    "combatAnimations": {
+      "idle":     { "frames": [0, 1, 2, 3],      "speed": 30 },
+      "walk":     { "frames": [4, 5, 6, 7],      "speed": 12 },
+      "attack":   { "frames": [8, 9, 10, 11],    "speed": 8 },
+      "breathe":  { "frames": [12, 13, 14, 15, 16, 17], "speed": 10 },
+      "hurt":     { "frames": [18, 19],           "speed": 10 },
+      "die":      { "frames": [20, 21, 22, 23],   "speed": 15 }
+    }
+  },
+  "boss-demon-lord": {
+    "src": "boss-demon-lord.png",
+    "frameW": 64,
+    "frameH": 64,
+    "animations": {
+      "idle":   { "frames": [0, 1, 2, 3],   "speed": 25 },
+      "walk":   { "frames": [4, 5, 6, 7],   "speed": 12 },
+      "attack": { "frames": [8, 9, 10, 11], "speed": 8 },
+      "special":{ "frames": [12, 13, 14, 15, 16, 17], "speed": 8 },
+      "hurt":   { "frames": [18, 19],        "speed": 10 },
+      "die":    { "frames": [20, 21, 22, 23], "speed": 15 }
+    },
+    "combatFrameW": 120,
+    "combatFrameH": 120,
+    "combatAnimations": {
+      "idle":   { "frames": [0, 1, 2, 3],   "speed": 25 },
+      "walk":   { "frames": [4, 5, 6, 7],   "speed": 12 },
+      "attack": { "frames": [8, 9, 10, 11], "speed": 8 },
+      "special":{ "frames": [12, 13, 14, 15, 16, 17], "speed": 8 },
+      "hurt":   { "frames": [18, 19],        "speed": 10 },
+      "die":    { "frames": [20, 21, 22, 23], "speed": 15 }
+    }
+  },
+  "boss-void-king": {
+    "src": "boss-void-king.png",
+    "frameW": 64,
+    "frameH": 64,
+    "animations": {
+      "idle":   { "frames": [0, 1, 2, 3],   "speed": 25 },
+      "walk":   { "frames": [4, 5, 6, 7],   "speed": 12 },
+      "attack": { "frames": [8, 9, 10, 11], "speed": 8 },
+      "special":{ "frames": [12, 13, 14, 15, 16, 17], "speed": 8 },
+      "hurt":   { "frames": [18, 19],        "speed": 10 },
+      "die":    { "frames": [20, 21, 22, 23], "speed": 15 }
+    },
+    "combatFrameW": 120,
+    "combatFrameH": 120,
+    "combatAnimations": {
+      "idle":   { "frames": [0, 1, 2, 3],   "speed": 25 },
+      "walk":   { "frames": [4, 5, 6, 7],   "speed": 12 },
+      "attack": { "frames": [8, 9, 10, 11], "speed": 8 },
+      "special":{ "frames": [12, 13, 14, 15, 16, 17], "speed": 8 },
+      "hurt":   { "frames": [18, 19],        "speed": 10 },
+      "die":    { "frames": [20, 21, 22, 23], "speed": 15 }
+    }
+  }
+}
