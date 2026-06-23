@@ -1,0 +1,212 @@
+/* === Reset & Base === */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  background: var(--tp-body-bg);
+  color: #d4c4a0;
+  font-family: 'Press Start 2P', monospace;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* === Dungeon Stone Texture Overlay === */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9998;
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(40, 30, 20, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(20, 30, 40, 0.06) 0%, transparent 50%);
+}
+
+/* === CRT Scanline Overlay === */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+}
+
+/* === Pixel Font Import === */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+/* === Canvas === */
+#game-canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* === Global Scrollbar Styles === */
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--tp-body-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #5a4a3a;
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #8a7a5a;
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #5a4a3a var(--tp-body-bg);
+}
+
+/* === Selection === */
+::selection {
+  background: var(--tp-border-active);
+  color: var(--tp-text-primary);
+}
+
+/* === Placeholder === */
+::placeholder {
+  color: var(--tp-text-muted);
+  opacity: 1;
+}
+
+/* === Responsive: narrow screens === */
+@media (max-width: 1150px) {
+  #game-container {
+    flex-wrap: nowrap;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  #sidebar {
+    width: 100%;
+    max-width: 960px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    height: auto;
+    max-height: none;
+  }
+
+  #player-panel { flex: 1; min-width: 200px; }
+  #log-container { flex: 1; min-width: 200px; min-height: 80px; max-height: 200px; }
+  #dungeon-actions, #combat-actions {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+  #combat-screen.active #combat-actions {
+    grid-template-columns: 1fr;
+    max-height: none;
+    overflow-y: visible;
+  }
+  #combat-actions {
+    max-height: none;
+    overflow-y: visible;
+  }
+  .combat-btns .btn-atk,
+  .combat-btns .btn-def {
+    grid-column: span 1;
+  }
+  .skill-btns {
+    grid-column: span 1;
+  }
+  .action-hint {
+    grid-column: span 1;
+  }
+
+  #game-canvas {
+    max-width: 100%;
+    max-height: 55vh;
+  }
+}
+
+/* === Responsive: mobile === */
+@media (max-width: 768px) {
+  body { font-size: 10px; }
+
+  #game-container {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  #sidebar {
+    width: 100%;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  #player-panel {
+    min-width: unset;
+    padding: 12px;
+  }
+
+  #log-container {
+    min-height: 80px;
+    max-height: 120px;
+  }
+
+  #game-canvas {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .combat-btns {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .btn {
+    min-height: 44px;
+    font-size: 8px;
+    padding: 10px 8px;
+  }
+
+  #title-screen h1 { font-size: 14px; }
+  #title-screen .start-btn { font-size: 10px; padding: 14px 28px; }
+  .floor-banner h2 { font-size: 16px; }
+  .buff-card { min-width: 100px; padding: 12px 10px; }
+  .modal { padding: 16px; max-width: 95%; }
+}
+
+/* === Responsive: small mobile === */
+@media (max-width: 480px) {
+  .combat-btns {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  #title-screen h1 { font-size: 11px; }
+
+  .btn {
+    min-height: 44px;
+  }
+}
