@@ -118,8 +118,11 @@ globalThis.AudioContext = function () {
     createOscillator: function () { return { type: '', frequency: {}, connect: function () {}, start: function () {}, stop: function () {} }; },
     createBufferSource: function () { return { connect: function () {}, start: function () {}, stop: function () {} }; },
     createBuffer: function () { return null; },
+    createBiquadFilter: function () { return { type: '', frequency: { value: 0 }, connect: function () { return this; }, disconnect: function () {} }; },
     destination: {},
     sampleRate: 44100,
+    state: 'running',
+    resume: function () { return Promise.resolve(); },
   };
 };
 
@@ -148,6 +151,7 @@ function loadGameFiles(baseDir) {
     'core/generator.js',
     'core/buff.js',
     'core/equip.js',
+    'core/theme.js',
     'core/movement.js',
     'core/combat.js',
     'core/boss.js',

@@ -11,8 +11,16 @@ test.describe("RPG Buff Explorer - Persistence", () => {
   });
 
   test("1) start game - localStorage has SAVE_KEY item", async ({ page }) => {
-    // Click "开始冒险" to start a new game
-    await page.click("text=开始冒险");
+    // Click "选择职业" to start, then select warrior
+    await page.click('button:has-text("选择职业")');
+    await page.waitForSelector("#modal-overlay .class-card", { timeout: 5000 });
+    await page.evaluate(() => {
+      const cards = document.querySelectorAll("#modal-overlay .class-card");
+      if (cards[0]) cards[0].click();
+    });
+    await page.waitForFunction(
+      () => window.gameState && window.gameState.screen === "dungeon"
+    );
     await page.waitForTimeout(500);
 
     // Manually call saveGame() since startNewGame() does not auto-save
@@ -109,8 +117,16 @@ test.describe("RPG Buff Explorer - Persistence", () => {
   });
 
   test("5) set player.gold=200, call onGameOver(permanent), check player.gold=100 (50% kept)", async ({ page }) => {
-    // Start a new game and set player.gold = 200
-    await page.click("text=开始冒险");
+    // Start a new game: click "选择职业" + select warrior
+    await page.click('button:has-text("选择职业")');
+    await page.waitForSelector("#modal-overlay .class-card", { timeout: 5000 });
+    await page.evaluate(() => {
+      const cards = document.querySelectorAll("#modal-overlay .class-card");
+      if (cards[0]) cards[0].click();
+    });
+    await page.waitForFunction(
+      () => window.gameState && window.gameState.screen === "dungeon"
+    );
     await page.waitForTimeout(500);
 
     await page.evaluate(() => {

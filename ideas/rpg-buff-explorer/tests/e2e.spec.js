@@ -27,7 +27,13 @@ async function dismissModal(page) {
  * Start a new game and wait until the dungeon is fully initialised.
  */
 async function startDungeon(page) {
-  await page.click('button.start-btn:has-text("开始冒险")');
+  await page.click('button.start-btn:has-text("选择职业")');
+  await page.waitForSelector("#modal-overlay .class-card", { timeout: 5000 });
+  // Select warrior (first card)
+  await page.evaluate(() => {
+    const cards = document.querySelectorAll("#modal-overlay .class-card");
+    if (cards[0]) cards[0].click();
+  });
   await page.waitForFunction(
     "() => gameState && gameState.screen === 'dungeon' && dungeon && player",
     {},

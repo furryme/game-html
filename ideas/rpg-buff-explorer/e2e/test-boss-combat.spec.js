@@ -6,8 +6,7 @@ test.describe("Boss Combat", () => {
   test("REGRESSION: start game, generate floor 3, find boss in dungeon.enemies, startCombat(index), check #combat-actions has buttons with display:block", async ({ page }) => {
     await page.goto(HTML);
     await page.waitForSelector("#title-screen.screen.active");
-    await page.click(".start-btn");
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(500);
 
     // Use startCombat via dungeon.enemies path to test the full chain
     var result = await page.evaluate(function (opts) {
@@ -68,8 +67,7 @@ test.describe("Boss Combat", () => {
   test("click .btn-atk during boss fight, check combatState.enemy.hp decreased", async ({ page }) => {
     await page.goto(HTML);
     await page.waitForSelector("#title-screen.screen.active");
-    await page.click(".start-btn");
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(500);
 
     var hpBefore = await page.evaluate(function (opts) {
       var hp = opts.hp;
@@ -134,8 +132,7 @@ test.describe("Boss Combat", () => {
   test("REGRESSION: tickBossRules should fire phase once -- set boss hp to 50%, reset _berserkApplied=false, call tickBossRules(), check enemy.atk increased by 50%", async ({ page }) => {
     await page.goto(HTML);
     await page.waitForSelector("#title-screen.screen.active");
-    await page.click(".start-btn");
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(500);
 
     var result = await page.evaluate(function () {
       initPlayer("warrior");
@@ -195,8 +192,7 @@ test.describe("Boss Combat", () => {
   test("check berserk not double-applied -- call tickBossRules again, atk should stay same", async ({ page }) => {
     await page.goto(HTML);
     await page.waitForSelector("#title-screen.screen.active");
-    await page.click(".start-btn");
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(500);
 
     var result = await page.evaluate(function () {
       initPlayer("warrior");
@@ -251,8 +247,7 @@ test.describe("Boss Combat", () => {
   test("check #combat-screen has pointer-events:none style", async ({ page }) => {
     await page.goto(HTML);
     await page.waitForSelector("#title-screen.screen.active");
-    await page.click(".start-btn");
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(500);
 
     var pointerEvents = await page.evaluate(function () {
       var el = document.getElementById("combat-screen");

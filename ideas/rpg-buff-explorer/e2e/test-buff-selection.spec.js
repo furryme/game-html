@@ -2,20 +2,41 @@ import { test, expect } from "@playwright/test";
 
 const HTML = "file:///Users/dxm/Desktop/code/game-html/ideas/rpg-buff-explorer/index.html";
 
+/**
+ * Helper: start a new game with warrior class and wait until dungeon is ready.
+ */
+async function startGame(page) {
+  await page.goto(HTML);
+  await page.waitForSelector("#title-screen.screen.active");
+
+  // Click "选择职业" button
+  await page.click(".start-btn");
+  await page.waitForSelector("#modal-overlay .class-card", { timeout: 5000 });
+
+  // Select warrior (first card, index 0)
+  await page.evaluate(() => {
+    const cards = document.querySelectorAll("#modal-overlay .class-card");
+    if (cards[0]) cards[0].click();
+  });
+
+  // Wait for dungeon to load
+  await page.waitForFunction(() => {
+    return gameState && gameState.screen === "dungeon" && player && dungeon;
+  });
+
+  // Dismiss buff selection modal if open
+  await page.evaluate(() => {
+    const overlay = document.getElementById('modal-overlay');
+    if (overlay && overlay.style.display === 'flex' && typeof closeModal === 'function') {
+      closeModal();
+    }
+  });
+  await page.waitForTimeout(500);
+}
+
 test.describe("Buff Selection", () => {
   test.beforeEach(async ({ page }) => {
-    // Navigate to title screen
-    await page.goto(HTML);
-    await page.waitForSelector("#title-screen.screen.active");
-
-    // Click "开始冒险" to start a new game
-    await page.click(".start-btn");
-    await page.waitForTimeout(500);
-
-    // Verify game initialized: gameState should be on window, screen should be "dungeon"
-    await page.waitForFunction(() => {
-      return gameState && gameState.screen === "dungeon" && player && dungeon;
-    });
+    await startGame(page);
   });
 
   test("modal overlay display is flex after showBuffSelection", async ({ page }) => {

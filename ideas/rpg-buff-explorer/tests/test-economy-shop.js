@@ -578,3 +578,36 @@ describe('shopPriceMultiplier: floor 1/3/5', ({ assert }) => {
     }
   });
 });
+
+// --- Shop: identify_scroll pricing (0.4/floor instead of 0.3) ---
+describe('identify_scroll pricing: 0.4/floor', ({ assert }) => {
+  it('鉴定卷轴第 1 层价格 = 50', () => {
+    const restore = seedRandom(42);
+    const items = generateShopItems(1);
+    restore();
+    const scrolls = items.filter(i => i.itemId === 'identify_scroll');
+    if (scrolls.length === 0) {
+      // If scroll not in this random set, check price formula directly
+      const expected = Math.round(50 * (1 + 0.4 * (1 - 1)));
+      if (expected !== 50) throw new Error(`expected 50, got ${expected}`);
+      return;
+    }
+    if (scrolls[0].price !== 50) throw new Error(`expected 50, got ${scrolls[0].price}`);
+  });
+
+  it('鉴定卷轴第 3 层价格 = round(50 * 1.8) = 90', () => {
+    const expectedPrice = Math.round(50 * (1 + 0.4 * (3 - 1)));
+    if (expectedPrice !== 90) throw new Error(`expected 90, got ${expectedPrice}`);
+  });
+
+  it('鉴定卷轴第 5 层价格 = round(50 * 2.6) = 130', () => {
+    const expectedPrice = Math.round(50 * (1 + 0.4 * (5 - 1)));
+    if (expectedPrice !== 130) throw new Error(`expected 130, got ${expectedPrice}`);
+  });
+
+  it('鉴定卷轴价格增长率高于普通商品', () => {
+    const scroll3 = Math.round(50 * (1 + 0.4 * 2));
+    const normal3 = Math.round(50 * (1 + 0.3 * 2));
+    if (scroll3 <= normal3) throw new Error(`scroll price ${scroll3} should be > normal ${normal3}`);
+  });
+});

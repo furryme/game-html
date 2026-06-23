@@ -362,16 +362,24 @@ describe('movePlayer: enemy encounter, item, stairs', ({ assert }) => {
     if (player.hp !== expected) throw new Error('hp: expected ' + expected + ', got ' + player.hp);
   });
 
-  it('楼梯: 非最高层进入下一层', () => {
+  it('楼梯: 非最高层触发层间强化 (pause)', () => {
     dungeon = makeDungeon(2);
     player.x = 4;
     player.y = 5;
     gameState.floor = 2;
     gameState.paused = false;
     combatState = null;
+    player.gems = 0;
     movePlayer(1, 0);
-    if (gameState.floor !== 3)
-      throw new Error('floor should advance to 3, got ' + gameState.floor);
+    if (!gameState.paused) throw new Error('game should be paused after stairs (floor break)');
+    if (gameState.floor !== 2) throw new Error('floor should stay at 2 until player proceeds');
+  });
+
+  it('层间强化: proceed 后进入下一层', () => {
+    gameState.floor = 2;
+    dungeon = makeDungeon(2);
+    nextFloor();
+    if (gameState.floor !== 3) throw new Error('floor should advance to 3, got ' + gameState.floor);
   });
 
   it('楼梯: 最高层且 Boss 未击败不能离开', () => {
@@ -387,19 +395,13 @@ describe('movePlayer: enemy encounter, item, stairs', ({ assert }) => {
       throw new Error('floor should not change');
   });
 
-  it('楼梯: 最高层 Boss 已击败可以离开', () => {
-    dungeon = makeDungeon(MAX_FLOORS);
-    player.x = 4;
-    player.y = 5;
+  it('层间强化: 最高层 Boss 已击败通关', () => {
     gameState.floor = MAX_FLOORS;
     gameState.bossDefeated = true;
-    gameState.paused = false;
     gameState.screen = 'dungeon';
-    combatState = null;
     permanent = { permanentStats: Object.assign({}, defaultPermanentStats()), soulShards: 0 };
-    movePlayer(1, 0);
-    if (gameState.screen !== 'victory')
-      throw new Error('screen should be victory, got ' + gameState.screen);
+    nextFloor();
+    if (gameState.screen !== 'victory') throw new Error('screen should be victory, got ' + gameState.screen);
     permanent = null;
   });
 });

@@ -33,6 +33,8 @@ require('./test-buff-boss-equip');
 require('./test-movement-combat');
 require('./test-combat-boss-fixes');
 require('./test-events-relic');
+require('./test-theme');
+require('./test-cooldown');
 
 // Step 5: Run!
 const success = runTests();

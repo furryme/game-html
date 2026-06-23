@@ -424,15 +424,15 @@ describe('addSoulShards', ({ assert }) => {
 describe('defaultPermanentStats', ({ assert }) => {
   it('所有字段初始化为 0', () => {
     const stats = defaultPermanentStats();
-    const keys = ['totalKills', 'maxFloor', 'totalRuns', 'bossKills', 'totalGold', 'totalDeaths', 'wins', 'totalDamageDealt'];
+    const keys = ['totalKills', 'maxFloor', 'totalRuns', 'bossKills', 'totalGold', 'totalDeaths', 'wins', 'totalDamageDealt', 'totalFlees', 'totalSkillUses', 'totalDamageTaken'];
     for (const k of keys) {
       if (stats[k] !== 0) throw new Error(k + ': expected 0, got ' + stats[k]);
     }
   });
 
-  it('恰好 8 个字段', () => {
+  it('恰好 11 个字段（含 totalFlees/totalSkillUses/totalDamageTaken）', () => {
     const keys = Object.keys(defaultPermanentStats());
-    if (keys.length !== 8) throw new Error('expected 8 keys, got ' + keys.length);
+    if (keys.length !== 11) throw new Error('expected 11 keys, got ' + keys.length);
   });
 
   it('每次调用返回新对象', () => {

@@ -4,7 +4,7 @@ const { describe, it, makeAssert, seedRandom } = require('./test-runner');
 describe('generateFloor', ({ assert }) => {
   it('每层都生成非空地牢', () => {
     const restore = seedRandom(123);
-    for (let floor = 1; floor <= 3; floor++) {
+    for (let floor = 1; floor <= 5; floor++) {
       const d = generateFloor(floor);
       if (!d) throw new Error(`generateFloor(${floor}) returned null`);
       if (!d.grid) throw new Error(`floor ${floor}: missing grid`);

@@ -11,10 +11,11 @@ describe('recalcBuffStats', ({ assert }) => {
     if (s.critBonus !== 0) throw new Error(`critBonus: expected 0, got ${s.critBonus}`);
   });
 
-  it('单个 ATK buff: 狂战士的祝福 atkMult=1.3', () => {
+  it('单个 ATK buff: 狂战士的祝福 (warrior classBonus → 1.3*1.2=1.56)', () => {
+    player.cls = 'warrior';
     player.activeBuffs = [{ id: 'berserks_blessing' }];
     recalcBuffStats();
-    if (player.buffStats.atkMult !== 1.3) throw new Error(`atkMult: expected 1.3, got ${player.buffStats.atkMult}`);
+    if (player.buffStats.atkMult !== 1.56) throw new Error(`atkMult: expected 1.56 (base 1.3 * warrior bonus 1.2), got ${player.buffStats.atkMult}`);
   });
 
   it('双 buff 乘法叠加: atkMult berserks_blessing(1.3) + immortal', () => {
@@ -51,11 +52,11 @@ describe('recalcBuffStats', ({ assert }) => {
     }
   });
 
-  it('百分比上限: dmgReduction <= 0.95', () => {
+  it('百分比上限: dmgReduction <= 0.8 (design doc cap)', () => {
     player.activeBuffs = [{ id: 'iron_skin' }, { id: 'frost_heart' }];
     recalcBuffStats();
-    if (player.buffStats.dmgReduction > 0.95) {
-      throw new Error(`dmgReduction: expected <= 0.95, got ${player.buffStats.dmgReduction}`);
+    if (player.buffStats.dmgReduction > 0.8) {
+      throw new Error(`dmgReduction: expected <= 0.8, got ${player.buffStats.dmgReduction}`);
     }
   });
 });
@@ -87,12 +88,16 @@ describe('recalcPlayerStats', ({ assert }) => {
     const mageHp = player.maxHp;
     const mageMp = player.maxMp;
 
-    player.lvl = 1; player.cls = 'ranger'; recalcPlayerStats();
-    const rangerSpd = player.baseSpd;
+    player.lvl = 1; player.cls = 'rogue'; recalcPlayerStats();
+    const rogueSpd = player.baseSpd;
+    const rogueCrit = player.crit;
 
     if (warHp <= mageHp) throw new Error(`warrior HP ${warHp} should be > mage HP ${mageHp}`);
     if (mageMp <= 40) throw new Error(`mage MP ${mageMp} should be > 40`);
-    if (rangerSpd <= 10) throw new Error(`ranger spd ${rangerSpd} should be > 10`);
+    if (rogueSpd <= 10) throw new Error(`rogue spd ${rogueSpd} should be > 10`);
+    if (rogueCrit <= 10) throw new Error(`rogue crit ${rogueCrit} should be > 10`);
+
+    player.cls = 'warrior'; recalcPlayerStats();
   });
 });
 

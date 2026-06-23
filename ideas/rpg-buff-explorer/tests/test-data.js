@@ -42,8 +42,8 @@ describe('BUFF_DEFS', ({ assert }) => {
 });
 
 describe('SKILLS', ({ assert }) => {
-  it('10 个技能已定义', () => {
-    if (SKILLS.length !== 10) throw new Error(`skill count: expected 10, got ${SKILLS.length}`);
+  it('22 个技能已定义', () => {
+    if (SKILLS.length !== 22) throw new Error(`skill count: expected 22, got ${SKILLS.length}`);
   });
 
   it('技能 ID 唯一', () => {
@@ -56,8 +56,8 @@ describe('SKILLS', ({ assert }) => {
 });
 
 describe('FLOOR_THEMES', ({ assert }) => {
-  it('3 层主题已定义', () => {
-    if (FLOOR_THEMES.length !== 3) throw new Error(`expected 3, got ${FLOOR_THEMES.length}`);
+  it('5 层主题已定义', () => {
+    if (FLOOR_THEMES.length !== 5) throw new Error(`expected 5, got ${FLOOR_THEMES.length}`);
   });
 
   it('主题有名称和颜色', () => {

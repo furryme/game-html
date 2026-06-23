@@ -573,8 +573,8 @@ describe('地图尺寸常量', ({ assert }) => {
     if (CANVAS_H !== 270) throw new Error('expected CANVAS_H=270');
   });
 
-  it('MAX_FLOORS=3', () => {
-    if (MAX_FLOORS !== 3) throw new Error('expected MAX_FLOORS=3');
+  it('MAX_FLOORS=5', () => {
+    if (MAX_FLOORS !== 5) throw new Error('expected MAX_FLOORS=5');
   });
 
   it('ROOM_TYPES 包含 6 种类型', () => {

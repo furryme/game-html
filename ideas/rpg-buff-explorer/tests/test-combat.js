@@ -43,11 +43,11 @@ describe('calcExpNext / calcStatsFromLevel', ({ assert }) => {
     if (calcExpNext(10) !== 1300) throw new Error(`expected 1300, got ${calcExpNext(10)}`);
   });
 
-  it('Lv5 stats: hp=200, atk=25, def=15', () => {
+  it('Lv5 stats: hp=200, atk=22, def=13', () => {
     const s = calcStatsFromLevel(5);
     if (s.maxHp !== 200) throw new Error(`hp: expected 200, got ${s.maxHp}`);
-    if (s.baseAtk !== 25) throw new Error(`atk: expected 25, got ${s.baseAtk}`);
-    if (s.baseDef !== 15) throw new Error(`def: expected 15, got ${s.baseDef}`);
+    if (s.baseAtk !== 22) throw new Error(`atk: expected 22, got ${s.baseAtk}`);
+    if (s.baseDef !== 13) throw new Error(`def: expected 13, got ${s.baseDef}`);
   });
 });
 

@@ -9,9 +9,22 @@ async function startGame(page) {
   await page.goto(HTML);
   await page.waitForSelector("#title-screen.screen.active");
   await page.click(".start-btn");
+  await page.waitForSelector("#modal-overlay .class-card", { timeout: 5000 });
+  // Select warrior (first card)
+  await page.evaluate(() => {
+    const cards = document.querySelectorAll("#modal-overlay .class-card");
+    if (cards[0]) cards[0].click();
+  });
   await page.waitForFunction(
     () => window.gameState && window.gameState.screen === "dungeon"
   );
+  // Dismiss buff selection modal if open
+  await page.evaluate(() => {
+    const overlay = document.getElementById('modal-overlay');
+    if (overlay && overlay.style.display === 'flex' && typeof closeModal === 'function') {
+      closeModal();
+    }
+  });
   await page.waitForTimeout(500);
 }
 
