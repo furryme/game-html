@@ -58,5 +58,47 @@ const FLOOR_THEMES = [
     visibility: 3,
     roomTarget: [6, 8],
     corridorWidth: 1
+  },
+  {
+    id: 'inferno_abyss',
+    name: '熔火深渊',
+    colors: {
+      wall: '#cc5500',
+      wallDark: '#bb4400',
+      floor: '#331100',
+      floorAlt: '#441500',
+      corridor: '#553311'
+    },
+    decor: '#ff4400',
+    envBuff: {
+      id: 'inferno',
+      desc: '熔火: 每4回合受到5%最大HP灼烧伤害'
+    },
+    enemyPool: ['lava_elemental', 'flame_bat', 'fire_sprite', 'crystal_golem'],
+    trapChance: 0.3,
+    visibility: 3,
+    roomTarget: [6, 8],
+    corridorWidth: 1
+  },
+  {
+    id: 'throne_endings',
+    name: '终焉王座',
+    colors: {
+      wall: '#222233',
+      wallDark: '#1a1a2a',
+      floor: '#111122',
+      floorAlt: '#1a1a33',
+      corridor: '#333344'
+    },
+    decor: '#6666aa',
+    envBuff: {
+      id: 'final',
+      desc: '终焉: 敌人ATK+30% DEF+15%, EXP+100% 金币+50%'
+    },
+    enemyPool: ['lava_elemental', 'flame_bat', 'fire_sprite', 'crystal_golem', 'death_knight', 'void_horror'],
+    trapChance: 0.3,
+    visibility: 2,
+    roomTarget: [6, 9],
+    corridorWidth: 1
   }
 ];

@@ -185,6 +185,101 @@ const ENEMY_DATA = {
       { type: 'defend', weight: 15, label: '闪避' },
       { type: 'flee', weight: 15, label: '遁走' }
     ]
+  },
+  lava_elemental: {
+    name: '熔火元素',
+    icon: '🔥',
+    hp: 120,
+    atk: 30,
+    def: 15,
+    spd: 6,
+    exp: 70,
+    gold: [20, 40],
+    actions: [
+      { type: 'attack', weight: 40, label: '熔岩拳' },
+      { type: 'attack', weight: 30, label: '灼烧', dot: { id: 'burn', duration: 3, value: 0.06 } },
+      { type: 'buff', weight: 20, label: '硬化', selfBuff: { stat: 'def', mult: 1.5, duration: 2 } },
+      { type: 'defend', weight: 10, label: '结晶化' }
+    ]
+  },
+  flame_bat: {
+    name: '焰蝠',
+    icon: '🦇',
+    hp: 85,
+    atk: 28,
+    def: 8,
+    spd: 15,
+    exp: 60,
+    gold: [15, 30],
+    actions: [
+      { type: 'attack', weight: 50, label: '烈焰撕咬' },
+      { type: 'attack', weight: 25, label: '火毒', dot: { id: 'burn', duration: 2, value: 0.05 } },
+      { type: 'buff', weight: 15, label: '火化', selfBuff: { stat: 'spd', mult: 1.5, duration: 2 } },
+      { type: 'flee', weight: 10, label: '逃散' }
+    ]
+  },
+  fire_sprite: {
+    name: '火灵',
+    icon: '✨',
+    hp: 75,
+    atk: 35,
+    def: 10,
+    spd: 14,
+    exp: 75,
+    gold: [18, 35],
+    actions: [
+      { type: 'attack', weight: 45, label: '炎爆', mult: 1.3 },
+      { type: 'attack', weight: 30, label: '灼烧波', dot: { id: 'burn', duration: 2, value: 0.04 } },
+      { type: 'buff', weight: 25, label: '炎化', selfBuff: { stat: 'atk', mult: 1.6, duration: 2 } }
+    ]
+  },
+  crystal_golem: {
+    name: '晶体巨人',
+    icon: '💎',
+    hp: 160,
+    atk: 22,
+    def: 22,
+    spd: 5,
+    exp: 80,
+    gold: [22, 45],
+    actions: [
+      { type: 'attack', weight: 35, label: '晶拳' },
+      { type: 'attack', weight: 25, label: '碎裂', mult: 2.0 },
+      { type: 'buff', weight: 25, label: '结晶化', selfBuff: { stat: 'def', mult: 1.6, duration: 3 } },
+      { type: 'defend', weight: 15, label: '龟缩' }
+    ]
+  },
+  death_knight: {
+    name: '死亡骑士',
+    icon: '⚔️',
+    hp: 130,
+    atk: 32,
+    def: 18,
+    spd: 10,
+    exp: 85,
+    gold: [25, 50],
+    actions: [
+      { type: 'attack', weight: 40, label: '死击', mult: 1.3 },
+      { type: 'attack', weight: 25, label: '处决', mult: 1.8, stun: true },
+      { type: 'debuff', weight: 20, label: '死亡恐惧', enemyDebuff: { stat: 'atk', mult: 0.6, duration: 2 } },
+      { type: 'buff', weight: 15, label: '死灵之力', selfBuff: { stat: 'atk', mult: 1.5, duration: 2 } }
+    ]
+  },
+  void_horror: {
+    name: '虚空恐怖',
+    icon: '🌀',
+    hp: 150,
+    atk: 28,
+    def: 16,
+    spd: 12,
+    exp: 90,
+    gold: [28, 55],
+    actions: [
+      { type: 'attack', weight: 35, label: '虚空撕裂' },
+      { type: 'attack', weight: 25, label: '湮灭', mult: 2.2 },
+      { type: 'debuff', weight: 20, label: '恐惧', enemyDebuff: { stat: 'atk', mult: 0.65, duration: 2 } },
+      { type: 'buff', weight: 20, label: '虚化', selfBuff: { stat: 'def', mult: 2.0, duration: 2 } }
+    ]
   }
 };
 
@@ -233,6 +328,39 @@ const BOSS_DATA = {
       { threshold: 1.0, effect: 'equip_corrupt', desc: '装备腐化: 每2回合装备属性-20%' },
       { threshold: 0.66, effect: 'gold_tempt', desc: '金币诱惑: 概率弹出投降' },
       { threshold: 0.33, effect: 'berserk', desc: '狂暴: ATK+50%, 可能追加攻击' }
+    ]
+  },
+  inferno_beast: {
+    floor: 4,
+    name: '熔火巨兽',
+    icon: '🐉',
+    hp: 400,
+    atk: 28,
+    def: 18,
+    spd: 8,
+    exp: 120,
+    gold: [60, 90],
+    soulShards: [1],
+    rules: [
+      { threshold: 0.5, effect: 'berserk', desc: '狂暴: ATK+50%' },
+      { threshold: 1.0, effect: 'summon_minion', desc: '召唤小怪: 每4回合召唤', interval: 4 }
+    ]
+  },
+  lord_endings: {
+    floor: 5,
+    name: '终焉领主',
+    icon: '💀',
+    hp: 500,
+    atk: 35,
+    def: 20,
+    spd: 14,
+    exp: 300,
+    gold: [100, 150],
+    soulShards: [3],
+    rules: [
+      { threshold: 1.0, effect: 'skill_seal', desc: '技能封印: 每回合随机封印一个技能' },
+      { threshold: 1.0, effect: 'equip_corrupt', desc: '装备腐化: 每2回合装备属性-20%' },
+      { threshold: 0.33, effect: 'berserk', desc: '狂暴: ATK+50%' }
     ]
   }
 };

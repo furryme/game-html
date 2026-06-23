@@ -1,0 +1,13 @@
+{
+  "name": "rpg-sprite-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sprite conversion tools for RPG Buff Explorer",
+  "type": "module",
+  "scripts": {
+    "convert": "node sprite-convert.mjs"
+  },
+  "devDependencies": {
+    "sharp": "^0.33.5"
+  }
+}

@@ -9,6 +9,15 @@ function spriteAnimStep() {
   spriteAnimFrame++;
 }
 
+function isImageLoaded(spriteData) {
+  if (!spriteData || !spriteData.image) return false;
+  var img = spriteData.image;
+  if (img instanceof HTMLImageElement) return img.complete && img.naturalWidth > 0;
+  if (img instanceof HTMLCanvasElement) return img.width > 0;
+  if (typeof OffscreenCanvas !== 'undefined' && img instanceof OffscreenCanvas) return img.width > 0;
+  return false;
+}
+
 var SPRITE_PAL = [
   '#0a0a1a', // 0  transparent (never drawn)
   '#0a0a1a', // 1  void
@@ -240,14 +249,32 @@ function collapsePattern(pattern) {
 
 function drawSprite(ctx, x, y, pattern, palette, opts) {
   opts = opts || {};
-  var scale = opts.scale || 1;
-  var flip = opts.flip || false;
   var alpha = opts.alpha !== undefined ? opts.alpha : 1;
-  var p = PIXEL * scale;
+  var flip = opts.flip || false;
 
   if (alpha < 1) {
     ctx.globalAlpha = alpha;
   }
+
+  if (opts.spriteData && isImageLoaded(opts.spriteData)) {
+    var sd = opts.spriteData;
+    ctx.save();
+    if (flip) {
+      ctx.translate(x + sd.w, y);
+      ctx.scale(-1, 1);
+    }
+    if (sd.sx !== undefined) {
+      ctx.drawImage(sd.image, sd.sx, sd.sy, sd.sw, sd.sh, flip ? 0 : x, flip ? 0 : y, sd.w, sd.h);
+    } else {
+      ctx.drawImage(sd.image, flip ? 0 : x, flip ? 0 : y, sd.w, sd.h);
+    }
+    ctx.restore();
+    if (alpha < 1) ctx.globalAlpha = 1;
+    return;
+  }
+
+  var scale = opts.scale || 1;
+  var p = PIXEL * scale;
 
   ctx.save();
   if (flip) {
@@ -271,9 +298,44 @@ function drawSprite(ctx, x, y, pattern, palette, opts) {
   }
 }
 
-function drawPlayerSprite(ctx, x, y, state, isCombat, flip) {
-  var pattern, scale, frame;
+function drawPlayerSprite(ctx, x, y, state, isCombat, flip, pal, spriteData) {
   var f = spriteAnimFrame;
+
+  if (spriteData && spriteData.image && isImageLoaded(spriteData)) {
+    var animCfg = spriteData.combatAnimations ? spriteData.combatAnimations[state] : spriteData.animations[state];
+    if (!animCfg) animCfg = spriteData.combatAnimations ? spriteData.combatAnimations.idle : spriteData.animations.idle;
+    if (animCfg && animCfg.frames) {
+      var speed = animCfg.speed || 10;
+      var frameIdx = Math.floor(f / speed) % animCfg.frames.length;
+      var frameNum = animCfg.frames[frameIdx];
+      var sdW = isCombat ? (spriteData.combatFrameW || spriteData.frameW || 32) : (spriteData.frameW || 32);
+      var sdH = isCombat ? (spriteData.combatFrameH || spriteData.frameH || 48) : (spriteData.frameH || 32);
+      var totalFrames = animCfg.frames.length;
+      var spriteOpts = {
+        spriteData: {
+          image: spriteData.image,
+          sx: frameNum * sdW,
+          sy: 0,
+          sw: sdW,
+          sh: sdH,
+          w: sdW,
+          h: sdH
+        }
+      };
+      var tileSize = isCombat ? 64 : TILE_SIZE;
+      var ox = x + (tileSize - sdW) / 2;
+      var oy = y + (tileSize - sdH) / 2;
+      var palUse = pal || SPRITE_PAL;
+      if (!pal && player && player.cls) {
+        if (player.cls === 'mage') palUse = getClassPalette('mage');
+        else if (player.cls === 'rogue') palUse = getClassPalette('rogue');
+      }
+      drawSprite(ctx, ox, oy, null, palUse, spriteOpts);
+      return;
+    }
+  }
+
+  var pattern, scale, frame;
 
   if (isCombat) {
     scale = 2;
@@ -306,10 +368,49 @@ function drawPlayerSprite(ctx, x, y, state, isCombat, flip) {
   var ox = x + (tileSize - w) / 2;
   var oy = y + (tileSize - h) / 2;
 
-  drawSprite(ctx, ox, oy, grid, SPRITE_PAL, { scale: scale, flip: flip || false });
+  var palette = pal || SPRITE_PAL;
+  if (!pal && player && player.cls) {
+    if (player.cls === 'mage') {
+      palette = getClassPalette('mage');
+    } else if (player.cls === 'rogue') {
+      palette = getClassPalette('rogue');
+    }
+  }
+
+  drawSprite(ctx, ox, oy, grid, palette, { scale: scale, flip: flip || false });
 }
 
-function drawEnemySprite(ctx, x, y, enemyType, frame, isCombat, isDead) {
+function drawEnemySprite(ctx, x, y, enemyType, frame, isCombat, isDead, pal, spriteData) {
+  var f = spriteAnimFrame;
+
+  if (spriteData && spriteData.image && isImageLoaded(spriteData) && !isDead) {
+    var animCfg = spriteData.combatAnimations ? spriteData.combatAnimations.idle : spriteData.animations.idle;
+    if (animCfg && animCfg.frames) {
+      var speed = animCfg.speed || 15;
+      var frameIdx = Math.floor(f / speed) % animCfg.frames.length;
+      var frameNum = animCfg.frames[frameIdx];
+      var sdW = isCombat ? (spriteData.combatFrameW || spriteData.frameW || 32) : (spriteData.frameW || 32);
+      var sdH = isCombat ? (spriteData.combatFrameH || spriteData.frameH || 32) : (spriteData.frameH || 32);
+      var spriteOpts = {
+        spriteData: {
+          image: spriteData.image,
+          sx: frameNum * sdW,
+          sy: 0,
+          sw: sdW,
+          sh: sdH,
+          w: sdW,
+          h: sdH
+        }
+      };
+      var targetW = isCombat ? 64 : TILE_SIZE;
+      var targetH = isCombat ? 64 : TILE_SIZE;
+      var ox = x + (targetW - sdW) / 2;
+      var oy = y + (targetH - sdH) / 2;
+      drawSprite(ctx, ox, oy, null, pal || SPRITE_PAL, spriteOpts);
+      return;
+    }
+  }
+
   var group = getEnemySpriteGroup(enemyType);
   var data;
   switch (group) {
@@ -337,10 +438,41 @@ function drawEnemySprite(ctx, x, y, enemyType, frame, isCombat, isDead) {
   var ox = x + (targetW - w) / 2;
   var oy = y + (targetH - h) / 2;
 
-  drawSprite(ctx, ox, oy, grid, SPRITE_PAL, { scale: scale });
+  drawSprite(ctx, ox, oy, grid, pal || SPRITE_PAL, { scale: scale });
 }
 
-function drawBossSprite(ctx, x, y, bossId, frame, isCombat, isDead) {
+function drawBossSprite(ctx, x, y, bossId, frame, isCombat, isDead, pal, spriteData) {
+  var f = spriteAnimFrame;
+
+  if (spriteData && spriteData.image && isImageLoaded(spriteData) && !isDead) {
+    var animCfg = spriteData.combatAnimations ? spriteData.combatAnimations.idle : spriteData.animations.idle;
+    if (animCfg && animCfg.frames) {
+      var speed = animCfg.speed || 20;
+      var frameIdx = Math.floor(f / speed) % animCfg.frames.length;
+      var frameNum = animCfg.frames[frameIdx];
+      var sdW = isCombat ? (spriteData.combatFrameW || spriteData.frameW || 64) : (spriteData.frameW || 64);
+      var sdH = isCombat ? (spriteData.combatFrameH || spriteData.frameH || 64) : (spriteData.frameH || 64);
+      var spriteOpts = {
+        spriteData: {
+          image: spriteData.image,
+          sx: frameNum * sdW,
+          sy: 0,
+          sw: sdW,
+          sh: sdH,
+          w: sdW,
+          h: sdH
+        },
+        alpha: 1
+      };
+      var targetW = isCombat ? 120 : TILE_SIZE * 2;
+      var targetH = isCombat ? 120 : TILE_SIZE * 2;
+      var ox = x + (targetW - sdW) / 2;
+      var oy = y + (targetH - sdH) / 2;
+      drawSprite(ctx, ox, oy, null, pal || SPRITE_PAL, spriteOpts);
+      return;
+    }
+  }
+
   var data;
   switch (bossId) {
     case 'moss_giant':  data = bossMossGiant; break;
@@ -368,5 +500,128 @@ function drawBossSprite(ctx, x, y, bossId, frame, isCombat, isDead) {
 
   var opts = { scale: scale };
   if (isDead) opts.alpha = 0.6;
-  drawSprite(ctx, ox, oy, grid, SPRITE_PAL, opts);
+  drawSprite(ctx, ox, oy, grid, pal || SPRITE_PAL, opts);
 }
+
+// ======================
+// Color utilities
+// ======================
+
+function hexToRgb(hex) {
+  hex = (hex || '#000').replace('#', '');
+  if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+  return [parseInt(hex.substring(0,2),16), parseInt(hex.substring(2,4),16), parseInt(hex.substring(4,6),16)];
+}
+
+function rgbToHex(r, g, b) {
+  return '#' + [r,g,b].map(function(c) {
+    var h = Math.max(0,Math.min(255,Math.round(c))).toString(16);
+    return h.length < 2 ? '0'+h : h;
+  }).join('');
+}
+
+function shiftHue(hex, degrees) {
+  var rgb = hexToRgb(hex);
+  var r = rgb[0] / 255, g = rgb[1] / 255, b = rgb[2] / 255;
+  var max = Math.max(r, g, b), min = Math.min(r, g, b);
+  var h, s = max === 0 ? 0 : (max - min) / max, l = (max + min) / 2;
+
+  if (max === min) {
+    h = 0;
+  } else {
+    var d = max - min;
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) * 60;
+    else if (max === g) h = ((b - r) / d + 2) * 60;
+    else h = ((r - g) / d + 4) * 60;
+  }
+
+  h = (h + degrees) % 360;
+  if (h < 0) h += 360;
+
+  function hue2rgb(p, q, t) {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1/6) return p + (q - p) * 6 * t;
+    if (t < 1/2) return q;
+    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+    return p;
+  }
+
+  var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  var p = 2 * l - q;
+  var r1 = hue2rgb(p, q, h / 360 + 1/3);
+  var g1 = hue2rgb(p, q, h / 360);
+  var b1 = hue2rgb(p, q, h / 360 - 1/3);
+
+  return rgbToHex(r1 * 255, g1 * 255, b1 * 255);
+}
+
+// ======================
+// Theme-based sprite palette
+// ======================
+
+function getThemeSpritePalette(theme, playerClass) {
+  var pPlayer = SPRITE_PAL.slice();
+  var pEnemy = SPRITE_PAL.slice();
+
+  // Apply warrior class colors from theme to player palette
+  if (theme && theme.palette && theme.palette.classColors) {
+    var cc = theme.palette.classColors;
+    if (cc.warrior) {
+      var w = hexToRgb(cc.warrior);
+      pPlayer[13] = cc.warrior;
+      pPlayer[14] = rgbToHex(w[0] * 0.7, w[1] * 0.7, w[2] * 0.7);
+      var wMax = Math.max(w[0], w[1], w[2]);
+      pPlayer[30] = rgbToHex(
+        Math.min(255, wMax + (255 - wMax) * 0.4),
+        Math.min(255, w[1] + (255 - w[1]) * 0.3),
+        Math.min(255, w[2] + (255 - w[2]) * 0.3)
+      );
+    }
+  }
+
+  // Apply player class override (mage/rogue override theme colors)
+  if (playerClass === 'mage') {
+    pPlayer[14] = '#6644cc';
+    pPlayer[15] = '#4422aa';
+    pPlayer[30] = '#8866ee';
+  } else if (playerClass === 'rogue') {
+    pPlayer[14] = '#22aa44';
+    pPlayer[15] = '#118833';
+    pPlayer[30] = '#44cc66';
+  }
+
+  // Apply enemy hue shift
+  if (theme && theme.sprites && theme.sprites.enemyHueShift) {
+    var hs = theme.sprites.enemyHueShift;
+    for (var i = 0; i < pEnemy.length; i++) {
+      pEnemy[i] = shiftHue(pEnemy[i], hs);
+    }
+  }
+
+  return { player: pPlayer, enemy: pEnemy };
+}
+
+window.getThemeSpritePalette = getThemeSpritePalette;
+
+// ======================
+// Class-specific sprite palettes
+// ======================
+
+function getClassPalette(cls) {
+  var palette = SPRITE_PAL.slice();
+  if (cls === 'mage') {
+    palette[14] = '#6644cc';
+    palette[15] = '#4422aa';
+    palette[30] = '#8866ee';
+    return palette;
+  } else if (cls === 'rogue') {
+    palette[14] = '#22aa44';
+    palette[15] = '#118833';
+    palette[30] = '#44cc66';
+    return palette;
+  }
+  return SPRITE_PAL;
+}
+
+window.getClassPalette = getClassPalette;

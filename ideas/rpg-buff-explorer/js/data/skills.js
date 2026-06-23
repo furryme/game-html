@@ -8,7 +8,8 @@ const SKILLS = [
     cooldown: 0,
     unlockLvl: 1,
     type: 'dmg',
-    mult: 1.0
+    mult: 1.0,
+    cls: 'warrior'
   },
   {
     id: 'heavy_strike',
@@ -19,7 +20,8 @@ const SKILLS = [
     cooldown: 2,
     unlockLvl: 1,
     type: 'dmg',
-    mult: 1.8
+    mult: 1.8,
+    cls: 'warrior'
   },
   {
     id: 'slash_combo',
@@ -31,7 +33,8 @@ const SKILLS = [
     unlockLvl: 1,
     type: 'multi_hit',
     mult: 0.8,
-    hits: 2
+    hits: 2,
+    cls: 'warrior'
   },
   {
     id: 'defend',
@@ -41,7 +44,8 @@ const SKILLS = [
     mpCost: 0,
     cooldown: 0,
     unlockLvl: 1,
-    type: 'defend'
+    type: 'defend',
+    cls: 'warrior'
   },
   {
     id: 'war_cry',
@@ -54,7 +58,8 @@ const SKILLS = [
     type: 'buff',
     buffStat: 'atk',
     buffMult: 1.5,
-    buffDuration: 2
+    buffDuration: 2,
+    cls: 'warrior'
   },
   {
     id: 'whirlwind',
@@ -66,7 +71,8 @@ const SKILLS = [
     unlockLvl: 4,
     type: 'dmg_heal',
     mult: 1.5,
-    healPct: 0.1
+    healPct: 0.1,
+    cls: 'warrior'
   },
   {
     id: 'lifesteal',
@@ -78,7 +84,8 @@ const SKILLS = [
     unlockLvl: 5,
     type: 'dmg_drain',
     mult: 1.3,
-    drainPct: 0.2
+    drainPct: 0.2,
+    cls: 'warrior'
   },
   {
     id: 'armor_break',
@@ -92,7 +99,8 @@ const SKILLS = [
     mult: 1.0,
     debuffStat: 'def',
     debuffMult: 0.7,
-    debuffDuration: 2
+    debuffDuration: 2,
+    cls: 'warrior'
   },
   {
     id: 'berserk',
@@ -106,7 +114,8 @@ const SKILLS = [
     buffStat: 'atk',
     buffMult: 2.0,
     buffDuration: 2,
-    selfDmgPct: 0.05
+    selfDmgPct: 0.05,
+    cls: 'warrior'
   },
   {
     id: 'death_dance',
@@ -118,6 +127,159 @@ const SKILLS = [
     unlockLvl: 8,
     type: 'dmg_self',
     mult: 3.0,
-    selfDmgPct: 0.3
+    selfDmgPct: 0.3,
+    cls: 'warrior'
+  },
+  {
+    id: 'fireball',
+    name: '火球术',
+    icon: '🔥',
+    desc: '对所有敌人造成80%伤害的AOE攻击，冷却3回合',
+    mpCost: 10,
+    cooldown: 3,
+    unlockLvl: 1,
+    type: 'aoe',
+    mult: 0.8,
+    cls: 'mage'
+  },
+  {
+    id: 'arcane_pierce',
+    name: '奥术穿透',
+    icon: '💎',
+    desc: '无视30%防御造成伤害，冷却2回合',
+    mpCost: 8,
+    cooldown: 2,
+    unlockLvl: 1,
+    type: 'dmg_pierce',
+    mult: 1.5,
+    piercePct: 0.3,
+    cls: 'mage'
+  },
+  {
+    id: 'mana_shield',
+    name: '法力护盾',
+    icon: '🛡️',
+    desc: '消耗15MP抵消本回合所有伤害，冷却4回合',
+    mpCost: 15,
+    cooldown: 4,
+    unlockLvl: 3,
+    type: 'defend_shield',
+    cls: 'mage'
+  },
+  {
+    id: 'inferno',
+    name: '烈焰风暴',
+    icon: '🌋',
+    desc: '对所有敌人造成150%伤害，冷却5回合',
+    mpCost: 20,
+    cooldown: 5,
+    unlockLvl: 4,
+    type: 'aoe',
+    mult: 1.5,
+    cls: 'mage'
+  },
+  {
+    id: 'frost_nova',
+    name: '寒冰新星',
+    icon: '❄️',
+    desc: '造成100%伤害并降低敌人30%速度，持续2回合，冷却4回合',
+    mpCost: 12,
+    cooldown: 4,
+    unlockLvl: 5,
+    type: 'aoe_debuff',
+    mult: 1.0,
+    debuffStat: 'spd',
+    debuffMult: 0.7,
+    debuffDuration: 2,
+    cls: 'mage'
+  },
+  {
+    id: 'meteor',
+    name: '陨石术',
+    icon: '☄️',
+    desc: '造成250%伤害并对所有敌人附加灼烧，冷却6回合',
+    mpCost: 28,
+    cooldown: 6,
+    unlockLvl: 7,
+    type: 'aoe_burn',
+    mult: 2.5,
+    cls: 'mage'
+  },
+  {
+    id: 'backstab',
+    name: '背刺',
+    icon: '🗡️',
+    desc: '先手时造成200%伤害，非先手造成100%伤害，冷却2回合',
+    mpCost: 8,
+    cooldown: 2,
+    unlockLvl: 1,
+    type: 'dmg_conditional',
+    mult: 2.0,
+    multFallback: 1.0,
+    cls: 'rogue'
+  },
+  {
+    id: 'poison_dagger',
+    name: '毒药匕首',
+    icon: '🧪',
+    desc: '造成100%伤害并使敌人中毒5回合，冷却3回合',
+    mpCost: 10,
+    cooldown: 3,
+    unlockLvl: 1,
+    type: 'dmg_poison',
+    mult: 1.0,
+    poisonTurns: 5,
+    cls: 'rogue'
+  },
+  {
+    id: 'evade',
+    name: '闪避步',
+    icon: '💨',
+    desc: '本回合有80%概率闪避攻击并反击，冷却3回合',
+    mpCost: 6,
+    cooldown: 3,
+    unlockLvl: 3,
+    type: 'defend_evade',
+    evadeChance: 0.8,
+    cls: 'rogue'
+  },
+  {
+    id: 'assassinate',
+    name: '暗杀',
+    icon: '🌑',
+    desc: '造成300%伤害，如果敌人HP低于30%则必杀，冷却5回合',
+    mpCost: 18,
+    cooldown: 5,
+    unlockLvl: 4,
+    type: 'dmg_execute',
+    mult: 3.0,
+    executePct: 0.3,
+    cls: 'rogue'
+  },
+  {
+    id: 'shadow_step',
+    name: '暗影步',
+    icon: '👤',
+    desc: '连续攻击3次，每次60%伤害，冷却4回合',
+    mpCost: 14,
+    cooldown: 4,
+    unlockLvl: 5,
+    type: 'multi_hit',
+    mult: 0.6,
+    hits: 3,
+    cls: 'rogue'
+  },
+  {
+    id: 'vanish',
+    name: '消失',
+    icon: '🌀',
+    desc: '本回合无敌并回复20%HP，下回合攻击双倍伤害，冷却6回合',
+    mpCost: 20,
+    cooldown: 6,
+    unlockLvl: 7,
+    type: 'defend_next_atk',
+    healPct: 0.2,
+    nextAtkMult: 2.0,
+    cls: 'rogue'
   }
 ];

@@ -226,7 +226,7 @@ const BUFF_DEFS = [
     desc: '死亡时复活一次（冷却99回合）',
     icon: '💀',
     rarity: 'mythic',
-    tags: ['survival'],
+    tags: ['survival', 'death'],
     type: 'active',
     active: { cooldown: 99, execute: 'revive' },
     unlockCondition: { type: 'death', value: 10, label: '累计死亡10次' }
@@ -266,7 +266,7 @@ const BUFF_DEFS = [
   }
 ];
 
-const SYNERGY_DEFS = [
+var SYNERGY_DEFS = [
   {
     id: 'fire_storm',
     name: '烈焰风暴',
@@ -297,7 +297,7 @@ const SYNERGY_DEFS = [
     tags: ['crit', 'attack'],
     minTags: 2,
     effect: { type: 'crit_exec', pct: 0.1 },
-    desc: '暴击时10%概率处决敌人'
+    desc: '暴击时10%概率追击，造成10%当前HP的额外伤害'
   },
   {
     id: 'immortal',
@@ -334,8 +334,8 @@ const SYNERGY_DEFS = [
 ];
 
 const RARITY_WEIGHTS = {
-  common: { 1: 1.0, 2: 0.7, 3: 0.4 },
-  rare: { 1: 0.7, 2: 0.8, 3: 0.8 },
-  legendary: { 1: 0.0, 2: 0.2, 3: 0.4 },
-  mythic: { 1: 0.0, 2: 0.0, 3: 0.1 }
+  common: { 1: 1.0, 2: 0.7, 3: 0.4, 4: 0.3, 5: 0.2 },
+  rare: { 1: 0.7, 2: 0.8, 3: 0.8, 4: 0.6, 5: 0.5 },
+  legendary: { 1: 0.0, 2: 0.2, 3: 0.4, 4: 0.6, 5: 0.7 },
+  mythic: { 1: 0.0, 2: 0.0, 3: 0.1, 4: 0.2, 5: 0.3 }
 };
