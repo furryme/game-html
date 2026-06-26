@@ -637,6 +637,36 @@ var CYBER_DUNGEON_THEME = {
   }
 };
 
+// =================== HD_SPRITES_THEME (高清皮肤) ===================
+// 基于经典地城，启用精灵图渲染（战士虎人皮肤）
+// 在主题商城中作为独立皮肤出售
+
+var HD_SPRITES_THEME = {
+  id: 'hd_sprites',
+  name: '高清皮肤',
+  rarity: 'rare',
+  unlockCondition: null,
+
+  // 与经典地城相同的配色，只改变精灵渲染方式
+  spriteAssets: {
+    enabled: true,
+    manifest: 'js/data/sprite-assets/manifest.json',
+    basePath: 'js/data/sprite-assets/'
+  },
+
+  // 精灵相关的视觉效果微调
+  sprites: {
+    playerGlow: { warrior: '#f0c040', mage: '#5588ff', rogue: '#66bb6a' }
+  },
+
+  effects: {
+    glowEnabled: true,
+    glowColor: 'rgba(240,192,64,0.25)',
+    glowBlur: 8,
+    particleShape: 'circle'
+  }
+};
+
 // =================== FLOOR_TINTS (legacy) ===================
 // Kept for backward compatibility with old code that reads it directly.
 
@@ -730,7 +760,8 @@ var ThemeManager = (function () {
     FROST_SANCTUM_THEME,
     VOID_CORE_THEME,
     PIXEL_RETRO_THEME,
-    CYBER_DUNGEON_THEME
+    CYBER_DUNGEON_THEME,
+    HD_SPRITES_THEME
   ];
 
   // --- Deep merge ---
@@ -856,12 +887,34 @@ var ThemeManager = (function () {
     var sa = t.spriteAssets;
     if (sa && sa.enabled && window.SpriteLoader) {
       if (!window.currentSpriteLoader || window.currentSpriteLoader._manifest !== sa.manifest) {
+        console.log('[theme] Loading sprite assets manifest=' + sa.manifest + ' basePath=' + sa.basePath);
         window.currentSpriteLoader = new window.SpriteLoader();
+        window.currentSpriteLoader._manifest = sa.manifest;
         window.currentSpriteLoader.load(sa.manifest, sa.basePath);
+
+        // Wait for load completion and log status
+        window.currentSpriteLoader.waitForAll().then(function(ok) {
+          console.log('[theme] Sprite assets loaded: ' + ok);
+          if (window.currentSpriteLoader && window.currentSpriteLoader._sheets) {
+            var sheetNames = Object.keys(window.currentSpriteLoader._sheets);
+            var details = sheetNames.map(function(n) {
+              var s = window.currentSpriteLoader._sheets[n];
+              return n + '(ready=' + s.ready + ',err=' + s.error + ')';
+            });
+            console.log('[theme] Sprite sheets detail: ' + details.join(', '));
+          }
+          if (ok && typeof renderAll === 'function') {
+            renderAll(); // Redraw after sprites are ready
+          }
+        });
       }
     } else {
       // Clear sprite loader when not enabled or unavailable
-      window.currentSpriteLoader = null;
+      if (window.currentSpriteLoader) {
+        console.log('[theme] Clearing sprite assets');
+        window.currentSpriteLoader.clear();
+        window.currentSpriteLoader = null;
+      }
     }
   }
 
@@ -1068,7 +1121,7 @@ var ThemeManager = (function () {
       var result = [];
       for (var i = 0; i < _themeDefs.length; i++) {
         var def = _themeDefs[i];
-        var unlocked = def.id === 'classic' || this.isUnlocked(def.id === 'classic' ? 'default' : def.id);
+        var unlocked = this.isUnlocked(def.id === 'classic' ? 'default' : def.id);
         var progress = null;
         var required = null;
         if (def.unlockCondition) {
@@ -1109,6 +1162,10 @@ var ThemeManager = (function () {
     // Check if a theme is unlocked
     isUnlocked: function (id) {
       if (id === 'classic' || id === 'default') return true;
+      // Themes with no unlock condition are always unlocked
+      for (var i = 0; i < _themeDefs.length; i++) {
+        if (_themeDefs[i].id === id && !_themeDefs[i].unlockCondition) return true;
+      }
       var unlocks = loadUnlocks();
       return !!unlocks[id];
     },
@@ -1240,9 +1297,6 @@ var ThemeManager = (function () {
     }
   };
 })();
-
-// Initialize on load
-ThemeManager.init();
 
 // =================== Exports ===================
 

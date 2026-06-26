@@ -52,9 +52,21 @@ test.describe("ThemeManager theme system", () => {
       window.themeManager.switch("default");
     });
 
-    // Start a new game with default theme first
-    await page.evaluate(() => startNewGame());
+    // Start a new game with default theme first, pick warrior class
+    await page.evaluate(() => {
+      startNewGame();
+      if (typeof pickClass === 'function') pickClass('warrior');
+    });
     await page.waitForTimeout(500);
+
+    // Dismiss buff selection modal if open
+    await page.evaluate(() => {
+      const overlay = document.getElementById('modal-overlay');
+      if (overlay && overlay.style.display === 'flex' && typeof closeModal === 'function') {
+        closeModal();
+      }
+    });
+    await page.waitForTimeout(300);
 
     // Verify we're on dungeon screen
     const screen = await page.evaluate(() => gameState.screen);

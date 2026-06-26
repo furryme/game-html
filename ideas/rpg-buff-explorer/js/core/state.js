@@ -50,6 +50,9 @@ function initPlayer(cls) {
     gemBonusHp: 0,
     x: 0,
     y: 0,
+    state: 'idle',
+    dirX: 1,
+    dirY: 0,
   };
   if (base) {
     player.baseAtk = base.atk;

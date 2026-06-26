@@ -203,7 +203,7 @@ test.describe("Theme shop shows all themes", () => {
     expect(hasTitle).toBe(true);
   });
 
-  test("shop lists all 6 theme names", async ({ page }) => {
+  test("shop lists all 7 theme names", async ({ page }) => {
     await page.click('button[onclick="showThemeShop()"]');
     await page.waitForTimeout(500);
 
@@ -217,7 +217,7 @@ test.describe("Theme shop shows all themes", () => {
       return Array.from(elts).map(function (e) { return e.textContent.trim(); });
     });
 
-    expect(names.length).toBe(6);
+    expect(names.length).toBe(7);
     expect(names).toContain("经典地城");
     expect(names).toContain("像素复古");
     expect(names).toContain("血月之夜");

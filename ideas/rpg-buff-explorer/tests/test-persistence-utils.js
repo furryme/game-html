@@ -200,13 +200,15 @@ describe('unlockTalent', ({ assert }) => {
     if (ok !== false) throw new Error('should return false with 0 shards');
   });
 
-  it('已花费的碎片等于 soulShards 时拒绝升级', () => {
+  it('已花费的碎片等于 soulShards 时仍然可以升级（只要碎片 > 0）', () => {
     localStorage.clear();
     const perm = loadPermanent();
     perm.soulShards = 5;
     perm.talents.vitalis = 5;
     const ok = unlockTalent(perm, 'vitalis');
-    if (ok !== false) throw new Error('should return false when totalSpent >= soulShards');
+    if (!ok) throw new Error('should return true when soulShards > 0 regardless of totalSpent');
+    if (perm.talents.vitalis !== 6) throw new Error('vitalis: expected 6, got ' + perm.talents.vitalis);
+    if (perm.soulShards !== 4) throw new Error('soulShards: expected 4, got ' + perm.soulShards);
   });
 
   it('无效 talentId 返回 false', () => {

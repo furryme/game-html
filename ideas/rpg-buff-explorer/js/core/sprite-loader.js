@@ -22,11 +22,13 @@ SpriteLoader.prototype.load = function (manifestPath, basePath) {
   xhr.responseType = 'json';
   xhr.onload = function () {
     if (xhr.status >= 400) {
+      console.log('[sprite] manifest XHR error status=' + xhr.status + ' path=' + manifestPath);
       self._resolveDeferred(false);
       return;
     }
     var manifest = xhr.response;
     self._total = Object.keys(manifest).length;
+    console.log('[sprite] manifest loaded ok, entries=' + self._total + ' names=' + JSON.stringify(Object.keys(manifest)));
     if (self._total === 0) {
       self._resolveDeferred(true);
       return;
@@ -37,6 +39,7 @@ SpriteLoader.prototype.load = function (manifestPath, basePath) {
     }
   };
   xhr.onerror = function () {
+    console.log('[sprite] manifest XHR onerror path=' + manifestPath);
     self._resolveDeferred(false);
   };
   xhr.send();
@@ -47,32 +50,62 @@ SpriteLoader.prototype._loadOne = function (name, entry, basePath) {
   var img = new Image();
   img.crossOrigin = 'anonymous';
 
-  this._sheets[name] = {
+  var sheet = {
     image: img,
     entry: entry,
     ready: false,
     error: false
   };
 
-  var onSet = function () {
-    self._sheets[name].ready = true;
-    self._loaded++;
-    self._checkDone();
-  };
-  var onErr = function () {
-    self._sheets[name].error = true;
-    self._loaded++;
-    self._checkDone();
+  // 如果有独立的 combatSrc，加载战斗精灵图
+  this._hasCombatSrc = {};
+
+  var loadCount = entry.combatSrc ? 2 : 1;
+  var loadedCount = 0;
+  var hadError = false;
+
+  var onOneDone = function (err) {
+    if (err) hadError = true;
+    loadedCount++;
+    if (loadedCount >= loadCount) {
+      sheet.ready = !hadError;
+      sheet.error = hadError;
+      self._loaded++;
+      self._checkDone();
+    }
   };
 
-  img.onload = onSet;
-  img.onerror = onErr;
-  img.onloadstart = function () {
-    img.onload = onSet;
-    img.onerror = onErr;
-  };
+  this._sheets[name] = sheet;
 
-  img.src = basePath + entry.src;
+  var mapUrl = basePath + entry.src;
+  img.onload = function () {
+    console.log('[sprite] img loaded name=' + name + ' map=' + entry.src + ' size=' + img.naturalWidth + 'x' + img.naturalHeight);
+    onOneDone(false);
+  };
+  img.onerror = function () {
+    console.log('[sprite] img ERROR name=' + name + ' url=' + mapUrl);
+    onOneDone(true);
+  };
+  img.src = mapUrl;
+
+  // 加载独立的战斗精灵图（如果指定了 combatSrc）
+  if (entry.combatSrc) {
+    var combatUrl = basePath + entry.combatSrc;
+    var combatImg = new Image();
+    combatImg.crossOrigin = 'anonymous';
+    sheet.combatImage = combatImg;
+    this._hasCombatSrc[name] = true;
+
+    combatImg.onload = function () {
+      console.log('[sprite] combat img loaded name=' + name + ' combatSrc=' + entry.combatSrc + ' size=' + combatImg.naturalWidth + 'x' + combatImg.naturalHeight);
+      onOneDone(false);
+    };
+    combatImg.onerror = function () {
+      console.log('[sprite] combat img ERROR name=' + name + ' url=' + combatUrl);
+      onOneDone(true);
+    };
+    combatImg.src = combatUrl;
+  }
 };
 
 SpriteLoader.prototype._checkDone = function () {
@@ -82,6 +115,7 @@ SpriteLoader.prototype._checkDone = function () {
 };
 
 SpriteLoader.prototype._resolveDeferred = function (ok) {
+  console.log('[sprite] waitForAll resolve ok=' + ok + ' loaded=' + this._loaded + '/' + this._total);
   var deferred = this._deferred;
   this._deferred = [];
   for (var i = 0; i < deferred.length; i++) {
@@ -122,7 +156,7 @@ SpriteLoader.prototype.waitForAll = function () {
 
 SpriteLoader.prototype.getSprite = function (name, animName, frameIndex, isCombat) {
   var s = this._sheets[name];
-  if (!s || !s.ready || !s.image) return null;
+  if (!s || !s.ready) return null;
 
   var entry = s.entry;
   var anims = isCombat ? entry.combatAnimations : entry.animations;
@@ -138,8 +172,15 @@ SpriteLoader.prototype.getSprite = function (name, animName, frameIndex, isComba
   var sw = isCombat ? entry.combatFrameW : entry.frameW;
   var sh = isCombat ? entry.combatFrameH : entry.frameH;
 
+  // 如果有独立的 combatSrc，战斗时使用 combatImage
+  var img = s.image;
+  if (isCombat && s.combatImage) {
+    img = s.combatImage;
+  }
+  if (!img) return null;
+
   return {
-    image: s.image,
+    image: img,
     sx: frameIdx * sw,
     sy: 0,
     sw: sw,
@@ -177,6 +218,37 @@ SpriteLoader.prototype.getSpeed = function (name, animName, isCombat) {
   return anims[animName].speed || 15;
 };
 
+// Return manifest entry + loaded image(s) in the format drawPlayerSprite expects
+SpriteLoader.prototype.getEntryWithData = function (name, isCombat) {
+  var s = this._sheets[name];
+  if (!s || !s.ready || !s.entry) return null;
+  if (!this._lastGetDataLogged || this._lastGetDataLogged.name !== name) {
+    console.log('[sprite] getEntryWithData name=' + name + ' isCombat=' + isCombat + ' ready=' + s.ready + ' hasCombatImg=' + !!s.combatImage);
+    this._lastGetDataLogged = { name: name };
+  }
+
+  var entry = s.entry;
+  var img;
+
+  if (isCombat && s.combatImage) {
+    img = s.combatImage;
+  } else {
+    img = s.image;
+  }
+  if (!img) return null;
+
+  var result = {
+    image: img,
+    frameW: entry.frameW,
+    frameH: entry.frameH,
+    animations: entry.animations,
+    combatFrameW: entry.combatFrameW,
+    combatFrameH: entry.combatFrameH,
+    combatAnimations: entry.combatAnimations
+  };
+  return result;
+};
+
 // Also return the frame index within the sheet for a given animation frame
 SpriteLoader.prototype.getSheetFrameIndex = function (name, animName, frameIndex, isCombat) {
   var s = this._sheets[name];
@@ -196,8 +268,9 @@ SpriteLoader.prototype.getSheetFrameIndex = function (name, animName, frameIndex
 SpriteLoader.prototype.clear = function () {
   var names = Object.keys(this._sheets);
   for (var i = 0; i < names.length; i++) {
-    this._sheets[names[i]].image.src = '';
-    this._sheets[names[i]].image = null;
+    var s = this._sheets[names[i]];
+    if (s.image) { s.image.src = ''; s.image = null; }
+    if (s.combatImage) { s.combatImage.src = ''; s.combatImage = null; }
   }
   this._sheets = {};
   this._total = 0;
@@ -211,4 +284,13 @@ if (typeof window !== 'undefined') {
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = SpriteLoader;
+}
+
+// Initialize ThemeManager now that SpriteLoader is defined.
+// This must happen after sprite-loader.js is parsed because _applySpriteAssets
+// guards on `window.SpriteLoader` being available (see theme.js _applySpriteAssets).
+// Previously ThemeManager.init() was at the bottom of theme.js which loaded before
+// sprite-loader.js, causing HD sprites to not load on page refresh.
+if (typeof ThemeManager !== 'undefined') {
+  ThemeManager.init();
 }

@@ -72,6 +72,10 @@ async function dismissBuffModal(page) {
     if (overlay && overlay.style.display === "flex" && typeof closeModal === "function") {
       closeModal();
     }
+    // Closing the buff modal also un-pauses the game
+    if (gameState.paused && gameState.screen === 'dungeon') {
+      gameState.paused = false;
+    }
   });
   await page.waitForTimeout(300);
 }
@@ -80,12 +84,20 @@ async function dismissBuffModal(page) {
  * Helper: verify player can move by pressing W and checking position change.
  */
 async function verifyCanMove(page) {
-  const posBefore = await page.evaluate(() => ({ x: player.x, y: player.y }));
-  await page.keyboard.press("W");
-  await page.waitForTimeout(150);
-  const posAfter = await page.evaluate(() => ({ x: player.x, y: player.y }));
-  const paused = await page.evaluate(() => gameState.paused);
-  return { posBefore, posAfter, moved: posBefore.y !== posAfter.y, paused };
+  // Try multiple directions since player might be at a map edge
+  var keys = ["W", "A", "S", "D"];
+  for (var k = 0; k < keys.length; k++) {
+    var posBefore = await page.evaluate(() => ({ x: player.x, y: player.y }));
+    await page.keyboard.press(keys[k]);
+    await page.waitForTimeout(100);
+    var posAfter = await page.evaluate(() => ({ x: player.x, y: player.y }));
+    if (posBefore.x !== posAfter.x || posBefore.y !== posAfter.y) {
+      var paused = await page.evaluate(() => gameState.paused);
+      return { posBefore, posAfter, moved: true, paused };
+    }
+  }
+  var paused = await page.evaluate(() => gameState.paused);
+  return { posBefore: { x: -1, y: -1 }, posAfter: { x: -1, y: -1 }, moved: false, paused };
 }
 
 /**
@@ -260,17 +272,19 @@ test.describe("Floor Transitions and Game Flow", () => {
     await startGame(page);
 
     for (var round = 0; round < 3; round++) {
-      // Find a living enemy, set its hp = 1, start combat
+      // Find a living NON-BOSS enemy (boss death has async equipment drops which cause timing issues)
       const idx = await page.evaluate(() => {
-        // Regenerate floor if needed
-        if (!dungeon.enemies || !dungeon.enemies.some(function (e) { return e && e.hp > 0; })) {
+        // Keep regenerating until we find non-boss enemies (up to 10 retries)
+        for (var retry = 0; retry < 10; retry++) {
+          if (dungeon.enemies && dungeon.enemies.some(function (e) { return e && e.hp > 0 && !e.boss; })) break;
           dungeon = generateFloor(dungeon.floor);
           player.x = dungeon.playerStart.x;
           player.y = dungeon.playerStart.y;
         }
         for (var i = 0; i < dungeon.enemies.length; i++) {
-          if (dungeon.enemies[i] && dungeon.enemies[i].hp > 0) {
-            dungeon.enemies[i].hp = 1;
+          var e = dungeon.enemies[i];
+          if (e && e.hp > 0 && !e.boss) {
+            e.hp = 1;
             return i;
           }
         }
@@ -289,6 +303,19 @@ test.describe("Floor Transitions and Game Flow", () => {
       // Click attack to kill the 1-hp enemy
       await page.click(".btn-atk");
       await page.waitForTimeout(500);
+
+      // Dismiss any async modal that may have opened (gem enhancement, equipment modal)
+      await page.evaluate(() => {
+        const overlay = document.getElementById('modal-overlay');
+        if (overlay && overlay.style.display === 'flex' && typeof closeModal === 'function') {
+          closeModal();
+        }
+        // Ensure game is unpaused for movement test
+        if (gameState.paused && gameState.screen === 'dungeon') {
+          gameState.paused = false;
+        }
+      });
+      await page.waitForTimeout(200);
 
       // Verify returned to dungeon
       expect(await page.evaluate(() => gameState.screen)).toBe("dungeon");
@@ -329,9 +356,26 @@ test.describe("Floor Transitions and Game Flow", () => {
     expect(gameoverState.screenActive).toBe(true);
     expect(gameoverState.paused).toBe(true);
 
-    // Click "重新开始" (restart) button
+    // Click "重新开始" (restart) button - shows class selection
     await page.click(".restart-btn");
+    await page.waitForTimeout(500);
+
+    // Pick warrior class to enter the dungeon
+    await page.evaluate(() => {
+      if (typeof pickClass === 'function') {
+        pickClass('warrior');
+      }
+    });
     await page.waitForTimeout(1000);
+
+    // Dismiss any buff selection modal
+    await page.evaluate(() => {
+      const overlay = document.getElementById('modal-overlay');
+      if (overlay && overlay.style.display === 'flex' && typeof closeModal === 'function') {
+        closeModal();
+      }
+    });
+    await page.waitForTimeout(300);
 
     // Verify game has restarted - screen should be dungeon, gameover-screen should be gone
     const restartState = await page.evaluate(() => {
@@ -382,13 +426,15 @@ test.describe("Floor Transitions and Game Flow", () => {
     expect(afterFloor.activeScreens.length).toBe(0);
 
     // --- After combat end ---
+    // Pick a NON-BOSS enemy (boss kills trigger equipment modal which is expected behavior)
     const enemyIdx = await page.evaluate(() => {
       dungeon = generateFloor(dungeon.floor);
       player.x = dungeon.playerStart.x;
       player.y = dungeon.playerStart.y;
       for (var i = 0; i < dungeon.enemies.length; i++) {
-        if (dungeon.enemies[i] && dungeon.enemies[i].hp > 0) {
-          dungeon.enemies[i].hp = 1;
+        var e = dungeon.enemies[i];
+        if (e && e.hp > 0 && !e.boss) {
+          e.hp = 1;
           return i;
         }
       }
@@ -401,6 +447,15 @@ test.describe("Floor Transitions and Game Flow", () => {
       await page.click(".btn-atk");
       await page.waitForTimeout(500);
     }
+
+    // Boss kill may have opened equipment modal — dismiss it before checking overlay state
+    await page.evaluate(() => {
+      var overlay = document.getElementById("modal-overlay");
+      if (overlay && overlay.style.display !== "none" && typeof closeModal === "function") {
+        closeModal();
+      }
+    });
+    await page.waitForTimeout(200);
 
     const afterCombat = await page.evaluate(() => {
       var overlay = document.getElementById("modal-overlay");

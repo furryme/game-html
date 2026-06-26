@@ -18,14 +18,14 @@ test.describe("ThemeManager - Complete Theme System", () => {
     await page.waitForTimeout(300);
   });
 
-  // ==================== A. Theme Data: 6 Themes ====================
+  // ==================== A. Theme Data: 7 Themes ====================
 
-  test("A1) All 6 themes are registered", async ({ page }) => {
+  test("A1) All 7 themes are registered", async ({ page }) => {
     const ids = await page.evaluate(() => window.themeManager.getAllIds());
     const expected = [
       "default",
       "blood_moon", "frost_sanctum", "void_core",
-      "pixel_retro", "cyber_dungeon"
+      "pixel_retro", "cyber_dungeon", "hd_sprites"
     ];
     for (const id of expected) {
       expect(ids).toContain(id);
@@ -51,7 +51,7 @@ test.describe("ThemeManager - Complete Theme System", () => {
       return result;
     });
     const uniqueIds = Object.keys(modules);
-    expect(uniqueIds.length).toBe(6);
+    expect(uniqueIds.length).toBe(7);
     for (const id of uniqueIds) {
       expect(modules[id].palette).toBe(true);
       expect(modules[id].sprites).toBe(true);
@@ -66,7 +66,7 @@ test.describe("ThemeManager - Complete Theme System", () => {
     const info = await page.evaluate(() => {
       const tm = window.themeManager;
       const themes = {};
-      const ids = ["classic", "blood_moon", "frost_sanctum", "void_core", "pixel_retro", "cyber_dungeon"];
+      const ids = ["classic", "blood_moon", "frost_sanctum", "void_core", "pixel_retro", "cyber_dungeon", "hd_sprites"];
       for (const id of ids) {
         const t = tm.getTheme(id);
         if (t) themes[id] = { name: t.name, rarity: t.rarity };
@@ -85,6 +85,8 @@ test.describe("ThemeManager - Complete Theme System", () => {
     expect(info.pixel_retro.rarity).toBe("common");
     expect(info.cyber_dungeon.name).toBe("赛博地猛");
     expect(info.cyber_dungeon.rarity).toBe("rare");
+    expect(info.hd_sprites.name).toBe("高清皮肤");
+    expect(info.hd_sprites.rarity).toBe("rare");
   });
 
   // ==================== B. Theme Switching ====================
@@ -593,11 +595,11 @@ test.describe("ThemeManager - Complete Theme System", () => {
     expect(exists).toBe(true);
   });
 
-  test("I2) getAllThemes() returns 6 theme entries", async ({ page }) => {
+  test("I2) getAllThemes() returns 7 theme entries", async ({ page }) => {
     const count = await page.evaluate(() => {
       return window.themeManager.getAllThemes().length;
     });
-    expect(count).toBe(6);
+    expect(count).toBe(7);
   });
 
   test("I3) getAllThemes() includes unlock state and progress", async ({ page }) => {
@@ -613,6 +615,10 @@ test.describe("ThemeManager - Complete Theme System", () => {
 
     // pixel_retro unlocked by default
     expect(idMap.pixel_retro.unlocked).toBe(true);
+
+    // hd_sprites unlocked by default (no unlock condition)
+    expect(idMap.hd_sprites.unlocked).toBe(true);
+    expect(idMap.hd_sprites.unlockCondition).toBe(null);
 
     // blood_moon locked
     expect(idMap.blood_moon.unlocked).toBe(false);
@@ -640,6 +646,7 @@ test.describe("ThemeManager - Complete Theme System", () => {
     expect(conditions.frost_sanctum).toEqual({ type: "totalClears", value: 1 });
     expect(conditions.cyber_dungeon).toEqual({ type: "clearsByClass", cls: "mage", value: 1 });
     expect(conditions.void_core).toEqual({ type: "totalClears", value: 3 });
+    expect(conditions.hd_sprites).toBe(null);
   });
 
   test("I5) checkUnlockConditions unlocks eligible themes", async ({ page }) => {
@@ -822,7 +829,7 @@ test.describe("ThemeManager - Complete Theme System", () => {
     }
     // Should alternate between unlocked themes, never hitting locked ones
     for (const id of sequence) {
-      expect(["default", "pixel_retro", "blood_moon", "frost_sanctum", "void_core", "cyber_dungeon"]).toContain(id);
+      expect(["default", "pixel_retro", "hd_sprites", "blood_moon", "frost_sanctum", "void_core", "cyber_dungeon"]).toContain(id);
       expect(id).not.toBe("blood_moon");
       expect(id).not.toBe("frost_sanctum");
       expect(id).not.toBe("void_core");
@@ -910,7 +917,7 @@ test.describe("ThemeManager - Complete Theme System", () => {
     }, stats);
 
     // All should now be switchable
-    for (const id of ["default", "blood_moon", "frost_sanctum", "void_core", "pixel_retro", "cyber_dungeon"]) {
+    for (const id of ["default", "blood_moon", "frost_sanctum", "void_core", "pixel_retro", "cyber_dungeon", "hd_sprites"]) {
       const result = await page.evaluate((id) => {
         const ok = window.themeManager.switch(id);
         return { ok, activeId: window.themeManager.getActiveId() };

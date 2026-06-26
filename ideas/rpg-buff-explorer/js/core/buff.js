@@ -314,10 +314,10 @@ function showBuffSelection(floorNum) {
         'padding:12px;text-align:center;transition:transform 0.15s;" ' +
         'onmouseover="this.style.transform=\'scale(1.05)\'" ' +
         'onmouseout="this.style.transform=\'scale(1)\'">' +
-        '<div style="font-size:32px">' + c.icon + '</div>' +
-        '<div style="color:' + color + ';font-weight:bold;margin:4px 0">' + c.name + '</div>' +
+        '<div class="icon" style="font-size:32px">' + c.icon + '</div>' +
+        '<div class="name" style="color:' + color + ';font-weight:bold;margin:4px 0">' + c.name + '</div>' +
         '<div style="font-size:11px;color:#888;text-transform:uppercase">' + c.rarity + '</div>' +
-        '<div style="font-size:12px;color:#ccc;margin-top:6px">' + c.desc + '</div>' +
+        '<div class="desc" style="font-size:12px;color:#ccc;margin-top:6px">' + c.desc + '</div>' +
         synergyHint +
         (c.unlockCondition ? '<div style="font-size:10px;color:#666;margin-top:4px">\u{1F513} ' + c.unlockCondition.label + '</div>' : '') +
         '</div>';
@@ -370,6 +370,7 @@ function selectBuff(buffId) {
   player.mp = player.maxMp;
   closeModal();
   addLog('获得增益：' + def.icon + ' ' + def.name, 'loot');
+  playSound('pickup');
   renderPlayerPanel();
 
   // Clean up temp storage
@@ -418,10 +419,10 @@ function showRelicSelection(buffs, keptGold) {
       'padding:10px; text-align:center; transition:transform 0.15s;" ' +
       'onmouseover="this.style.transform=\'scale(1.05)\'" ' +
       'onmouseout="this.style.transform=\'scale(1)\'">' +
-      '<div style="font-size:24px;">' + def.icon + '</div>' +
-      '<div style="color:' + color + '; font-weight:bold; margin:4px 0;">' + def.name + '</div>' +
+      '<div class="icon" style="font-size:24px;">' + def.icon + '</div>' +
+      '<div class="name" style="color:' + color + '; font-weight:bold; margin:4px 0;">' + def.name + '</div>' +
       '<div style="font-size:10px; color:#888; text-transform:uppercase;">' + def.rarity + '</div>' +
-      '<div style="font-size:11px; color:#ccc; margin-top:4px;">' + def.desc + '</div>' +
+      '<div class="desc" style="font-size:11px; color:#ccc; margin-top:4px;">' + def.desc + '</div>' +
       '</div>';
   }
 
@@ -488,6 +489,7 @@ function selectRelic(buffId) {
     saveRelic(permanent, buffId);
     var def = findBuffDef(buffId);
     addLog('选择遗物：' + (def ? def.icon : '') + ' ' + (def ? def.name : buffId), 'loot');
+    playSound('levelUp');
   } else {
     // Clear any existing relic
     if (typeof permanent !== 'undefined' && permanent) {
@@ -534,6 +536,7 @@ function selectEquipRelic() {
       if (equipCopy[slotNames[i]]) names.push(equipCopy[slotNames[i]].name || slotNames[i]);
     }
     addLog('保留装备遗物：' + names.join(', '), 'loot');
+    playSound('levelUp');
   }
 
   finishGameOver(window._relicKeptGold || 0);

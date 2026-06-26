@@ -1,0 +1,4 @@
+- [TinyWind 调研](research/TinyWind.md) — 像素风海盗航海游戏技术调研
+- [buff 选择框架](buff选择框架.md) — 数据驱动的 buff 选择 UI，任何游戏接入只需定义 buff 数组
+- [HTML + Canvas 混合架构](html加canvas混合架构.md) — Canvas 渲染游戏画面 + HTML 处理 UI 交互，职责分离
+- [像素风程序化实现](像素风程序化实现.md) — 单文件下用 Canvas API + 二维数组画像素精灵，无需外部图片

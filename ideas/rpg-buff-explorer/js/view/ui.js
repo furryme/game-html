@@ -124,7 +124,10 @@ function equipPanelHTML() {
   }
   html += '</div>';
   html += '<div style="display:flex; gap:4px; margin:3px 0;">';
-  html += '<button class="equip-modal-btn" onclick="showEquipmentModal()">装备</button>';
+  var invEquipCount = (player.inventory.equipment && player.inventory.equipment.length) || 0;
+  var equipBadge = invEquipCount > 0 ? '<span style="background:#e53935; color:#fff; font-size:9px; padding:0 4px; border-radius:8px; margin-left:2px; font-weight:bold;">' + invEquipCount + '</span>' : '';
+  var equipBtnColor = invEquipCount > 0 ? 'border-color:#ffd700; color:#ffd700;' : '';
+  html += '<button class="equip-modal-btn" style="' + equipBtnColor + '" onclick="showEquipmentModal()">装备' + equipBadge + '</button>';
   html += '<button class="equip-modal-btn" onclick="showSaveSlotPicker()">存档</button>';
   html += '</div>';
   return html;
@@ -331,7 +334,7 @@ function showTalentScreen() {
       (canBuy ? '升级 (1 碎片)' : (lvl >= 10 ? '已满' : '碎片不足')) + '</button>';
     html += '</div>';
   }
-  html += '<br><button class="modal-btn" onclick="closeModal()">关闭</button>';
+  html += '<br><button class="modal-btn" onclick="closeTalentScreen()">关闭</button>';
 
   // Reset all talents button
   var totalSpent = 0;
@@ -344,6 +347,11 @@ function showTalentScreen() {
   }
 
   showModal(html);
+}
+
+function closeTalentScreen() {
+  closeModal();
+  updateTitleScreen();
 }
 
 function buyTalent(talentId) {
@@ -1107,6 +1115,19 @@ function showEquipmentModal() {
 
   var html = '<h3 style="margin-top:0; color:' + gold + ';">⚔ 装备管理</h3>';
 
+  // --- New drops notification ---
+  var newDropCount = 0;
+  if (player.inventory.equipment) {
+    for (var nd = 0; nd < player.inventory.equipment.length; nd++) {
+      if (player.inventory.equipment[nd].justDropped) newDropCount++;
+    }
+  }
+  if (newDropCount > 0) {
+    html += '<div style="background:rgba(240,192,64,0.12); border:1.5px solid ' + gold + '; border-radius:' + radius + '; padding:6px 10px; margin:6px 0; text-align:center;">';
+    html += '<span style="color:' + gold + '; font-weight:bold; font-size:11px;">获得 ' + newDropCount + ' 件新装备！</span>';
+    html += '</div>';
+  }
+
   // --- Equipped slots ---
   html += '<div style="margin-bottom:8px;">';
   html += '<div style="font-size:10px; color:' + textSecondary + '; margin-bottom:4px;">当前装备</div>';
@@ -1158,12 +1179,15 @@ function showEquipmentModal() {
     for (var i = 0; i < invEquip.length; i++) {
       var item = invEquip[i];
       var ic = rarityColor[item.rarity] || white;
-      var itemBg = 'rgba(255,255,255,0.02)';
-      html += '<div style="display:flex; align-items:center; gap:4px; border:1px solid ' + grayDk + '; border-radius:' + radius + '; padding:5px 8px; margin:3px 0; background:' + itemBg + ';">';
+      var isNew = item.justDropped === true;
+      var itemBorder = isNew ? gold : grayDk;
+      var itemBg = isNew ? 'rgba(240,192,64,0.08)' : 'rgba(255,255,255,0.02)';
+      var newTag = isNew ? '<span style="color:' + gold + '; font-size:8px; font-weight:bold; margin-left:3px;">NEW</span>' : '';
+      html += '<div style="display:flex; align-items:center; gap:4px; border:1.5px solid ' + itemBorder + '; border-radius:' + radius + '; padding:5px 8px; margin:3px 0; background:' + itemBg + (isNew ? '; box-shadow:0 0 6px rgba(240,192,64,0.25);' : '') + ';">';
       html += '<div style="flex:1; font-size:10px;">';
 
       if (item.identified === false) {
-        html += '<span style="color:' + textMuted + '">' + item.icon + ' ??? (' + rarityLabel[item.rarity] + ') 未鉴定</span>';
+        html += '<span style="color:' + textMuted + '">' + item.icon + ' ??? (' + rarityLabel[item.rarity] + ') 未鉴定</span>' + newTag;
       } else {
         var iStatsStr = '';
         var iStatKeys = Object.keys(item.stats);
@@ -1171,7 +1195,7 @@ function showEquipmentModal() {
           var iSd = EQUIP_STAT_DEFS[iStatKeys[isk]];
           if (iSd) iStatsStr += iSd.icon + iSd.label + item.stats[iStatKeys[isk]] + ' ';
         }
-        html += '<span style="color:' + ic + '; font-weight:bold;">' + item.icon + ' ' + item.name + '</span><br>';
+        html += '<span style="color:' + ic + '; font-weight:bold;">' + item.icon + ' ' + item.name + '</span>' + newTag + '<br>';
         html += '<span style="font-size:9px; color:' + grayLt + '">' + iStatsStr + '</span>';
       }
 
@@ -1188,16 +1212,23 @@ function showEquipmentModal() {
   html += '</div>';
 
   showModal(html);
+
+  // Clear the justDropped flag so next open doesn't show NEW
+  if (newDropCount > 0 && typeof clearNewDrops === 'function') {
+    clearNewDrops();
+  }
 }
 
 function doEquipItem(equipId) {
   equipItem(equipId);
+  playSound('defend');
   renderPlayerPanel();
   showEquipmentModal();
 }
 
 function doUnequipSlot(slot) {
   unequipSlot(slot);
+  playSound('step');
   renderPlayerPanel();
   showEquipmentModal();
 }
@@ -1221,6 +1252,7 @@ window.renderVictoryScreen = renderVictoryScreen;
 window.returnToTitle = returnToTitle;
 window.showTalentScreen = showTalentScreen;
 window.buyTalent = buyTalent;
+window.closeTalentScreen = closeTalentScreen;
 window.pickClass = pickClass;
 window.showClassSelection = showClassSelection;
 window.showGemEnhancement = showGemEnhancement;

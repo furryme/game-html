@@ -331,6 +331,94 @@ function _step(ctx) {
   noise.stop(t + 0.03);
 }
 
+function _skill(ctx) {
+  var t = ctx.currentTime;
+  // Rising square wave 600-1200Hz
+  var osc = ctx.createOscillator();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(600, t);
+  osc.frequency.exponentialRampToValueAtTime(1200, t + 0.06);
+  var g = ctx.createGain();
+  g.gain.setValueAtTime(0.15, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+  osc.connect(g).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + 0.1);
+  // Short noise tail
+  var buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.02), ctx.sampleRate);
+  var data = buf.getChannelData(0);
+  for (var i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.3;
+  var noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  var ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.15, t + 0.05);
+  ng.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+  noise.connect(ng).connect(ctx.destination);
+  noise.start(t + 0.05);
+  noise.stop(t + 0.12);
+}
+
+function _trap(ctx) {
+  var t = ctx.currentTime;
+  // Noise burst
+  var buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.08), ctx.sampleRate);
+  var data = buf.getChannelData(0);
+  for (var i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.5;
+  var noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  var ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.3, t);
+  ng.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+  noise.connect(ng).connect(ctx.destination);
+  noise.start(t);
+  noise.stop(t + 0.1);
+  // Low square wave drop 200-80Hz
+  var osc = ctx.createOscillator();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(200, t);
+  osc.frequency.exponentialRampToValueAtTime(80, t + 0.1);
+  var g = ctx.createGain();
+  g.gain.setValueAtTime(0.2, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+  osc.connect(g).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + 0.1);
+}
+
+function _deny(ctx) {
+  var t = ctx.currentTime;
+  var osc = ctx.createOscillator();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(150, t);
+  var g = ctx.createGain();
+  g.gain.setValueAtTime(0.2, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+  osc.connect(g).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + 0.1);
+}
+
+function _event(ctx) {
+  var t = ctx.currentTime;
+  var tv = _getToneVol();
+  var wf = _getWaveform();
+  var tone = _getTone();
+  var notes = [500, 700];
+  notes.forEach(function (freq, i) {
+    var osc = ctx.createOscillator();
+    osc.type = wf || 'sine';
+    osc.frequency.setValueAtTime(freq, t + i * 0.06);
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.15 * tv, t + i * 0.06);
+    g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.06 + 0.1);
+    _connectOsc(osc, g);
+    if (tone === 'hollow') _addHollowPath(osc, g);
+    osc.start(t + i * 0.06);
+    osc.stop(t + i * 0.06 + 0.1);
+  });
+}
+
 function _shop(ctx) {
   var t = ctx.currentTime;
   var wf = _getWaveform();
@@ -374,6 +462,10 @@ var SOUND_MAP = {
   bossPhase: _bossPhase,
   step: _step,
   shop: _shop,
+  skill: _skill,
+  trap: _trap,
+  deny: _deny,
+  event: _event,
 };
 
 // Expose globally

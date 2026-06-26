@@ -26,14 +26,18 @@ test.describe("RPG Buff Explorer - Persistence", () => {
     // Manually call saveGame() since startNewGame() does not auto-save
     const saveResult = await page.evaluate(() => {
       saveGame();
-      return localStorage.getItem(SAVE_KEY) !== null;
+      // saveGame now uses slot-based keys (rpg_buff_save_1, rpg_buff_save_2)
+      return localStorage.getItem('rpg_buff_save_1') !== null || localStorage.getItem('rpg_buff_save_2') !== null;
     });
     expect(saveResult).toBe(true);
 
     // Verify save data has expected structure
     const saveData = await page.evaluate(() => {
-      const raw = localStorage.getItem(SAVE_KEY);
-      return raw ? JSON.parse(raw) : null;
+      // Check slot-based keys
+      var raw = localStorage.getItem('rpg_buff_save_1') || localStorage.getItem('rpg_buff_save_2');
+      if (!raw) return null;
+      var meta = JSON.parse(raw);
+      return meta.data || meta;
     });
     expect(saveData).not.toBeNull();
     expect(saveData.player).toBeDefined();

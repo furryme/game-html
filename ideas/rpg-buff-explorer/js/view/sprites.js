@@ -12,10 +12,17 @@ function spriteAnimStep() {
 function isImageLoaded(spriteData) {
   if (!spriteData || !spriteData.image) return false;
   var img = spriteData.image;
-  if (img instanceof HTMLImageElement) return img.complete && img.naturalWidth > 0;
-  if (img instanceof HTMLCanvasElement) return img.width > 0;
-  if (typeof OffscreenCanvas !== 'undefined' && img instanceof OffscreenCanvas) return img.width > 0;
-  return false;
+  var result = false;
+  if (img instanceof HTMLImageElement) result = img.complete && img.naturalWidth > 0;
+  else if (img instanceof HTMLCanvasElement) result = img.width > 0;
+  else if (typeof OffscreenCanvas !== 'undefined' && img instanceof OffscreenCanvas) result = img.width > 0;
+  if (img instanceof HTMLImageElement) {
+    if (!isImageLoaded._lastLogged || isImageLoaded._lastLogged.result !== result || isImageLoaded._lastLogged.img !== img) {
+      console.log('[sprite] isImageLoaded complete=' + img.complete + ' naturalWidth=' + img.naturalWidth + ' result=' + result);
+      isImageLoaded._lastLogged = { result: result, img: img };
+    }
+  }
+  return result;
 }
 
 var SPRITE_PAL = [
@@ -302,25 +309,36 @@ function drawPlayerSprite(ctx, x, y, state, isCombat, flip, pal, spriteData) {
   var f = spriteAnimFrame;
 
   if (spriteData && spriteData.image && isImageLoaded(spriteData)) {
-    var animCfg = spriteData.combatAnimations ? spriteData.combatAnimations[state] : spriteData.animations[state];
-    if (!animCfg) animCfg = spriteData.combatAnimations ? spriteData.combatAnimations.idle : spriteData.animations.idle;
+    if (!drawPlayerSprite._lastHdLogged || drawPlayerSprite._lastHdLogged.state !== state) {
+      console.log('[sprite] drawPlayerSprite HD branch, state=' + state + ' isCombat=' + isCombat);
+      drawPlayerSprite._lastHdLogged = { state: state };
+    }
+    var anims = isCombat ? spriteData.combatAnimations : spriteData.animations;
+    var animCfg = anims ? anims[state] : null;
+    var animName = animCfg ? (animCfg === anims.idle && state !== 'idle' ? 'idle(fallback)' : state) : 'null';
+    if (!animCfg) animCfg = anims ? anims.idle : null;
     if (animCfg && animCfg.frames) {
       var speed = animCfg.speed || 10;
       var frameIdx = Math.floor(f / speed) % animCfg.frames.length;
       var frameNum = animCfg.frames[frameIdx];
       var sdW = isCombat ? (spriteData.combatFrameW || spriteData.frameW || 32) : (spriteData.frameW || 32);
       var sdH = isCombat ? (spriteData.combatFrameH || spriteData.frameH || 48) : (spriteData.frameH || 32);
-      var totalFrames = animCfg.frames.length;
+      var sx = frameNum * sdW;
+      // Throttled log: every 30 frames in map mode
+      if (!isCombat && (f % 30 === 0)) {
+        console.log('[sprite] map frame f=' + f + ' state=' + state + ' anim=' + animName + ' frameIdx=' + frameIdx + ' frameNum=' + frameNum + ' sx=' + sx + ' sw=' + sdW + ' sh=' + sdH);
+      }
       var spriteOpts = {
         spriteData: {
           image: spriteData.image,
-          sx: frameNum * sdW,
+          sx: sx,
           sy: 0,
           sw: sdW,
           sh: sdH,
           w: sdW,
           h: sdH
-        }
+        },
+        flip: flip || false
       };
       var tileSize = isCombat ? 64 : TILE_SIZE;
       var ox = x + (tileSize - sdW) / 2;
@@ -333,6 +351,12 @@ function drawPlayerSprite(ctx, x, y, state, isCombat, flip, pal, spriteData) {
       drawSprite(ctx, ox, oy, null, palUse, spriteOpts);
       return;
     }
+  }
+
+  // Fallback: string-based sprite rendering
+  if (!drawPlayerSprite._lastFallbackLogged) {
+    console.log('[sprite] drawPlayerSprite FALLBACK to string rendering, spriteData=' + !!spriteData + ' hasImage=' + (!!spriteData && !!spriteData.image) + ' isLoaded=' + (spriteData ? isImageLoaded(spriteData) : 'N/A') + ' state=' + state);
+    drawPlayerSprite._lastFallbackLogged = true;
   }
 
   var pattern, scale, frame;

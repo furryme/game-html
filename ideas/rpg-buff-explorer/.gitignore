@@ -1,5 +1,12 @@
-node_modules/
-.DS_Store
-*.log
-test-results/
-combat-screenshot.spec.js
+# Build outputs
+dist/
+.tmp/
+
+# Temp files
+*.bak
+preview-*.png
+compare-sizes.png
+player-warrior-cropped.png
+
+# Test artifacts
+e2e/saves/

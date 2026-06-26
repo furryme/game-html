@@ -156,14 +156,18 @@ function generateEquipment(floorNum, forcedRarity) {
  * Roll loot after combat victory. May return null.
  * Drop chance increases with floor depth.
  * @param {number} floorNum
+ * @param {boolean} guaranteed - skip probability check (boss drops)
  * @returns {{}}|null
  */
-function rollLoot(floorNum) {
-  const baseChance = 0.18;
-  const floorBonus = Math.min((floorNum - 1) * 0.03, 0.25);
-  if (Math.random() > baseChance + floorBonus) return null;
+function rollLoot(floorNum, guaranteed) {
+  if (guaranteed !== true) {
+    const baseChance = 0.18;
+    const floorBonus = Math.min((floorNum - 1) * 0.03, 0.25);
+    if (Math.random() > baseChance + floorBonus) return null;
+  }
 
   const equip = generateEquipment(floorNum);
+  equip.justDropped = true;
 
   if (!player.inventory.equipment) {
     player.inventory.equipment = [];
@@ -171,6 +175,16 @@ function rollLoot(floorNum) {
   player.inventory.equipment.push(equip);
 
   return equip;
+}
+
+/**
+ * Clear the "justDropped" flag on all equipment after showing them to the user.
+ */
+function clearNewDrops() {
+  if (!player || !player.inventory || !player.inventory.equipment) return;
+  for (var i = 0; i < player.inventory.equipment.length; i++) {
+    player.inventory.equipment[i].justDropped = false;
+  }
 }
 
 /**

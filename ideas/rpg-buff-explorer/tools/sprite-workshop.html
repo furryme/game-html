@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>精灵图工坊 — Sprite Workshop</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font: 14px/1.5 'Segoe UI', monospace; background: #1a1a2e; color: #ddd; padding: 20px; }
+  h1 { font-size: 20px; margin-bottom: 10px; color: #f0c040; }
+  h2 { font-size: 16px; margin: 15px 0 8px; color: #f0a040; }
+  .section { background: #16213e; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+
+  /* Upload area */
+  #dropzone {
+    border: 2px dashed #444; border-radius: 8px; padding: 40px;
+    text-align: center; cursor: pointer; transition: all 0.2s;
+    background: #0f0f23; color: #888;
+  }
+  #dropzone:hover, #dropzone.dragover { border-color: #f0c040; background: #1a1a3e; color: #ccc; }
+  #dropzone.loaded { padding: 10px; border-style: solid; border-color: #35c; }
+
+  /* Controls */
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  .control-group { display: flex; flex-direction: column; gap: 4px; }
+  .control-group label { font-size: 12px; color: #aaa; }
+  input[type="number"] { background: #0f0f23; border: 1px solid #444; color: #fff; padding: 4px 8px; border-radius: 4px; width: 70px; }
+  input[type="range"] { width: 120px; }
+  input[type="color"] { width: 40px; height: 28px; border: none; cursor: pointer; background: none; }
+  select { background: #0f0f23; border: 1px solid #444; color: #fff; padding: 4px 8px; border-radius: 4px; }
+  button {
+    background: #f0c040; color: #000; border: none; padding: 6px 16px;
+    border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px;
+  }
+  button:hover { background: #f0d060; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.secondary { background: #446; color: #fff; }
+  button.secondary:hover { background: #557; }
+
+  /* Canvas area */
+  .preview-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; margin-top: 12px; }
+  .preview-box { text-align: center; }
+  .preview-box span { font-size: 11px; color: #888; display: block; margin-bottom: 4px; }
+  .preview-box canvas { border: 1px solid #333; image-rendering: pixelated; background: #2a1a0a; }
+  #cropCanvas { cursor: crosshair; border: 1px solid #f0c040; max-width: 100%; }
+
+  /* Source display */
+  #sourceWrap { position: relative; display: inline-block; max-width: 100%; }
+  #sourceImg { display: block; max-width: 400px; max-height: 600px; }
+
+  /* Info panel */
+  #info { font-size: 12px; color: #888; font-family: monospace; }
+  #info div { margin: 2px 0; }
+
+  /* Sprite sheet preview */
+  #sheetWrap { overflow-x: auto; }
+  #sheetWrap canvas { image-rendering: pixelated; border: 1px solid #333; background: #2a1a0a; }
+
+  /* Generated code block */
+  #genCode {
+    background: #0f0f23; border: 1px solid #333; padding: 12px;
+    font-family: monospace; font-size: 12px; color: #35c;
+    white-space: pre; overflow-x: auto; border-radius: 4px;
+    max-height: 300px; overflow-y: auto;
+  }
+
+  /* Flip toggle */
+  .toggle-row { display: flex; gap: 12px; align-items: center; }
+  .toggle-row label { color: #aaa; font-size: 12px; }
+  input[type="checkbox"] { transform: scale(1.2); }
+</style>
+</head>
+<body>
+
+<h1>🎮 精灵图工坊 — Sprite Workshop</h1>
+<p style="color:#888; margin-bottom:16px;">上传角色图 → 裁剪 → 预览 → 生成精灵图 → 集成到游戏</p>
+
+<!-- Step 1: Upload -->
+<div class="section">
+  <h2>① 上传图片</h2>
+  <div id="dropzone">
+    <div>拖入图片 或 <strong>点击选择</strong></div>
+    <div style="font-size:12px; margin-top:8px;">支持 PNG / JPG，推荐 512× 以上</div>
+  </div>
+  <input type="file" id="fileInput" accept="image/*" style="display:none">
+</div>
+
+<!-- Step 2: Crop -->
+<div class="section" id="cropSection" style="display:none">
+  <h2>② 裁剪角色</h2>
+  <div class="controls">
+    <div class="control-group">
+      <label>位置 X</label>
+      <input type="number" id="cropX" value="0">
+    </div>
+    <div class="control-group">
+      <label>位置 Y</label>
+      <input type="number" id="cropY" value="0">
+    </div>
+    <div class="control-group">
+      <label>宽度</label>
+      <input type="number" id="cropW" value="200">
+    </div>
+    <div class="control-group">
+      <label>高度</label>
+      <input type="number" id="cropH" value="300">
+    </div>
+    <div class="control-group">
+      <label>目标宽高比</label>
+      <select id="aspectRatio">
+        <option value="auto">自由 (Auto)</option>
+        <option value="2:3" selected>战士 2:3 (32×48)</option>
+        <option value="1:1">敌人 1:1 (32×32)</option>
+        <option value="1:1">Boss 1:1 (64×64)</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>背景替换</label>
+      <select id="bgMode">
+        <option value="none">保持原样</option>
+        <option value="color">自定义颜色</option>
+        <option value="transparent">透明 (PNG)</option>
+      </select>
+    </div>
+    <div class="control-group" id="bgColorGroup" style="display:none">
+      <label>背景色</label>
+      <input type="color" id="bgColor" value="#3a2a1a">
+    </div>
+    <button id="autoCropBtn">自动检测</button>
+    <button class="secondary" id="applyCrop">应用裁剪</button>
+  </div>
+  <div class="preview-row">
+    <div class="preview-box">
+      <span>原图 (带裁剪框)</span>
+      <canvas id="cropCanvas"></canvas>
+    </div>
+    <div class="preview-box">
+      <span>裁剪结果</span>
+      <canvas id="cropResult"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Step 3: Preview at sizes -->
+<div class="section" id="previewSection" style="display:none">
+  <h2>③ 尺寸预览</h2>
+  <p style="font-size:12px; color:#888;">下方是角色缩放到各目标尺寸后的效果（pixelated 渲染）</p>
+  <div id="sizePreviews" class="preview-row"></div>
+</div>
+
+<!-- Step 4: Sprite Sheet Generation -->
+<div class="section" id="genSection" style="display:none">
+  <h2>④ 生成精灵图</h2>
+  <div class="controls">
+    <div class="control-group">
+      <label>角色类型</label>
+      <select id="charType">
+        <option value="warrior" selected>战士 (Warrior)</option>
+        <option value="mage">法师 (Mage)</option>
+        <option value="rogue">游侠 (Rogue)</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>是否翻转</label>
+      <select id="flipMode">
+        <option value="none">不翻转</option>
+        <option value="horizontal">水平翻转 (朝左)</option>
+      </select>
+    </div>
+    <button id="genMap">生成地图精灵图 (32×48)</button>
+    <button id="genCombat">生成战斗精灵图 (64×64)</button>
+    <button id="genBoth">生成两者 + 精灵表</button>
+  </div>
+
+  <div id="sheetWrap" class="preview-row" style="margin-top:12px"></div>
+
+  <h2>⑤ 集成信息</h2>
+  <div id="info"></div>
+  <div id="genCode" style="display:none; margin-top:8px;"></div>
+</div>
+
+<script>
+// ========== State ==========
+var origImg = null;
+var origW = 0, origH = 0;
+var crop = { x: 0, y: 0, w: 0, h: 0 };
+var croppedImg = null; // Image element of cropped result
+
+// ========== DOM refs ==========
+var dropzone = document.getElementById('dropzone');
+var fileInput = document.getElementById('fileInput');
+var cropCanvas = document.getElementById('cropCanvas');
+var cropCtx = cropCanvas.getContext('2d');
+var cropResultCanvas = document.getElementById('cropResult');
+var cropResultCtx = cropResultCanvas.getContext('2d');
+
+// ========== Step 1: Load Image ==========
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files.length) loadFile(fileInput.files[0]); });
+
+function loadFile(file) {
+  if (!file.type.startsWith('image/')) return alert('请选择图片文件');
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      origImg = img;
+      origW = img.width;
+      origH = img.height;
+      dropzone.classList.add('loaded');
+      dropzone.innerHTML = '<div style="color:#35c">✅ 已加载: ' + origW + '×' + origH + '</div>';
+      initCrop();
+      document.getElementById('cropSection').style.display = '';
+      document.getElementById('previewSection').style.display = '';
+      document.getElementById('genSection').style.display = '';
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ========== Step 2: Crop ==========
+function initCrop() {
+  // Auto-initialize crop to center 60-80% of image
+  var scale = Math.min(400 / origW, 600 / origH);
+  cropCanvas.width = Math.floor(origW * scale);
+  cropCanvas.height = Math.floor(origH * scale);
+  cropCtx.drawImage(origImg, 0, 0, cropCanvas.width, cropCanvas.height);
+
+  // Default crop: try to exclude metadata (bottom 20%)
+  crop.x = Math.floor(origW * 0.1);
+  crop.y = Math.floor(origH * 0.05);
+  crop.w = Math.floor(origW * 0.8);
+  crop.h = Math.floor(origH * 0.75);
+  updateCropInputs();
+  drawCropOverlay();
+}
+
+function updateCropInputs() {
+  document.getElementById('cropX').value = crop.x;
+  document.getElementById('cropY').value = crop.y;
+  document.getElementById('cropW').value = crop.w;
+  document.getElementById('cropH').value = crop.h;
+}
+
+document.getElementById('cropX').addEventListener('input', function() { crop.x = +this.value; drawCropOverlay(); });
+document.getElementById('cropY').addEventListener('input', function() { crop.y = +this.value; drawCropOverlay(); });
+document.getElementById('cropW').addEventListener('input', function() { crop.w = +this.value; drawCropOverlay(); });
+document.getElementById('cropH').addEventListener('input', function() { crop.h = +this.value; drawCropOverlay(); });
+
+document.getElementById('aspectRatio').addEventListener('change', applyAspect);
+document.getElementById('bgMode').addEventListener('change', function() {
+  document.getElementById('bgColorGroup').style.display = this.value === 'color' ? '' : 'none';
+});
+
+function applyAspect() {
+  var ratio = document.getElementById('aspectRatio').value;
+  if (ratio === 'auto') return;
+  var parts = ratio.split(':');
+  var aspect = +parts[0] / +parts[1];
+  crop.h = Math.floor(crop.w / aspect);
+  if (crop.y + crop.h > origH) {
+    crop.y = origH - crop.h;
+  }
+  updateCropInputs();
+  drawCropOverlay();
+}
+
+function drawCropOverlay() {
+  var scaleW = cropCanvas.width / origW;
+  var scaleH = cropCanvas.height / origH;
+  cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
+  cropCtx.drawImage(origImg, 0, 0, cropCanvas.width, cropCanvas.height);
+
+  // Darken outside crop
+  cropCtx.fillStyle = 'rgba(0,0,0,0.5)';
+  cropCtx.fillRect(0, 0, cropCanvas.width, crop.y * scaleH);
+  cropCtx.fillRect(0, (crop.y + crop.h) * scaleH, cropCanvas.width, cropCanvas.height);
+  cropCtx.fillRect(0, crop.y * scaleH, crop.x * scaleW, crop.h * scaleH);
+  cropCtx.fillRect((crop.x + crop.w) * scaleW, crop.y * scaleH, cropCanvas.width, crop.h * scaleH);
+
+  // Border
+  cropCtx.strokeStyle = '#f0c040';
+  cropCtx.lineWidth = 2;
+  cropCtx.strokeRect(crop.x * scaleW, crop.y * scaleH, crop.w * scaleW, crop.h * scaleH);
+
+  // Aspect ratio label
+  var aspect = (crop.w / crop.h).toFixed(2);
+  cropCtx.fillStyle = '#f0c040';
+  cropCtx.font = '12px monospace';
+  cropCtx.fillText(crop.w + '×' + crop.h + ' (' + aspect + ')', crop.x * scaleW + 4, crop.y * scaleH + 14);
+
+  updateCropResult();
+}
+
+document.getElementById('autoCropBtn').addEventListener('click', function() {
+  // Simple auto-detect: find bounding box of non-white pixels
+  var tc = document.createElement('canvas');
+  var ts = Math.min(1, 200 / origW); // sample at lower resolution for speed
+  tc.width = Math.floor(origW * ts);
+  tc.height = Math.floor(origH * ts);
+  var tctx = tc.getContext('2d');
+  tctx.drawImage(origImg, 0, 0, tc.width, tc.height);
+  var data = tctx.getImageData(0, 0, tc.width, tc.height).data;
+
+  var top = tc.height, bottom = 0, left = tc.width, right = 0;
+  for (var y = 0; y < tc.height; y++) {
+    for (var x = 0; x < tc.width; x++) {
+      var i = (y * tc.width + x) * 4;
+      var r = data[i], g = data[i+1], b = data[i+2];
+      // Consider non-white/non-light pixels as content
+      var brightness = (r + g + b) / 3;
+      if (brightness < 200) {
+        if (y < top) top = y;
+        if (y > bottom) bottom = y;
+        if (x < left) left = x;
+        if (x > right) right = x;
+      }
+    }
+  }
+  // Add padding
+  var pad = Math.floor(tc.width * 0.05);
+  top = Math.max(0, top - pad);
+  bottom = Math.min(tc.height, bottom + pad);
+  left = Math.max(0, left - pad);
+  right = Math.min(tc.width, right + pad);
+
+  crop.x = Math.floor(left / ts);
+  crop.y = Math.floor(top / ts);
+  crop.w = Math.floor((right - left) / ts);
+  crop.h = Math.floor((bottom - top) / ts);
+  updateCropInputs();
+  drawCropOverlay();
+});
+
+document.getElementById('applyCrop').addEventListener('click', updateCropResult);
+
+function updateCropResult() {
+  if (!origImg) return;
+  croppedImg = new Image();
+  var tc = document.createElement('canvas');
+  tc.width = crop.w;
+  tc.height = crop.h;
+  var tctx = tc.getContext('2d');
+
+  var bgMode = document.getElementById('bgMode').value;
+  if (bgMode === 'color') {
+    tctx.fillStyle = document.getElementById('bgColor').value;
+    tctx.fillRect(0, 0, crop.w, crop.h);
+  } else if (bgMode === 'transparent') {
+    // White-to-transparent: draw image, then make white pixels transparent
+    tctx.drawImage(origImg, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h);
+    var data = tctx.getImageData(0, 0, crop.w, crop.h);
+    for (var i = 0; i < data.data.length; i += 4) {
+      var r = data.data[i], g = data.data[i+1], b = data.data[i+2];
+      // Make near-white pixels transparent
+      if (r > 240 && g > 240 && b > 240) {
+        data.data[i+3] = 0;
+      }
+    }
+    tctx.putImageData(data, 0, 0);
+  } else {
+    tctx.drawImage(origImg, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h);
+  }
+
+  // Draw at full res for preview
+  var previewScale = Math.min(300 / crop.w, 400 / crop.h, 1);
+  cropResultCanvas.width = Math.floor(crop.w * previewScale);
+  cropResultCanvas.height = Math.floor(crop.h * previewScale);
+  cropResultCtx.drawImage(tc, 0, 0, cropResultCanvas.width, cropResultCanvas.height);
+
+  croppedImg.src = tc.toDataURL('image/png');
+  showSizePreviews(tc);
+}
+
+// ========== Step 3: Size Previews ==========
+function showSizePreviews(sourceCanvas) {
+  var container = document.getElementById('sizePreviews');
+  container.innerHTML = '';
+  var sizes = [
+    { label: '8px (4× scale)', size: 8 },
+    { label: '16px (tile)', size: 16 },
+    { label: '24px', size: 24 },
+    { label: '32px (地图)', size: 32 },
+    { label: '48px', size: 48 },
+    { label: '64px (战斗)', size: 64 },
+    { label: '128px', size: 128 },
+    { label: '256px', size: 256 },
+  ];
+  var aspect = crop.w / crop.h;
+  sizes.forEach(function(s) {
+    var box = document.createElement('div');
+    box.className = 'preview-box';
+    var c = document.createElement('canvas');
+    var w = s.size, h = Math.round(s.size / aspect);
+    if (aspect < 1) { h = s.size; w = Math.round(s.size * aspect); }
+    c.width = w;
+    c.height = h;
+    c.style.width = (w * 2) + 'px';
+    c.style.height = (h * 2) + 'px';
+    c.style.imageRendering = 'pixelated';
+    var ctx = c.getContext('2d');
+    ctx.drawImage(sourceCanvas, 0, 0, w, h);
+    box.appendChild(c);
+    box.appendChild(document.createTextNode(s.label));
+    container.appendChild(box);
+  });
+}
+
+// ========== Step 4: Generate Sprite Sheets ==========
+document.getElementById('genMap').addEventListener('click', () => generateSheet('map'));
+document.getElementById('genCombat').addEventListener('click', () => generateSheet('combat'));
+document.getElementById('genBoth').addEventListener('click', () => {
+  generateSheet('map');
+  generateSheet('combat');
+  generateCombined();
+});
+
+function generateSheet(type) {
+  if (!croppedImg) return;
+  var targetW, targetH, filename;
+  var charType = document.getElementById('charType').value;
+
+  if (type === 'map') {
+    targetW = 32; targetH = 48;
+    filename = 'player-' + charType + '-map.png';
+  } else {
+    targetW = 64; targetH = 64;
+    filename = 'player-' + charType + '-combat.png';
+  }
+
+  // Create sprite sheet with 8 frames (idle×2, walk×4, attack×1, hurt×1)
+  var frameCount = 8;
+  var ssW = targetW * frameCount;
+  var ssH = targetH;
+
+  var sheet = document.createElement('canvas');
+  sheet.width = ssW;
+  sheet.height = ssH;
+  var sctx = sheet.getContext('2d');
+
+  // Draw each frame (all same image for now, just resized)
+  for (var i = 0; i < frameCount; i++) {
+    // Flip on even frames for walk animation
+    if (i === 2 || i === 4 || i === 5) {
+      sctx.save();
+      sctx.translate(i * targetW + targetW / 2, targetH / 2);
+      sctx.scale(-1, 1);
+      sctx.drawImage(croppedImg, -targetW / 2, -targetH / 2, targetW, targetH);
+      sctx.restore();
+    } else {
+      sctx.drawImage(croppedImg, i * targetW, 0, targetW, targetH);
+    }
+  }
+
+  // Preview
+  showSheet(sheet, type, filename, targetW, targetH, frameCount);
+  downloadSheet(sheet, filename);
+}
+
+function generateCombined() {
+  if (!croppedImg) return;
+  var charType = document.getElementById('charType').value;
+  // Combined: map frames (top) + combat frames (bottom)
+  var mapH = 48, combatH = 64;
+  var mapFrames = 8, combatFrames = 8;
+  var rows = 3; // row 0: map, row 1: combat, row 2: metadata (text)
+  var cols = Math.max(mapFrames, combatFrames);
+
+  var sheet = document.createElement('canvas');
+  sheet.width = 64 * cols;
+  sheet.height = 64 * rows;
+  var sctx = sheet.getContext('2d');
+
+  // Map row (scaled to 64×64 cells but content is 32×48 centered)
+  for (var i = 0; i < mapFrames; i++) {
+    var sx = i * 64, sy = 0;
+    sctx.drawImage(croppedImg, sx + 16, sy + 8, 32, 48);
+  }
+  // Combat row
+  for (var i = 0; i < combatFrames; i++) {
+    var sx = i * 64, sy = 64;
+    sctx.drawImage(croppedImg, sx, sy, 64, 64);
+  }
+
+  showSheet(sheet, 'combined', 'player-' + charType + '-sheet.png', 64 * cols, 64 * rows, 0);
+  downloadSheet(sheet, 'player-' + charType + '-sheet.png');
+}
+
+function showSheet(canvas, type, filename, fw, fh, fc) {
+  var wrap = document.getElementById('sheetWrap');
+  var box = document.createElement('div');
+  box.className = 'preview-box';
+  box.style.marginRight = '16px';
+  var c = document.createElement('canvas');
+  var displayScale = 3;
+  c.width = canvas.width * displayScale;
+  c.height = canvas.height * displayScale;
+  c.style.imageRendering = 'pixelated';
+  c.style.maxWidth = '100%';
+  var ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(canvas, 0, 0, c.width, c.height);
+  var label = document.createElement('span');
+  label.textContent = type + ' | ' + filename + ' (' + canvas.width + '×' + canvas.height + ')';
+  box.appendChild(label);
+  box.appendChild(c);
+  wrap.appendChild(box);
+  showInfo(type, filename, fw, fh, fc, canvas.width, canvas.height);
+}
+
+function downloadSheet(canvas, filename) {
+  var a = document.createElement('a');
+  a.download = filename;
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+}
+
+function showInfo(type, filename, fw, fh, fc, cw, ch) {
+  var charType = document.getElementById('charType').value;
+  var info = document.getElementById('info');
+  var code = document.getElementById('genCode');
+
+  info.innerHTML =
+    '<div>文件: js/data/sprite-assets/high-res/' + filename + '</div>' +
+    '<div>尺寸: ' + cw + '×' + ch + 'px</div>' +
+    '<div>帧: ' + fc + ' × ' + fw + '×' + fh + '</div>' +
+    '<div>操作: 下载后放入上方目录，然后刷新游戏</div>';
+
+  var manifestEntry = generateManifest(charType, type, fw, fh, fc);
+  code.style.display = '';
+  code.textContent = manifestEntry;
+}
+
+function generateManifest(charType, type, fw, fh, fc) {
+  var id = 'player-' + charType;
+  var anims = {
+    "idle":   { frames: [0, 1],        speed: 20 },
+    "walk":   { frames: [2, 3, 4, 5],  speed: 12 },
+    "attack": { frames: [6],           speed: 8 },
+    "hurt":   { frames: [7],           speed: 10 }
+  };
+
+  var json = JSON.stringify({
+    [id]: {
+      "src": filename,
+      "frameW": fw,
+      "frameH": fh,
+      "animations": anims,
+      "replaces": charType === 'warrior'
+        ? ['playerMapIdle0', 'playerMapIdle1', 'playerMapWalk0', 'playerMapWalk1', 'playerMapAttack', 'playerMapHurt']
+        : ['playerMapIdle0', 'playerMapIdle1', 'playerMapWalk0', 'playerMapWalk1', 'playerMapAttack', 'playerMapHurt']
+    }
+  }, null, 2);
+
+  return '=== manifest.json 条目 ===\n\n' + json + '\n\n' +
+    '=== 集成步骤 ===\n' +
+    '1. 将 ' + filename + ' 放入 js/data/sprite-assets/high-res/\n' +
+    '2. 将上方 JSON 条目合并到 js/data/sprite-assets/manifest.json\n' +
+    '3. 在主题中启用 spriteAssets:\n' +
+    '   spriteAssets: { enabled: true }\n' +
+    '4. 刷新游戏，角色应显示为高清精灵';
+}
+
+</script>
+</body>
+</html>

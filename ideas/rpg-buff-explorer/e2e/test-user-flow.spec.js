@@ -225,15 +225,9 @@ async function screenshotAndVerify(page, stepName, expectCanvasContent = true) {
  */
 async function enterQuickCombat(page) {
   const idx = await page.evaluate(() => {
-    const findLiving = () => {
+    const findNonBossLiving = () => {
       for (let i = 0; i < dungeon.enemies.length; i++) {
         if (dungeon.enemies[i] && dungeon.enemies[i].hp > 0 && !dungeon.enemies[i].boss) {
-          dungeon.enemies[i].hp = 1;
-          return i;
-        }
-      }
-      for (let i = 0; i < dungeon.enemies.length; i++) {
-        if (dungeon.enemies[i] && dungeon.enemies[i].hp > 0) {
           dungeon.enemies[i].hp = 1;
           return i;
         }
@@ -244,18 +238,18 @@ async function enterQuickCombat(page) {
       dungeon = generateFloor(dungeon ? dungeon.floor : 1);
       player.x = dungeon.playerStart.x;
       player.y = dungeon.playerStart.y;
-      return findLiving();
     }
-    let idx = findLiving();
-    if (idx < 0) {
+    // Keep regenerating floor until we find non-boss enemies (up to 10 retries)
+    for (let retry = 0; retry < 10; retry++) {
+      let idx = findNonBossLiving();
+      if (idx >= 0) return idx;
       dungeon = generateFloor(dungeon.floor);
       player.x = dungeon.playerStart.x;
       player.y = dungeon.playerStart.y;
-      idx = findLiving();
     }
-    return idx;
+    return -1;
   });
-  expect(idx, "no living enemy found").toBeGreaterThanOrEqual(0);
+  expect(idx, "no non-boss enemy found after retries").toBeGreaterThanOrEqual(0);
   await page.evaluate((i) => startCombat(i), idx);
   await page.waitForFunction(
     () => window.gameState && window.gameState.screen === "combat"

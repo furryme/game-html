@@ -60,11 +60,11 @@ test.describe("ThemeManager - Theme Cycling User Interactions", () => {
     await page.waitForTimeout(100);
 
     const id = await page.evaluate(() => window.themeManager.getActiveId());
-    // blood_moon is locked, so cycle skips it -> pixel_retro
+    // blood_moon, frost_sanctum, void_core, cyber_dungeon are locked; cycle skips them -> pixel_retro
     expect(id).toBe("pixel_retro");
   });
 
-  test('7) Second click "cycle theme" switches pixel_retro -> default', async ({ page }) => {
+  test('7) Second click "cycle theme" switches pixel_retro -> hd_sprites', async ({ page }) => {
     // First click: default -> pixel_retro
     await page.click('button[onclick="cycleTheme()"]');
     await page.waitForTimeout(100);
@@ -72,50 +72,50 @@ test.describe("ThemeManager - Theme Cycling User Interactions", () => {
       await page.evaluate(() => window.themeManager.getActiveId())
     ).toBe("pixel_retro");
 
-    // Second click: pixel_retro -> default (wrapping)
+    // Second click: pixel_retro -> hd_sprites (hd_sprites unlocked by default, comes after pixel_retro)
     await page.click('button[onclick="cycleTheme()"]');
     await page.waitForTimeout(100);
 
+    const id = await page.evaluate(() => window.themeManager.getActiveId());
+    expect(id).toBe("hd_sprites");
+  });
+
+  test('8) Third click wraps hd_sprites -> default', async ({ page }) => {
+    await page.click('button[onclick="cycleTheme()"]');
+    await page.waitForTimeout(80);
+    await page.click('button[onclick="cycleTheme()"]');
+    await page.waitForTimeout(80);
+    await page.click('button[onclick="cycleTheme()"]');
+    await page.waitForTimeout(100);
+
+    // default -> pixel_retro -> hd_sprites -> default (3-theme cycle)
     const id = await page.evaluate(() => window.themeManager.getActiveId());
     expect(id).toBe("default");
   });
 
-  test('8) Third click switches back to pixel_retro', async ({ page }) => {
-    await page.click('button[onclick="cycleTheme()"]');
-    await page.waitForTimeout(80);
-    await page.click('button[onclick="cycleTheme()"]');
-    await page.waitForTimeout(80);
-    await page.click('button[onclick="cycleTheme()"]');
-    await page.waitForTimeout(100);
-
-    // default -> pixel_retro -> default -> pixel_retro
-    const id = await page.evaluate(() => window.themeManager.getActiveId());
-    expect(id).toBe("pixel_retro");
-  });
-
-  test("9) Rapid clicks - each cycle takes effect, activeId alternates", async ({ page }) => {
+  test("9) Rapid clicks - each cycle takes effect, cycles through 3 themes", async ({ page }) => {
     const sequence = [];
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 9; i++) {
       await page.click('button[onclick="cycleTheme()"]');
       await page.waitForTimeout(50);
       const id = await page.evaluate(() => window.themeManager.getActiveId());
       sequence.push(id);
     }
-    // With only default and pixel_retro unlocked, they alternate
-    expect(sequence.length).toBe(10);
+    // With default, pixel_retro, hd_sprites unlocked: cycle order = pixel_retro, hd_sprites, default
+    expect(sequence.length).toBe(9);
+    const cycle = ["pixel_retro", "hd_sprites", "default"];
     for (let i = 0; i < sequence.length; i++) {
-      const expected = i % 2 === 0 ? "pixel_retro" : "default";
-      expect(sequence[i]).toBe(expected);
+      expect(sequence[i]).toBe(cycle[i % 3]);
     }
   });
 
-  test("10) 20 rapid clicks - no crash or stale state", async ({ page }) => {
-    for (let i = 0; i < 20; i++) {
+  test("10) 21 rapid clicks - no crash or stale state, returns to default", async ({ page }) => {
+    for (let i = 0; i < 21; i++) {
       await page.click('button[onclick="cycleTheme()"]');
       await page.waitForTimeout(30);
     }
 
-    // After 20 clicks starting from default: even number of switches -> back to default
+    // After 21 clicks starting from default: 21 % 3 == 0 -> back to default
     const id = await page.evaluate(() => window.themeManager.getActiveId());
     expect(id).toBe("default");
 
@@ -140,40 +140,43 @@ test.describe("ThemeManager - Theme Cycling User Interactions", () => {
       await page.evaluate(() => window.themeManager.getActiveId())
     ).toBe("blood_moon");
 
-    // Second click: blood_moon -> pixel_retro
+    // Second click: blood_moon -> pixel_retro (skipping locked frost_sanctum, void_core, cyber_dungeon)
     await page.click('button[onclick="cycleTheme()"]');
     await page.waitForTimeout(100);
     expect(
       await page.evaluate(() => window.themeManager.getActiveId())
     ).toBe("pixel_retro");
 
-    // Third click: pixel_retro -> default (wrapping)
+    // Third click: pixel_retro -> hd_sprites (unlocked by default)
     await page.click('button[onclick="cycleTheme()"]');
     await page.waitForTimeout(100);
     expect(
       await page.evaluate(() => window.themeManager.getActiveId())
-    ).toBe("default");
+    ).toBe("hd_sprites");
   });
 
-  test("12) All themes unlocked - cycle order: default -> blood_moon -> pixel_retro -> default", async ({ page }) => {
+  test("12) All themes unlocked - cycle order includes all 7 themes", async ({ page }) => {
     // Unlock all themes
     await page.evaluate(() => {
       window.themeManager.unlock("blood_moon");
-      // pixel_retro is already unlocked
+      window.themeManager.unlock("frost_sanctum");
+      window.themeManager.unlock("void_core");
+      window.themeManager.unlock("cyber_dungeon");
+      // pixel_retro and hd_sprites are already unlocked by default
     });
 
     const order = [];
     // Record initial
     order.push(await page.evaluate(() => window.themeManager.getActiveId()));
 
-    // Click through full cycle
-    for (let i = 0; i < 3; i++) {
+    // Click through full cycle (7 clicks to cycle through all 6 other themes + return to default)
+    for (let i = 0; i < 7; i++) {
       await page.click('button[onclick="cycleTheme()"]');
       await page.waitForTimeout(80);
       order.push(await page.evaluate(() => window.themeManager.getActiveId()));
     }
 
-    expect(order).toEqual(["default", "blood_moon", "pixel_retro", "default"]);
+    expect(order).toEqual(["default", "blood_moon", "frost_sanctum", "void_core", "pixel_retro", "cyber_dungeon", "hd_sprites", "default"]);
   });
 
   // ==================== Visual Verification ====================
@@ -339,8 +342,8 @@ test.describe("ThemeManager - Theme Cycling User Interactions", () => {
 
   // ==================== Edge Cases ====================
 
-  test("20) Only default unlocked (lock pixel_retro) - click does not switch", async ({ page }) => {
-    // Lock pixel_retro by clearing unlocks
+  test("20) Locked themes are skipped, cycle goes to next unlocked (hd_sprites)", async ({ page }) => {
+    // Clear all unlocks — only default and hd_sprites (no unlock condition) remain unlocked
     await page.evaluate(() => {
       localStorage.setItem("rpg_buff_theme_unlocks", JSON.stringify({}));
     });
@@ -352,13 +355,19 @@ test.describe("ThemeManager - Theme Cycling User Interactions", () => {
       await page.evaluate(() => window.themeManager.getActiveId())
     ).toBe("default");
 
-    // Click cycle button - should not switch since only default is unlocked
+    // Click cycle - skips all locked themes, goes to hd_sprites (always unlocked)
     await page.click('button[onclick="cycleTheme()"]');
     await page.waitForTimeout(200);
 
-    // Still default
     const id = await page.evaluate(() => window.themeManager.getActiveId());
-    expect(id).toBe("default");
+    expect(id).toBe("hd_sprites");
+
+    // Next click wraps back to default
+    await page.click('button[onclick="cycleTheme()"]');
+    await page.waitForTimeout(200);
+    expect(
+      await page.evaluate(() => window.themeManager.getActiveId())
+    ).toBe("default");
   });
 
   test("21) getAllIds() returns all registered themes", async ({ page }) => {
@@ -369,6 +378,7 @@ test.describe("ThemeManager - Theme Cycling User Interactions", () => {
     expect(ids).toContain("frost_sanctum");
     expect(ids).toContain("void_core");
     expect(ids).toContain("cyber_dungeon");
-    expect(ids.length).toBe(6);
+    expect(ids).toContain("hd_sprites");
+    expect(ids.length).toBe(7);
   });
 });
