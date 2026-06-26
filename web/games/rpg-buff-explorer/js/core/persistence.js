@@ -314,10 +314,7 @@ function unlockTalent(permanent, talentId) {
   var def = TALENT_DEFS[talentId];
   if (!def) return false;
   if (permanent.talents[talentId] >= 10) return false; // cap at 10
-  var totalSpent = 0;
-  var keys = Object.keys(permanent.talents);
-  for (var i = 0; i < keys.length; i++) totalSpent += permanent.talents[keys[i]];
-  if (totalSpent >= permanent.soulShards) return false;
+  if (permanent.soulShards <= 0) return false;
 
   permanent.talents[talentId]++;
   permanent.soulShards--;

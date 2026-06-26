@@ -42,6 +42,11 @@ function movePlayer(dx, dy) {
   // 3b. Move player
   player.x = nx;
   player.y = ny;
+  player.dirY = dy;
+  if (dx !== 0) player.dirX = dx;
+  player.state = 'walk';
+  if (player._walkTimer) clearTimeout(player._walkTimer);
+  player._walkTimer = setTimeout(function () { player.state = 'idle'; }, 300);
   gameState.turnCount++;
   playSound('step');
 
@@ -58,6 +63,7 @@ function movePlayer(dx, dy) {
         var heal = Math.floor(player.maxHp * 0.3);
         player.hp = Math.min(player.maxHp, player.hp + heal);
         addLog('在篝火旁休息，恢复 ' + heal + ' HP', 'heal');
+        playSound('heal');
         dungeon.items.splice(ii, 1);
       } else {
         player.inventory[item.type] = (player.inventory[item.type] || 0) + 1;
@@ -104,6 +110,9 @@ function movePlayer(dx, dy) {
             var dest2 = pick(revealedPos2);
             player.x = dest2.x;
             player.y = dest2.y;
+            player.state = 'walk';
+            if (player._walkTimer) clearTimeout(player._walkTimer);
+            player._walkTimer = setTimeout(function () { player.state = 'idle'; }, 300);
             addLog('宝物有陷阱！你被传送了', 'dmg');
           }
         }
@@ -119,6 +128,7 @@ function movePlayer(dx, dy) {
       if (!trap.revealed || Math.random() > (trap.detectChance || 0.3)) {
         trap.triggered = true;
         trap.revealed = true;
+        playSound('trap');
         console.log('[trap] triggered:', trap.label, 'effect:', trap.effect, 'val:', trap.val);
         if (trap.effect === 'dmg') {
           player.hp -= trap.damage;
@@ -144,6 +154,9 @@ function movePlayer(dx, dy) {
             var dest = pick(revealedPos);
             player.x = dest.x;
             player.y = dest.y;
+            player.state = 'walk';
+            if (player._walkTimer) clearTimeout(player._walkTimer);
+            player._walkTimer = setTimeout(function () { player.state = 'idle'; }, 300);
             addLog('踩中' + trap.label + '！被传送了', 'info');
           }
         } else if (trap.effect === 'slow') {
@@ -185,6 +198,7 @@ function movePlayer(dx, dy) {
         player.hp = Math.min(player.maxHp, player.hp + shrineHeal);
         console.log('[shrine] healed ' + shrineHeal + ' HP at ' + shrineKey);
         addLog('感受到圣殿的治愈之力，恢复 ' + shrineHeal + ' HP', 'heal');
+        playSound('heal');
       }
       break;
     }
@@ -293,6 +307,8 @@ function nextFloor() {
     dungeon = generateFloor(nextFloorNum);
     player.x = dungeon.playerStart.x;
     player.y = dungeon.playerStart.y;
+    player.state = 'idle';
+    if (player._walkTimer) { clearTimeout(player._walkTimer); player._walkTimer = null; }
     var envLabel = dungeon.theme.envBuff ? '(' + dungeon.theme.envBuff.desc + ')' : '';
     addLog('进入 ' + theme.name + ' ' + envLabel, 'info');
 
@@ -336,14 +352,17 @@ function useItem(itemId) {
   if (itemData.effect === 'heal') {
     player.hp = Math.min(player.maxHp, player.hp + itemData.value);
     addLog('使用' + itemData.name + '，恢复' + itemData.value + 'HP', 'heal');
+    playSound('heal');
   } else if (itemData.effect === 'restore_mp') {
     player.mp = Math.min(player.maxMp, player.mp + itemData.value);
     addLog('使用' + itemData.name + '，恢复' + itemData.value + 'MP', 'heal');
+    playSound('heal');
   } else if (itemData.effect === 'full_restore') {
     player.hp = player.maxHp;
     player.mp = player.maxMp;
     player.statuses = [];
     addLog('使用' + itemData.name + '，完全恢复！', 'heal');
+    playSound('heal');
   } else if (itemData.effect === 'cure_poison') {
     var newStatuses = [];
     for (var i = 0; i < player.statuses.length; i++) {
@@ -351,6 +370,7 @@ function useItem(itemId) {
     }
     player.statuses = newStatuses;
     addLog('使用' + itemData.name + '，解除中毒', 'heal');
+    playSound('heal');
   } else if (itemData.effect === 'identify') {
     if (typeof findFirstUnidentified === 'function' && typeof identifyEquipment === 'function') {
       var eq = findFirstUnidentified();
@@ -361,6 +381,7 @@ function useItem(itemId) {
         addLog('没有需要鉴定的装备', 'info');
       }
     }
+    playSound('pickup');
   } else if (itemData.effect === 'teleport') {
     var revealedPos = [];
     for (var ry = 0; ry < MAP_H; ry++) {
@@ -376,10 +397,14 @@ function useItem(itemId) {
       var dest = pick(revealedPos);
       player.x = dest.x;
       player.y = dest.y;
+      player.state = 'walk';
+      if (player._walkTimer) clearTimeout(player._walkTimer);
+      player._walkTimer = setTimeout(function () { player.state = 'idle'; }, 300);
       addLog('使用' + itemData.name + '，传送到 (' + dest.x + ',' + dest.y + ')', 'info');
     } else {
       addLog('没有可传送的位置', 'info');
     }
+    playSound('pickup');
   }
   renderPlayerPanel();
   saveGame();
@@ -391,4 +416,6 @@ function showVictoryScreen() {
   showScreen('victory');
   renderVictoryScreen();
   addLog('恭喜你征服了地城！获得 3 灵魂碎片！', 'loot');
+  playSound('levelUp');
+  setTimeout(function () { playSound('levelUp'); }, 400);
 }

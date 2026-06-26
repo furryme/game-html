@@ -1,0 +1,6 @@
+
+# Sprite temp files
+**/high-res/preview-*.png
+**/high-res/*.bak
+**/high-res/compare-sizes.png
+**/high-res/*-cropped.png

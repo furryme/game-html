@@ -119,6 +119,7 @@ function startCombat(enemyIdx) {
   }
 
   addLog('遭遇 ' + enemy.name + '！', 'dmg');
+  playSound('attack');
   console.log('[combat] startCombat', enemy.name, 'hp:', enemy.hp, 'atk:', enemy.atk, 'def:', enemy.def, 'paused:', gameState.paused);
 }
 
@@ -136,6 +137,12 @@ function calcDamage(attackerAtk, skillMult, targetDef, isCrit) {
   var raw = attackerAtk * skillMult;
   var damage = Math.max(1, Math.floor(raw * (1 - mitigation)));
   if (isCrit) damage = Math.floor(damage * 1.5);
+
+  // Synergy: boss_hunter — double crit damage vs boss
+  if (isCrit && getSynergy('boss_hunter') && combatState && combatState.enemy && combatState.enemy.boss) {
+    damage = Math.floor(damage * getSynergy('boss_hunter').effect.mult);
+    console.log('[synergy] boss_hunter crit damage doubled vs boss');
+  }
 
   return damage;
 }
@@ -390,6 +397,13 @@ function doSkill(skillId) {
 
   var isCrit = Math.random() * 100 < getClassAdjustedCrit();
   var damage = calcDamage(atk, skill.mult || 1, def, isCrit);
+
+  // Skill sound: heal for healing/buff skills, skill for damage
+  if (skill.type === 'buff' || skill.type === 'buff_self_dmg') {
+    playSound('heal');
+  } else {
+    playSound('skill');
+  }
 
   combatState.enemy.hp -= damage;
   FX.burst('enemy-sprite', skill.color || 'blue');
@@ -943,6 +957,7 @@ function enemyDefeated() {
 
     player.gold += gold;
     addLog('击败 ' + enemy.name + '！获得 ' + exp + ' EXP, ' + gold + ' 金币', 'loot');
+    playSound('pickup');
 
     FX.floatText('+' + exp + ' EXP', 'center');
 
@@ -985,16 +1000,19 @@ function enemyDefeated() {
       console.log('[loot] Boss gem drop: +3 gems, total=' + (player.gems || 0));
 
       // Boss guaranteed equipment drop (1-2 items)
+      var bossDrops = [];
       if (typeof rollLoot === 'function') {
-        var bossLoot1 = rollLoot(gameState.floor);
+        var bossLoot1 = rollLoot(gameState.floor, true);
         if (bossLoot1) {
           addLog('Boss 掉落装备：' + bossLoot1.icon + ' ' + bossLoot1.name + ' (' + RARITY[bossLoot1.rarity].label + ')', 'loot');
           console.log('[loot] Boss equip drop:', bossLoot1.name);
+          bossDrops.push(bossLoot1);
         }
-        var bossLoot2 = rollLoot(gameState.floor);
+        var bossLoot2 = rollLoot(gameState.floor, true);
         if (bossLoot2) {
           addLog('Boss 掉落装备：' + bossLoot2.icon + ' ' + bossLoot2.name + ' (' + RARITY[bossLoot2.rarity].label + ')', 'loot');
           console.log('[loot] Boss equip drop:', bossLoot2.name);
+          bossDrops.push(bossLoot2);
         }
       }
     }
@@ -1026,6 +1044,14 @@ function enemyDefeated() {
 
     console.log('[combat] step6: screen=' + gameState.screen + ' dungeon=' + !!dungeon + ' player=(' + player.x + ',' + player.y + ')');
     if (typeof renderPlayerPanel === 'function') renderPlayerPanel();
+
+    // Auto-show equipment modal for boss drops so player sees the reward
+    if (bossDrops && bossDrops.length > 0 && typeof showEquipmentModal === 'function') {
+      setTimeout(function() {
+        showEquipmentModal();
+      }, 300);
+    }
+
     console.log('[combat] step7: done!');
     saveGame();
   } catch (e) {
@@ -1249,6 +1275,7 @@ function tryFlee() {
 
   var fleeChance = 30 + getPlayerSpd() * 2;
   if (Math.random() * 100 < fleeChance) {
+    playSound('step');
     if (typeof permanent !== 'undefined' && permanent) trackProgress(permanent, 'flee', 1);
     addLog('成功逃跑！', 'info');
     combatState = null;
@@ -1263,6 +1290,7 @@ function tryFlee() {
     if (co2) co2.style.display = 'none';
     if (typeof renderPlayerPanel === 'function') renderPlayerPanel();
   } else {
+    playSound('attack');
     addLog('逃跑失败！', 'dmg');
     renderPlayerAfterAction();
     setTimeout(function () {

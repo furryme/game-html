@@ -21,6 +21,7 @@ function pickRandomEvent() {
 function triggerEvent(event) {
   console.log('[event] trigger', event.id, 'floor', gameState.floor);
   gameState.paused = true;
+  playSound('event');
 
   var html = '<h3>' + event.title + '</h3>';
   html += '<p style="color:#9a9aba; margin-bottom:12px;">' + event.desc + '</p>';

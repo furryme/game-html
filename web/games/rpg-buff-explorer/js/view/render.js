@@ -19,6 +19,37 @@ function refreshCanvasTheme() {
 refreshCanvasTheme();
 window.refreshCanvasTheme = refreshCanvasTheme;
 
+// Helper: get sprite data from SpriteLoader for a given name
+function getPlayerSpriteData(isCombat) {
+  if (!window.currentSpriteLoader || !player || !player.cls) {
+    if (player && player.cls && (!_gpLastLogged || _gpLastLogged.cls !== player.cls)) {
+      console.log('[sprite] getPlayerSpriteData no loader, cls=' + player.cls + ' isCombat=' + isCombat);
+      _gpLastLogged = { cls: player.cls };
+    }
+    return null;
+  }
+  var name = 'player-' + player.cls; // warrior, mage, rogue
+  var result = window.currentSpriteLoader.getEntryWithData(name, isCombat);
+  var ok = result ? 'ok' : 'null';
+  if (!_gpLastLogged || _gpLastLogged.ok !== ok || _gpLastLogged.cls !== player.cls) {
+    console.log('[sprite] getPlayerSpriteData name=' + name + ' isCombat=' + isCombat + ' result=' + ok);
+    _gpLastLogged = { ok: ok, cls: player.cls };
+  }
+  return result;
+}
+var _gpLastLogged = null;
+
+function getEnemySpriteData(enemy, isCombat) {
+  if (!window.currentSpriteLoader) return null;
+  var name;
+  if (enemy.boss) {
+    name = 'boss-' + (enemy.bossId || 'moss_giant');
+  } else {
+    name = 'enemy-' + (enemy.type || 'slime');
+  }
+  return window.currentSpriteLoader.getEntryWithData(name, isCombat);
+}
+
 function initCanvas() {
   gameCanvas = document.getElementById('game-canvas');
   gameCtx = gameCanvas.getContext('2d');
@@ -913,9 +944,9 @@ function renderMap() {
     gameCtx.globalAlpha = alpha;
     try {
       if (enemy.boss) {
-        drawBossSprite(gameCtx, ex - 8, ey - 8, enemy.bossId || 'moss_giant', undefined, false, false, spritePal ? spritePal.enemy : null);
+        drawBossSprite(gameCtx, ex - 8, ey - 8, enemy.bossId || 'moss_giant', undefined, false, false, spritePal ? spritePal.enemy : null, getEnemySpriteData(enemy, false));
       } else {
-        drawEnemySprite(gameCtx, ex, ey, enemy.type, undefined, false, false, spritePal ? spritePal.enemy : null);
+        drawEnemySprite(gameCtx, ex, ey, enemy.type, undefined, false, false, spritePal ? spritePal.enemy : null, getEnemySpriteData(enemy, false));
       }
     } catch (e) {
       gameCtx.fillStyle = enemy.boss ? (CanvasTheme ? CanvasTheme.palette.danger : PAL.crimson) : (CanvasTheme ? CanvasTheme.palette.red : PAL.red);
@@ -926,8 +957,10 @@ function renderMap() {
 
   // Draw player
   var px = player.x * TILE_SIZE, py = player.y * TILE_SIZE;
+  var pState = player.state || 'idle';
+  var facingLeft = player.dirX < 0;
   try {
-    drawPlayerSprite(gameCtx, px, py, 'idle', false, false, spritePal ? spritePal.player : null);
+    drawPlayerSprite(gameCtx, px, py, pState, false, facingLeft, spritePal ? spritePal.player : null, getPlayerSpriteData(false));
   } catch (e) {
     gameCtx.fillStyle = CanvasTheme ? CanvasTheme.palette.blue : PAL.blue;
     gameCtx.fillRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
@@ -1090,10 +1123,10 @@ function renderCombat() {
       var glowPulse = Math.sin(Date.now() / 300) * 0.5 + 0.5;
       gameCtx.shadowColor = te.glowEnabled ? (CanvasTheme ? CanvasTheme.palette.crimson : themePalette.crimson) : PAL.crimson;
       gameCtx.shadowBlur = te.glowEnabled ? te.glowBlur + glowPulse * te.glowBlur * 0.5 : 0;
-      drawBossSprite(gameCtx, ex - 28, ey - 28, enemy.bossId || 'moss_giant', undefined, true, false, spritePal ? spritePal.enemy : null);
+      drawBossSprite(gameCtx, ex - 28, ey - 28, enemy.bossId || 'moss_giant', undefined, true, false, spritePal ? spritePal.enemy : null, getEnemySpriteData(enemy, true));
       gameCtx.shadowBlur = 0;
     } else {
-      drawEnemySprite(gameCtx, ex, ey, enemy.type, undefined, true, false, spritePal ? spritePal.enemy : null);
+      drawEnemySprite(gameCtx, ex, ey, enemy.type, undefined, true, false, spritePal ? spritePal.enemy : null, getEnemySpriteData(enemy, true));
     }
   } catch (e) {
     gameCtx.fillStyle = enemy.boss ? (CanvasTheme ? CanvasTheme.palette.danger : PAL.crimson) : (CanvasTheme ? CanvasTheme.palette.red : PAL.red);
@@ -1105,7 +1138,7 @@ function renderCombat() {
   // Player sprite on left
   var playerBob = Math.sin(spriteAnimFrame * 0.06 + 1) * 1;
   try {
-    drawPlayerSprite(gameCtx, 80, CANVAS_H - 120 + playerBob, 'idle', true, false, spritePal ? spritePal.player : null);
+    drawPlayerSprite(gameCtx, 80, CANVAS_H - 120 + playerBob, 'idle', true, false, spritePal ? spritePal.player : null, getPlayerSpriteData(true));
   } catch (e) {
     gameCtx.fillStyle = CanvasTheme ? CanvasTheme.palette.blue : themePalette.blue;
     gameCtx.fillRect(80, CANVAS_H - 120, 32, 32);

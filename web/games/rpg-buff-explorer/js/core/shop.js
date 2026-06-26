@@ -148,9 +148,9 @@ function openShop(floorNum) {
       typeLabel +
       '</div>' +
       '<div style="color:#f0c040;min-width:50px;text-align:right;">\u{1F4B0} ' + item.price + '</div>' +
-      '<button class="modal-btn" style="min-width:50px;" ' +
-      (canBuy ? 'onclick="shopBuy(\'' + item.id + '\', ' + item.price + ')"' : 'disabled') +
-      '>' + (canBuy ? '购买' : '不足') + '</button>' +
+      '<button class="modal-btn" style="min-width:50px;' + (canBuy ? '' : ' opacity:0.5;') + '" ' +
+      'onclick="shopBuy(\'' + item.id + '\', ' + item.price + ')">' +
+      (canBuy ? '购买' : '不足') + '</button>' +
       '</div>';
   }
 
@@ -167,7 +167,10 @@ function openShop(floorNum) {
  * @param {number} price
  */
 function shopBuy(itemId, price) {
-  if (!player || player.gold < price) return;
+  if (!player || player.gold < price) {
+    playSound('deny');
+    return;
+  }
 
   var shopItem = null;
   for (var i = 0; i < currentShopItems.length; i++) {
