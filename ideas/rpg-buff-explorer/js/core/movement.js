@@ -204,12 +204,22 @@ function movePlayer(dx, dy) {
     }
   }
 
+  // 7b. Shop room check — re-entrant, refreshes items on each entry
+  for (var sri = 0; sri < dungeon.rooms.length; sri++) {
+    var room = dungeon.rooms[sri];
+    if (room.type === 'shop' && player.x === room.cx && player.y === room.cy) {
+      openShop(dungeon.floor);
+      break;
+    }
+  }
+
   // 8. Stairs check
   if (nx === dungeon.stairsPos.x && ny === dungeon.stairsPos.y) {
     if (dungeon.floor === MAX_FLOORS && !gameState.bossDefeated) {
       addLog('必须先击败Boss才能离开！', 'info');
       return;
     }
+    gameState._preStairsPos = { x: player.x - dx, y: player.y - dy };
     showFloorBreak();
     return;
   }
@@ -242,6 +252,18 @@ function movePlayer(dx, dy) {
 
   // 10. Update FOV
   revealLineOfSight(dungeon.grid, player.x, player.y, dungeon.visibility, dungeon.revealed);
+
+  // 10b. Mark room as visited when player is inside its bounds
+  for (var vri = 0; vri < dungeon.rooms.length; vri++) {
+    var vroom = dungeon.rooms[vri];
+    if (player.x >= vroom.x && player.x < vroom.x + vroom.w
+        && player.y >= vroom.y && player.y < vroom.y + vroom.h) {
+      if (!vroom.visited) {
+        vroom.visited = true;
+        console.log('[explore] room visited: type=' + vroom.type + ' at (' + vroom.cx + ',' + vroom.cy + ')');
+      }
+    }
+  }
 
   // 11. Check death (env buff / event damage)
   if (player.hp <= 0) {

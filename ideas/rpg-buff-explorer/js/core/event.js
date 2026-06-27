@@ -23,10 +23,20 @@ function triggerEvent(event) {
   gameState.paused = true;
   playSound('event');
 
+  if (event.effect === 'wandering_shop') {
+    console.log('[event] wandering_shop special handler');
+    // Delegate to shop.js for consistent UI rendering
+    openWanderingShop(gameState.floor);
+    return;
+  }
+
   var html = '<h3>' + event.title + '</h3>';
   html += '<p style="color:#9a9aba; margin-bottom:12px;">' + event.desc + '</p>';
   html += '<button class="modal-btn" onclick="onEventChoice(\'' + event.id + '\', \'A\')">' + event.choiceA.text + '</button>';
   html += '<button class="modal-btn" onclick="onEventChoice(\'' + event.id + '\', \'B\')">' + event.choiceB.text + '</button>';
+  html += '<div style="margin-top:10px; text-align:center;">';
+  html += '<button class="modal-btn" style="font-size:11px; color:#666;" onclick="dismissEvent()">跳过</button>';
+  html += '</div>';
   showModal(html);
 }
 
@@ -53,6 +63,13 @@ function onEventChoice(eventId, choice) {
   closeModal();
   gameState.paused = false;
   renderPlayerPanel();
+}
+
+/** Dismiss the event modal without choosing. Resumes game. */
+function dismissEvent() {
+  console.log('[event] dismissed');
+  closeModal();
+  gameState.paused = false;
 }
 
 /**
@@ -257,3 +274,4 @@ function applyEventEffect(eventId, choice) {
 
 // Global exports for onclick handlers
 window.onEventChoice = onEventChoice;
+window.dismissEvent = dismissEvent;

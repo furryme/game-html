@@ -494,10 +494,28 @@ function showFloorBreak() {
 
   html += '</div>';
 
+  html += '<div style="margin-top:10px; text-align:center;">';
+  html += '<button class="modal-btn" style="border-color:' + textSecondary + '; color:' + textSecondary + '; font-size:11px;" onclick="floorBreakChoice(\'cancel\')">✕ 暂且留下</button>';
+  html += '</div>';
+
   showModal(html);
 }
 
 function floorBreakChoice(choice) {
+  if (choice === 'cancel') {
+    // Player chooses to stay on the current floor
+    if (gameState._preStairsPos) {
+      player.x = gameState._preStairsPos.x;
+      player.y = gameState._preStairsPos.y;
+      delete gameState._preStairsPos;
+    }
+    gameState.paused = false;
+    closeModal();
+    revealLineOfSight(dungeon.grid, player.x, player.y, dungeon.visibility, dungeon.revealed);
+    renderPlayerPanel();
+    if (typeof renderMap === 'function') renderMap();
+    return;
+  }
   var msg = '';
   if (choice === 'weapon') {
     if (enhanceEquippedWeapon()) {
@@ -1069,7 +1087,7 @@ function loadSave(slot) {
       showScreen('dungeon');
       renderPlayerPanel();
       renderHUD();
-      if (typeof renderDungeon === 'function') renderDungeon();
+      if (typeof renderMap === 'function') renderMap();
       addLog('已加载存档位 ' + slot, 'info');
     } else {
       addLog('存档加载失败', 'info');

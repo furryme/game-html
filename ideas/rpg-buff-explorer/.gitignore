@@ -1,3 +1,7 @@
+# Dependencies
+node_modules/
+tools/node_modules/
+
 # Build outputs
 dist/
 .tmp/
@@ -10,3 +14,4 @@ player-warrior-cropped.png
 
 # Test artifacts
 e2e/saves/
+test-results/

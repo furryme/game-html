@@ -571,6 +571,37 @@ function drawShrineIcon(ctx, sx, sy, theme) {
 }
 
 // =====================
+// Shop merchant icon
+// =====================
+
+function drawShopMerchantIcon(ctx, x, y) {
+  var p = PIXEL;
+  var c = CanvasTheme ? CanvasTheme.palette : PAL;
+
+  // Merchant cart - dark brown base
+  ctx.fillStyle = c.brownDk || c.brown || '#5c3a1e';
+  ctx.fillRect(x + 2 * p, y + 8 * p, 10 * p, 3 * p);
+  // Cart wheels
+  ctx.fillStyle = c.stone || '#8a8a8a';
+  ctx.fillRect(x + 3 * p, y + 10 * p, 2 * p, 2 * p);
+  ctx.fillRect(x + 9 * p, y + 10 * p, 2 * p, 2 * p);
+  // Cart body
+  ctx.fillStyle = c.brown || '#8B4513';
+  ctx.fillRect(x + 3 * p, y + 5 * p, 8 * p, 3 * p);
+  // Cart awning (colorful)
+  ctx.fillStyle = c.danger || '#e53935';
+  ctx.fillRect(x + 2 * p, y + 4 * p, 4 * p, p);
+  ctx.fillStyle = c.gold || '#f0c040';
+  ctx.fillRect(x + 6 * p, y + 4 * p, 4 * p, p);
+  // Merchant figure behind cart
+  ctx.fillStyle = c.bone || '#d4c5a9';
+  ctx.fillRect(x + 6 * p, y + p, 2 * p, 3 * p);
+  // Hat
+  ctx.fillStyle = c.grayDk || '#3a3a5a';
+  ctx.fillRect(x + 5 * p, y, 4 * p, p);
+}
+
+// =====================
 // Item icon drawing
 // =====================
 
@@ -898,11 +929,26 @@ function renderMap() {
     var room = dungeon.rooms[ri];
     if (room.type !== 'shrine') continue;
     if (!isRevealed(room.cx, room.cy, dungeon.revealed)) continue;
+    var shrineKey = room.cx + ',' + room.cy;
+    if (gameState.shrinesUsedThisFloor && gameState.shrinesUsedThisFloor[shrineKey]) continue;
     var alpha = entityAlpha(room.cx, room.cy);
     if (alpha <= 0) continue;
     var sx = room.cx * TILE_SIZE, sy = room.cy * TILE_SIZE;
     gameCtx.globalAlpha = alpha;
     drawShrineIcon(gameCtx, sx, sy);
+    gameCtx.globalAlpha = 1;
+  }
+
+  // Draw shop merchant markers
+  for (var ri = 0; ri < dungeon.rooms.length; ri++) {
+    var room = dungeon.rooms[ri];
+    if (room.type !== 'shop') continue;
+    if (!isRevealed(room.cx, room.cy, dungeon.revealed)) continue;
+    var alpha = entityAlpha(room.cx, room.cy);
+    if (alpha <= 0) continue;
+    var sx = room.cx * TILE_SIZE, sy = room.cy * TILE_SIZE;
+    gameCtx.globalAlpha = alpha;
+    drawShopMerchantIcon(gameCtx, sx, sy);
     gameCtx.globalAlpha = 1;
   }
 
@@ -1017,6 +1063,48 @@ function renderMinimap() {
     if (!isRevealed(it.x, it.y, dungeon.revealed)) continue;
     gameCtx.fillStyle = CanvasTheme ? CanvasTheme.palette.gold : PAL.gold;
     gameCtx.fillRect(mx + it.x * mm, my + it.y * mm, mm, mm);
+  }
+
+  // Room type markers at room centers (visited or revealed)
+  var roomTypeColor = {
+    'shop': '#FFD700',      // gold
+    'shrine': '#BF80FF',    // purple
+    'loot': '#FFD700',      // gold
+    'resting': '#69F0AE',   // green
+    'trap': '#FF6E40',      // orange
+    'combat': '#FF5252',    // red
+  };
+  var currentRoomIdx = -1;
+  for (var ri = 0; ri < dungeon.rooms.length; ri++) {
+    var room = dungeon.rooms[ri];
+    var isCurrentRoom = (player.x >= room.x && player.x < room.x + room.w
+                     && player.y >= room.y && player.y < room.y + room.h);
+    if (isCurrentRoom) currentRoomIdx = ri;
+
+    var centerRevealed = isRevealed(room.cx, room.cy, dungeon.revealed);
+    if (!room.visited && !centerRevealed) continue;
+
+    var color = roomTypeColor[room.type] || '#888888';
+    var sx = mx + room.cx * mm;
+    var sy = my + room.cy * mm;
+
+    if (isCurrentRoom) {
+      // Current room: bright outline ring (3x3 with hollow center)
+      gameCtx.fillStyle = '#FFFFFF';
+      gameCtx.fillRect(sx - 1, sy - 1, 5, 1);
+      gameCtx.fillRect(sx - 1, sy + 3, 5, 1);
+      gameCtx.fillRect(sx - 1, sy, 1, 3);
+      gameCtx.fillRect(sx + 3, sy, 1, 3);
+      // Inner dot in room type color
+      gameCtx.fillStyle = color;
+      gameCtx.fillRect(sx, sy, 3, 3);
+    } else {
+      // Visited room: small colored dot
+      gameCtx.globalAlpha = 0.55;
+      gameCtx.fillStyle = color;
+      gameCtx.fillRect(sx, sy, mm, mm);
+      gameCtx.globalAlpha = 1.0;
+    }
   }
 
   // Player: bright white dot with blink (toggle every 600ms)

@@ -189,6 +189,7 @@ function blobGenerate(grid, roomTarget) {
       cx: Math.floor((minX + maxX) / 2),
       cy: Math.floor((minY + maxY) / 2),
       type: 'empty',
+      visited: false,
     });
   }
 
@@ -272,7 +273,7 @@ function carveCorridor(grid, roomA, roomB, width) {
   carve(x, y);
 }
 
-/** Assign room types (combat, loot, trap, resting, shrine, empty). */
+/** Assign room types (combat, loot, trap, resting, shrine, shop, empty). */
 function assignRoomTypes(rooms, floorNum) {
   rooms[0].type = 'empty';
   rooms[rooms.length - 1].type = 'combat';
@@ -280,10 +281,11 @@ function assignRoomTypes(rooms, floorNum) {
   var middle = rooms.slice(1, -1);
   shuffle(middle);
 
-  // Ensure at least 1 loot room
-  if (middle.length > 0) middle[0].type = 'loot';
+  var assigned = 0;
+  if (middle.length > 0) { middle[assigned].type = 'loot'; assigned++; }
+  if (middle.length >= 3) { middle[assigned].type = 'shop'; assigned++; }
 
-  for (var i = 1; i < middle.length; i++) {
+  for (var i = assigned; i < middle.length; i++) {
     var roll = Math.random() * 100;
     if (roll < 45) middle[i].type = 'combat';
     else if (roll < 60) middle[i].type = 'loot';

@@ -43,11 +43,10 @@ const EVENT_DEFS = [
   {
     id: 'wandering_merchant',
     title: '流浪商人',
-    desc: '一个推着小推车的商人在走廊转角出现。"冒险者？我有好东西要卖。"',
+    desc: '一个推着小推车的商人在走廊转角出现。"冒险者？今天特价。"',
     category: 'npc',
     minFloor: 1,
-    choiceA: { text: '[A] 买打折药水（花费 15 金币）', effect: 'buyPotion', params: { cost: 15 } },
-    choiceB: { text: '[B] 出售闲置装备', effect: 'sellEquipment', params: {} },
+    effect: 'wandering_shop',
   },
   {
     id: 'injured_knight',
