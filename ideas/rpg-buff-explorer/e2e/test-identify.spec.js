@@ -33,7 +33,7 @@ test.describe("Equipment Identification & Floor Break", () => {
     await startGame(page);
   });
 
-  test("floor break modal shows with 4 options", async ({ page }) => {
+  test("floor break modal shows with 5 options", async ({ page }) => {
     // Give player enough gems so the enhance buttons are enabled
     await page.evaluate(() => {
       player.gems = 6;
@@ -68,11 +68,11 @@ test.describe("Equipment Identification & Floor Break", () => {
     });
     expect(display).toBe("flex");
 
-    // Should have 4 .modal-btn elements inside
+    // Should have 5 .modal-btn elements inside (4 options + cancel)
     const btnCount = await page.evaluate(() => {
       return document.querySelectorAll("#modal-overlay .modal-btn").length;
     });
-    expect(btnCount).toBe(4);
+    expect(btnCount).toBe(5);
   });
 
   test("enhancing weapon costs 3 gems and adds +2 ATK", async ({ page }) => {

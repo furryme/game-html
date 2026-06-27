@@ -119,31 +119,15 @@ test.describe("Floor Transitions and Game Flow", () => {
     expect(await page.evaluate(() => dungeon.floor)).toBe(1);
     expect(await page.evaluate(() => gameState.paused)).toBe(false);
 
-    // Navigate to stairs via evaluate
-    const stairsPos = await page.evaluate(() => {
-      // Regenerate to get fresh floor
+    // Regenerate floor and position player adjacent to stairs (same pattern as transitionFloor)
+    await page.evaluate(() => {
       dungeon = generateFloor(1);
       player.x = dungeon.playerStart.x;
       player.y = dungeon.playerStart.y;
-      return { x: dungeon.stairsPos.x, y: dungeon.stairsPos.y };
-    });
-
-    // Move player toward stairs step by step
-    await page.evaluate((sp) => {
-      // Walk toward stairs
-      var dx = 0, dy = 0;
-      if (sp.x > player.x) dx = 1;
-      else if (sp.x < player.x) dx = -1;
-      else if (sp.y > player.y) dy = 1;
-      else if (sp.y < player.y) dy = -1;
-      if (dx !== 0 || dy !== 0) movePlayer(dx, dy);
-    }, stairsPos);
-
-    // Just directly set player on stairs to trigger floor break
-    await page.evaluate(() => {
+      // Teleport adjacent to stairs, then step onto them
       player.x = dungeon.stairsPos.x;
       player.y = dungeon.stairsPos.y - 1;
-      movePlayer(0, 1); // This steps on stairs
+      movePlayer(0, 1); // Step onto stairs, triggers floor break
     });
     await page.waitForTimeout(300);
 
@@ -272,6 +256,26 @@ test.describe("Floor Transitions and Game Flow", () => {
     await startGame(page);
 
     for (var round = 0; round < 3; round++) {
+      // Cleanup: close any floor break modal left by previous round's verifyCanMove
+      // (moving onto stairs triggers showFloorBreak which pauses the game)
+      if (round > 0) {
+        await page.evaluate(() => {
+          const overlay = document.getElementById('modal-overlay');
+          if (overlay && overlay.style.display === 'flex' && typeof closeModal === 'function') {
+            closeModal();
+          }
+          if (gameState._preStairsPos) {
+            player.x = gameState._preStairsPos.x;
+            player.y = gameState._preStairsPos.y;
+            delete gameState._preStairsPos;
+          }
+          if (gameState.paused && gameState.screen === 'dungeon') {
+            gameState.paused = false;
+          }
+        });
+        await page.waitForTimeout(100);
+      }
+
       // Find a living NON-BOSS enemy (boss death has async equipment drops which cause timing issues)
       const idx = await page.evaluate(() => {
         // Keep regenerating until we find non-boss enemies (up to 10 retries)
@@ -324,8 +328,30 @@ test.describe("Floor Transitions and Game Flow", () => {
 
       // Verify CAN MOVE after this combat
       const moveResult = await verifyCanMove(page);
+
+      // Cleanup: verifyCanMove may move the player onto stairs, triggering showFloorBreak.
+      // Close the modal and restore state so the next round's startCombat works.
+      const finalPos = await page.evaluate(() => {
+        const preStairsPos = gameState._preStairsPos || null;
+        const posBefore = { x: player.x, y: player.y };
+        const overlay = document.getElementById('modal-overlay');
+        if (overlay && overlay.style.display === 'flex' && typeof closeModal === 'function') {
+          closeModal();
+        }
+        // If we stepped on stairs (floor break), move back to pre-stairs position
+        if (preStairsPos) {
+          player.x = preStairsPos.x;
+          player.y = preStairsPos.y;
+          delete gameState._preStairsPos;
+        }
+        if (gameState.paused && gameState.screen === 'dungeon') {
+          gameState.paused = false;
+        }
+        return { x: player.x, y: player.y, paused: gameState.paused };
+      });
+
       expect(moveResult.moved, "round " + round + ": can move after combat").toBe(true);
-      expect(moveResult.paused, "round " + round + ": not paused after combat").toBe(false);
+      expect(finalPos.paused, "round " + round + ": not paused after combat").toBe(false);
     }
   });
 

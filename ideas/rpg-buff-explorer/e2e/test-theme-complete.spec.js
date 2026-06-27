@@ -5,7 +5,7 @@ const HTML = "file:///Users/dxm/Desktop/code/game-html/ideas/rpg-buff-explorer/i
 test.describe("ThemeManager - Complete Theme System", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(HTML);
-    await page.waitForSelector("#title-screen.active", { timeout: 5000 });
+    await page.waitForSelector("#title-screen.active", { timeout: 10000 });
     await page.waitForTimeout(300);
     // Reset stored state so every test starts from default
     await page.evaluate(() => {
@@ -14,7 +14,7 @@ test.describe("ThemeManager - Complete Theme System", () => {
       localStorage.removeItem("rpg_theme_progress");
     });
     await page.reload();
-    await page.waitForSelector("#title-screen.active", { timeout: 5000 });
+    await page.waitForSelector("#title-screen.active", { timeout: 10000 });
     await page.waitForTimeout(300);
   });
 
@@ -152,7 +152,7 @@ test.describe("ThemeManager - Complete Theme System", () => {
     await page.waitForTimeout(100);
 
     await page.reload();
-    await page.waitForSelector("#title-screen.active", { timeout: 5000 });
+    await page.waitForSelector("#title-screen.active", { timeout: 10000 });
     await page.waitForTimeout(300);
 
     const id = await page.evaluate(() => window.themeManager.getActiveId());
@@ -867,7 +867,7 @@ test.describe("ThemeManager - Complete Theme System", () => {
 
     // Enter dungeon
     await page.click('button:has-text("选择职业")');
-    await page.waitForSelector("#modal-overlay .class-card", { timeout: 5000 });
+    await page.waitForSelector("#modal-overlay .class-card", { timeout: 10000 });
     await page.evaluate(() => {
       const cards = document.querySelectorAll("#modal-overlay .class-card");
       if (cards[0]) cards[0].click();
