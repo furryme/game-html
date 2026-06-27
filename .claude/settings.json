@@ -1,5 +1,29 @@
 {
   "worktree": {
     "bgIsolation": "none"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/enforce-workflow-rule.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/block-js-read.sh"
+          }
+        ]
+      }
+    ]
   }
 }
