@@ -1,0 +1,27 @@
+{
+  "source": "source-video.mp4",
+  "source_fps": 30,
+  "total_frames": 302,
+  "frame_size": "720x720",
+  "denoise": {
+    "script": "../../tools/denoise-sprite.py",
+    "command": "python3 ../../tools/denoise-sprite.py keyframes/*.png -i",
+    "params": { "sat_threshold": 30, "bright_threshold": 200 }
+  },
+  "keyframes": [
+    { "file": "keyframes/kf_0001.png", "frame": 1,  "use": "idle" },
+    { "file": "keyframes/kf_0016.png", "frame": 16, "use": "walk" },
+    { "file": "keyframes/kf_0031.png", "frame": 31, "use": "walk" },
+    { "file": "keyframes/kf_0047.png", "frame": 47, "use": "walk" },
+    { "file": "keyframes/kf_0062.png", "frame": 62, "use": "walk" },
+    { "file": "keyframes/kf_0077.png", "frame": 77, "use": "walk" },
+    { "file": "keyframes/kf_0092.png", "frame": 92, "use": "walk" },
+    { "file": "keyframes/kf_0107.png", "frame": 107, "use": "walk" },
+    { "file": "keyframes/kf_0123.png", "frame": 123, "use": "idle (cycle end, same as frame 1)" }
+  ],
+  "repro": [
+    "ffmpeg -i source-video.mp4 -vf fps=30 /tmp/frames/%04d.png",
+    "ffmpeg -i source-video.mp4 -vf fps=30 -vf 'select=gt(scene\\,0.3)' -frame_pts 1 /tmp/keyframes/kf_%04d.png",
+    "python3 ../../tools/denoise-sprite.py keyframes/*.png -i"
+  ]
+}
