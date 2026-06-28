@@ -48,12 +48,19 @@ function updateTitleScreen() {
   btns.innerHTML =
     '<button class="start-btn" onclick="showClassSelection()">选择职业</button>' +
     continueHtml +
-    '<button class="start-btn" style="margin-top:8px;border-color:#9a9aba;" onclick="showTalentScreen()">天赋 (' + permanent.soulShards + ' 碎片)</button>';
+    '<button class="start-btn" style="margin-top:8px;border-color:#9a9aba;" onclick="showTalentScreen()">天赋 (' + permanent.soulShards + ' 碎片)</button>' +
+    '<button class="start-btn" style="margin-top:8px;border-color:#40c07a;" onclick="toggleBGM()">🎵 BGM: ' + (window.isBGMPlaying ? (isBGMPlaying() ? '开' : '关') : '关') + '</button>';
+  console.log('[BGM] updateTitleScreen, BGM button text:', (window.isBGMPlaying ? (isBGMPlaying() ? '开' : '关') : '关'));
 
   // Check theme unlocks on title load
   if (window.themeManager) {
     var stats = window.themeManager.loadStats();
     window.themeManager.checkUnlockConditions(stats);
+  }
+
+  // Update BGM button state
+  if (typeof updateBGMButton === 'function') {
+    updateBGMButton();
   }
 }
 

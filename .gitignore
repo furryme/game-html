@@ -1,3 +1,9 @@
 .claude/settings.local.json
 .DS_Store
 *.bundle
+
+# Node dependencies
+node_modules/
+
+# Audio build artifacts (regenerated from source video via BGM-BUILD.md)
+ideas/rpg-buff-explorer/audio-work/

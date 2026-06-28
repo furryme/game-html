@@ -129,6 +129,8 @@ function equipPanelHTML() {
   var equipBtnColor = invEquipCount > 0 ? 'border-color:#ffd700; color:#ffd700;' : '';
   html += '<button class="equip-modal-btn" style="' + equipBtnColor + '" onclick="showEquipmentModal()">装备' + equipBadge + '</button>';
   html += '<button class="equip-modal-btn" onclick="showSaveSlotPicker()">存档</button>';
+  var bgmState = (typeof isBGMPlaying === 'function' && isBGMPlaying()) ? '开' : '关';
+  html += '<button class="equip-modal-btn" onclick="toggleBGM()">🎵 BGM: ' + bgmState + '</button>';
   html += '</div>';
   return html;
 }
